@@ -108,7 +108,7 @@ type NotificationSettingsForm = z.infer<typeof notificationSettingsSchema>;
 type FinancialSettingsForm = z.infer<typeof financialSettingsSchema>;
 type SecuritySettingsForm = z.infer<typeof securitySettingsSchema>;
 
-export default function Settings() {
+export default function CompanyProfile() {
   const [activeTab, setActiveTab] = useState("company");
   const [showTaxId, setShowTaxId] = useState(false);
   
@@ -363,11 +363,11 @@ export default function Settings() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center">
-            <SettingsIcon className="w-6 h-6 mr-2" />
-            Company Settings
+            <Building2 className="w-6 h-6 mr-2" />
+            Company Profile
           </h1>
           <p className="text-muted-foreground">
-            Manage settings for {currentCompany.name}
+            Manage your company information and settings
           </p>
         </div>
         

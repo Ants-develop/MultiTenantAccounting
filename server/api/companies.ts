@@ -508,5 +508,94 @@ router.put('/:id/restore', async (req, res) => {
   }
 });
 
+// Complete company setup (initial configuration on first login)
+router.post('/company/setup', async (req, res) => {
+  try {
+    const userId = req.session.userId!;
+    const { company, financial } = req.body;
+
+    // Get user's first company (should exist from initial setup)
+    const userCompanies = await storage.getCompaniesByUser(userId);
+    if (!userCompanies || userCompanies.length === 0) {
+      return res.status(400).json({ message: 'No company found for user' });
+    }
+
+    const companyId = userCompanies[0].id;
+
+    // Update company with provided information
+    const updatedCompany = await storage.updateCompany(companyId, {
+      name: company.name,
+      code: company.code,
+      address: company.address,
+      phone: company.phone,
+      email: company.email,
+      taxId: company.taxId,
+    });
+
+    // Update or create company settings
+    let settings = await getCompanySettings(companyId);
+    
+    if (!settings) {
+      await createCompanySettings({
+        companyId,
+        fiscalYearStart: financial.fiscalYearStart,
+        currency: financial.currency,
+        dateFormat: financial.dateFormat,
+        decimalPlaces: financial.decimalPlaces,
+        // Set reasonable defaults for other settings
+        emailNotifications: true,
+        invoiceReminders: true,
+        paymentAlerts: true,
+        reportReminders: false,
+        systemUpdates: true,
+        autoNumbering: true,
+        invoicePrefix: "INV",
+        billPrefix: "BILL",
+        journalPrefix: "JE",
+        negativeFormat: "minus",
+        requirePasswordChange: false,
+        passwordExpireDays: 90,
+        sessionTimeout: 30,
+        enableTwoFactor: false,
+        allowMultipleSessions: true,
+        bankConnection: false,
+        paymentGateway: false,
+        taxService: false,
+        reportingTools: false,
+        autoBackup: false,
+        backupFrequency: "weekly",
+        retentionDays: 30,
+        backupLocation: "cloud",
+      });
+    } else {
+      await updateCompanySettings(companyId, {
+        fiscalYearStart: financial.fiscalYearStart,
+        currency: financial.currency,
+        dateFormat: financial.dateFormat,
+        decimalPlaces: financial.decimalPlaces,
+      });
+    }
+
+    // Log activity
+    await activityLogger.logActivity({
+      userId,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent') || undefined,
+    }, {
+      action: ACTIVITY_ACTIONS.COMPANY_CREATE,
+      resource: RESOURCE_TYPES.COMPANY,
+      resourceId: companyId,
+    });
+
+    res.json({ 
+      message: 'Company setup completed successfully',
+      company: updatedCompany 
+    });
+  } catch (error) {
+    console.error('Company setup error:', error);
+    res.status(500).json({ message: error instanceof Error ? error.message : 'Internal server error' });
+  }
+});
+
 export default router;
 

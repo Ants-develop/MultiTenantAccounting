@@ -26,7 +26,7 @@ import ImportStatement from "@/pages/bank/ImportStatement";
 import FinancialStatements from "@/pages/reports/FinancialStatements";
 import UserManagement from "@/pages/admin/UserManagement";
 import Profile from "@/pages/Profile";
-import Settings from "@/pages/Settings";
+import CompanyProfile from "@/pages/CompanyProfile";
 import NotFound from "@/pages/not-found";
 import RoleManagement from "@/pages/admin/RoleManagement";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
@@ -42,9 +42,10 @@ import TanStackTableDemo from "@/pages/testing/TanStackTableDemo";
 import AgGridDemo from "@/pages/testing/AgGridDemo";
 import SyncfusionGridDemo from "@/pages/testing/SyncfusionGridDemo";
 import TabulatorDemo from "@/pages/testing/TabulatorDemo";
+import Setup from "@/pages/Setup";
 
 function ProtectedRoute({ component: Component, hideSidebar = false }: { component: React.ComponentType; hideSidebar?: boolean }) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, needsSetup } = useAuth();
 
   if (isLoading) {
     return (
@@ -61,6 +62,11 @@ function ProtectedRoute({ component: Component, hideSidebar = false }: { compone
     return <Login />;
   }
 
+  // If setup is needed, redirect to setup page
+  if (needsSetup) {
+    return <Setup />;
+  }
+
   return (
     <AppLayout hideSidebar={hideSidebar}>
       <ErrorBoundary>
@@ -74,6 +80,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
+      <Route path="/setup" component={Setup} />
       <Route path="/" component={() => <ProtectedRoute component={Home} />} />
       <Route path="/home" component={() => <ProtectedRoute component={Home} />} />
       <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
@@ -93,7 +100,8 @@ function Router() {
       <Route path="/user-management" component={() => <ProtectedRoute component={UserManagement} />} />
       <Route path="/role-management" component={() => <ProtectedRoute component={RoleManagement} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={Settings} />} />
+      <Route path="/company-profile" component={() => <ProtectedRoute component={CompanyProfile} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={CompanyProfile} />} />
       <Route path="/global-administration" component={() => <ProtectedRoute component={GlobalAdministration} />} />
       <Route path="/mssql-import" component={() => <ProtectedRoute component={MSSQLImport} />} />
       <Route path="/audit" component={() => <ProtectedRoute component={AuditDashboard} />} />
