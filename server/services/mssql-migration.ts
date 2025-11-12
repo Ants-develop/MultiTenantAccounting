@@ -431,12 +431,12 @@ export async function migrateGeneralLedger(
               // Debug: Log array length
               if (progress.processedRecords === 0) {
                 console.log(`🔍 Debug first insert - val.length: ${val.length}`);
-                console.log(`🔍 Expected 55 values for 55 columns`);
+                console.log(`🔍 Expected 57 values for 57 columns`);
               }
               
               // Use Drizzle SQL template for proper parameter binding
               await db.execute(drizzleSql`INSERT INTO journal_entries (
-                company_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+                client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
                 tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
                 responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
                 id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
@@ -546,7 +546,7 @@ export async function migrateGeneralLedger(
           try {
             // Use Drizzle SQL template for proper parameter binding
             await db.execute(drizzleSql`INSERT INTO journal_entries (
-              company_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+              client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
               tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
               responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
               id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
