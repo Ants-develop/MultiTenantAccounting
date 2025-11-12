@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS rs.users (
   main_password_hash VARCHAR(255),
   user_id VARCHAR(50),
   un_id VARCHAR(50),
-  company_id INTEGER,
+  client_id INTEGER,
   company_tin VARCHAR(20),
   created_by_user_id INTEGER,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS rs.users (
 
 -- Add foreign key constraints
 ALTER TABLE rs.users
-  ADD CONSTRAINT rs_users_company_id_fkey
-  FOREIGN KEY (company_id) REFERENCES public.clients(id) ON DELETE SET NULL;
+  ADD CONSTRAINT rs_users_client_id_fkey
+  FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE SET NULL;
 
 ALTER TABLE rs.users
   ADD CONSTRAINT rs_users_created_by_user_id_fkey
@@ -40,7 +40,7 @@ ALTER TABLE rs.users
 
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_rs_users_company_name ON rs.users(company_name);
-CREATE INDEX IF NOT EXISTS idx_rs_users_company_id ON rs.users(company_id);
+CREATE INDEX IF NOT EXISTS idx_rs_users_client_id ON rs.users(client_id);
 CREATE INDEX IF NOT EXISTS idx_rs_users_company_tin ON rs.users(company_tin);
 
 -- Create trigger function for auto-updating updated_at
@@ -386,8 +386,8 @@ CREATE INDEX idx_waybill_invoices_company_tin ON rs.waybill_invoices("COMPANY_TI
 -- Comments
 COMMENT ON SCHEMA rs IS 'Georgian Revenue Service (RS.ge) integration data';
 COMMENT ON TABLE rs.users IS 'RS.ge API credentials per company';
-COMMENT ON TABLE rs.seller_invoices IS 'Sales invoices issued by companies';
-COMMENT ON TABLE rs.buyer_invoices IS 'Purchase invoices received by companies';
+COMMENT ON TABLE rs.seller_invoices IS 'Sales invoices issued by clients';
+COMMENT ON TABLE rs.buyer_invoices IS 'Purchase invoices received by clients';
 COMMENT ON TABLE rs.spec_seller_invoices IS 'Special seller invoices (NSAF API)';
 COMMENT ON TABLE rs.spec_buyer_invoices IS 'Special buyer invoices (NSAF API)';
 COMMENT ON TABLE rs.sellers_waybills IS 'Outgoing waybills';

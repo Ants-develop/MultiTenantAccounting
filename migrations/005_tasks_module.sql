@@ -8,7 +8,7 @@
 -- Tasks Table
 CREATE TABLE IF NOT EXISTS tasks (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
   description TEXT,
   status VARCHAR(50) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   completed_at TIMESTAMP
 );
 
-CREATE INDEX idx_tasks_company_id ON tasks(company_id);
+CREATE INDEX idx_tasks_client_id ON tasks(client_id);
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_priority ON tasks(priority);
 CREATE INDEX idx_tasks_created_by ON tasks(created_by);

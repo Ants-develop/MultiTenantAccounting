@@ -8,7 +8,7 @@
 -- Bank Accounts Table
 CREATE TABLE IF NOT EXISTS bank_accounts (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   account_name VARCHAR(255) NOT NULL,
   account_number VARCHAR(100),
   iban VARCHAR(50),
@@ -22,14 +22,14 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_bank_accounts_company_id ON bank_accounts(company_id);
+CREATE INDEX idx_bank_accounts_client_id ON bank_accounts(client_id);
 CREATE INDEX idx_bank_accounts_is_default ON bank_accounts(is_default);
 CREATE INDEX idx_bank_accounts_is_active ON bank_accounts(is_active);
 
 -- Raw Bank Transactions Table
 CREATE TABLE IF NOT EXISTS raw_bank_transactions (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE CASCADE,
   
   -- Transaction identification
@@ -77,10 +77,10 @@ CREATE TABLE IF NOT EXISTS raw_bank_transactions (
   updated_at TIMESTAMP DEFAULT NOW(),
   
   -- Constraints
-  UNIQUE(company_id, unique_transaction_id)
+  UNIQUE(client_id, unique_transaction_id)
 );
 
-CREATE INDEX idx_raw_bank_transactions_company_id ON raw_bank_transactions(company_id);
+CREATE INDEX idx_raw_bank_transactions_client_id ON raw_bank_transactions(client_id);
 CREATE INDEX idx_raw_bank_transactions_bank_account_id ON raw_bank_transactions(bank_account_id);
 CREATE INDEX idx_raw_bank_transactions_document_date ON raw_bank_transactions(document_date);
 CREATE INDEX idx_raw_bank_transactions_movement_id ON raw_bank_transactions(movement_id);
@@ -88,7 +88,7 @@ CREATE INDEX idx_raw_bank_transactions_movement_id ON raw_bank_transactions(move
 -- Normalized Bank Transactions Table - Validated transactions with sequence and balance checks
 CREATE TABLE IF NOT EXISTS normalized_bank_transactions (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id) ON DELETE CASCADE,
   raw_transaction_id INTEGER NOT NULL REFERENCES raw_bank_transactions(id) ON DELETE CASCADE,
   
@@ -124,7 +124,7 @@ CREATE TABLE IF NOT EXISTS normalized_bank_transactions (
   UNIQUE(raw_transaction_id)
 );
 
-CREATE INDEX idx_normalized_bank_transactions_company_id ON normalized_bank_transactions(company_id);
+CREATE INDEX idx_normalized_bank_transactions_client_id ON normalized_bank_transactions(client_id);
 CREATE INDEX idx_normalized_bank_transactions_bank_account_id ON normalized_bank_transactions(bank_account_id);
 CREATE INDEX idx_normalized_bank_transactions_raw_transaction_id ON normalized_bank_transactions(raw_transaction_id);
 CREATE INDEX idx_bank_account_sequence_idx ON normalized_bank_transactions(bank_account_id, sequence_number);
