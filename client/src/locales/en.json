@@ -1,0 +1,283 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "delete": "Delete",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "yes": "Yes",
+    "no": "No",
+    "ok": "OK",
+    "close": "Close",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "reset": "Reset",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "status": "Status",
+    "date": "Date",
+    "amount": "Amount",
+    "description": "Description",
+    "name": "Name",
+    "email": "Email",
+    "phone": "Phone",
+    "address": "Address",
+    "company": "Company",
+    "user": "User",
+    "role": "Role",
+    "permissions": "Permissions",
+    "all": "All"
+  },
+  "navigation": {
+    "dashboard": "Dashboard",
+    "chartOfAccounts": "Chart of Accounts",
+    "generalLedger": "General Ledger",
+    "accountsReceivable": "Accounts Receivable",
+    "accountsPayable": "Accounts Payable",
+    "bankReconciliation": "Bank Reconciliation",
+    "journalEntries": "Journal Entries",
+    "accountingOperations": "Accounting Operations",
+    "sales": "Sales",
+    "purchases": "Purchases",
+    "bankStatementUpload": "Bank Statement Upload",
+    "invoices": "Invoices",
+    "financialStatements": "Financial Statements",
+    "userManagement": "User Management",
+    "roleManagement": "Role Management",
+    "globalAdministration": "Global Administration",
+    "audit": "Audit Analytics",
+    "rsAdministration": "RS Administration",
+    "profile": "Profile",
+    "settings": "Settings"
+  },
+  "audit": {
+    "title": "Audit Analytics",
+    "selectTable": "Select Audit Report"
+  },
+  "rs": {
+    "title": "RS Integration - Revenue Service Data",
+    "selectTable": "Select Data Type"
+  },
+  "rsAdmin": {
+    "title": "RS Administration",
+    "description": "Validate Revenue Service credentials and store them securely for the selected company.",
+    "actions": {
+      "refresh": "Refresh",
+      "startNew": "Start New",
+      "save": "Save Credentials",
+      "update": "Update Credentials",
+      "saving": "Saving...",
+      "updating": "Updating...",
+      "edit": "Edit",
+      "delete": "Delete",
+      "cancel": "Cancel",
+      "confirmDelete": "Delete Credentials"
+    },
+    "toasts": {
+      "mainValidatedTitle": "Main user verified",
+      "mainValidatedDescription": "Found {{count}} service user(s) for the provided credentials",
+      "serviceValidatedTitle": "Service user verified",
+      "serviceValidatedDescription": "Service credentials have been validated successfully.",
+      "credentialsSavedTitle": "Credentials saved",
+      "credentialsSavedDescription": "RS credentials have been stored for this company.",
+      "credentialsUpdatedTitle": "Credentials updated",
+      "credentialsUpdatedDescription": "RS credentials have been updated.",
+      "credentialsDeletedTitle": "Credentials deleted",
+      "credentialsDeletedDescription": "Stored RS credentials have been removed.",
+      "errorTitle": "Action failed"
+    },
+    "validation": {
+      "passwordsRequired": "Main and service passwords are required when creating credentials.",
+      "tinMismatch": "Company TIN mismatch: RS returned TIN \"{{rsTin}}\" but selected company code is \"{{companyCode}}\". Please ensure you are using the correct RS credentials for this company."
+    },
+    "accessDenied": {
+      "title": "Global administrator access required",
+      "description": "Only global administrators can configure RS authentication. Please contact an administrator if you need access."
+    },
+    "steps": {
+      "mainUser": {
+        "title": "Step 1 · Validate Main User",
+        "description": "Authenticate your primary RS user to retrieve the list of service users.",
+        "validating": "Validating...",
+        "submit": "Validate Main User",
+        "serviceUsersFound": "{{count}} service user(s) available"
+      },
+      "serviceUser": {
+        "title": "Step 2 · Validate Service User",
+        "description": "Select a service user and confirm the company details returned by RS.",
+        "validating": "Validating...",
+        "submit": "Validate Service User"
+      },
+      "credentials": {
+        "title": "Step 3 · Save Credentials",
+        "description": "Store or update the RS credentials that will be used for automated synchronization."
+      }
+    },
+    "labels": {
+      "mainUsername": "Main RS username",
+      "mainPassword": "Main RS password",
+      "serviceUser": "Service user",
+      "servicePassword": "Service password",
+      "companyTin": "Company TIN",
+      "companyName": "Company name",
+      "rsUserId": "RS user ID",
+      "notAvailable": "N/A"
+    },
+    "placeholders": {
+      "selectServiceUser": "Select a service user",
+      "leaveBlank": "Leave blank to keep current password",
+      "companyName": "Company legal name",
+      "optional": "Optional"
+    },
+    "hints": {
+      "updatePasswords": "Leave password fields empty to keep the currently stored passwords."
+    },
+    "storedCredentials": {
+      "title": "Stored Credentials",
+      "description": "Manage the RS credentials associated with this company.",
+      "loading": "Loading stored credentials...",
+      "empty": "No RS credentials have been stored for this company yet."
+    },
+    "table": {
+      "company": "Company",
+      "companyTin": "TIN",
+      "mainUser": "Main user",
+      "serviceUser": "Service user",
+      "updatedAt": "Updated",
+      "actions": "Actions"
+    },
+    "deleteDialog": {
+      "title": "Delete RS credentials",
+      "description": "Are you sure you want to remove RS credentials for \"{{company}}\"?"
+    }
+  },
+  "auth": {
+    "login": "Login",
+    "logout": "Logout",
+    "username": "Username",
+    "password": "Password",
+    "rememberMe": "Remember Me",
+    "forgotPassword": "Forgot Password?",
+    "loginButton": "Sign In",
+    "loginError": "Invalid username or password",
+    "loginSuccess": "Successfully logged in",
+    "register": "Register",
+    "signingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "createAccount": "Create Account",
+    "usernameOrEmail": "Username or Email",
+    "enterUsername": "Enter your username or email",
+    "enterPassword": "Enter your password",
+    "firstName": "First Name",
+    "lastName": "Last Name",
+    "email": "Email",
+    "enterEmail": "Enter your email",
+    "chooseUsername": "Choose a username",
+    "createPassword": "Create a password",
+    "usernameRequired": "Username is required",
+    "passwordRequired": "Password is required",
+    "usernameMinLength": "Username must be at least 3 characters",
+    "emailRequired": "Valid email is required",
+    "passwordMinLength": "Password must be at least 6 characters",
+    "firstNameRequired": "First name is required",
+    "lastNameRequired": "Last name is required"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "welcome": "Welcome to your accounting dashboard",
+    "totalRevenue": "Total Revenue",
+    "outstandingInvoices": "Outstanding Invoices",
+    "cashBalance": "Cash Balance",
+    "monthlyExpenses": "Monthly Expenses",
+    "revenueTrend": "Revenue Trend",
+    "quickActions": "Quick Actions",
+    "recentTransactions": "Recent Transactions",
+    "viewAll": "View All",
+    "noCompanySelected": "No Company Selected",
+    "selectCompanyMessage": "Please select a company to view the dashboard.",
+    "createInvoice": "Create Invoice",
+    "billCustomers": "Bill your customers",
+    "recordPayment": "Record Payment",
+    "logPayments": "Log incoming payments",
+    "journalEntry": "Journal Entry",
+    "manualEntry": "Manual accounting entry",
+    "bankReconciliation": "Bank Reconciliation",
+    "matchTransactions": "Match transactions",
+    "noTransactions": "No transactions found. Create your first journal entry to get started.",
+    "loadingTransactions": "Loading transactions...",
+    "entryNumber": "Entry Number",
+    "posted": "Posted",
+    "draft": "Draft",
+    "acrossAccounts": "Across 3 accounts",
+    "invoicesPending": "15 invoices pending",
+    "fromLastMonth": "from last month"
+  },
+  "topBar": {
+    "newEntry": "New Entry",
+    "newInvoice": "New Invoice",
+    "newAccount": "New Account",
+    "newUser": "New User",
+    "newRole": "New Role",
+    "redirecting": "Redirecting",
+    "redirectMessage": "Taking you to Journal Entries to create a new entry.",
+    "profile": "Profile",
+    "notifications": "Notifications"
+  },
+  "companySwitcher": {
+    "selectCompany": "Select Company",
+    "noCompanies": "No companies available",
+    "switchCompany": "Switch Company"
+  },
+  "sidebar": {
+    "accounting": "Accounting",
+    "transactions": "Transactions",
+    "reports": "Reports",
+    "administration": "Administration",
+    "collapsed": "Collapsed",
+    "expanded": "Expanded"
+  },
+  "forms": {
+    "required": "This field is required",
+    "invalidEmail": "Please enter a valid email address",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "passwordsDoNotMatch": "Passwords do not match",
+    "invalidNumber": "Please enter a valid number",
+    "invalidDate": "Please enter a valid date"
+  },
+  "errors": {
+    "genericError": "An error occurred. Please try again.",
+    "networkError": "Network error. Please check your connection.",
+    "unauthorized": "You are not authorized to perform this action.",
+    "notFound": "The requested resource was not found.",
+    "serverError": "Server error. Please try again later."
+  },
+  "success": {
+    "saved": "Successfully saved",
+    "updated": "Successfully updated",
+    "deleted": "Successfully deleted",
+    "created": "Successfully created"
+  },
+  "roles": {
+    "administrator": "Administrator",
+    "manager": "Manager",
+    "accountant": "Accountant",
+    "assistant": "Assistant",
+    "administratorRole": "Administrator Role",
+    "managerRole": "Manager Role",
+    "accountantRole": "Accountant Role",
+    "assistantRole": "Assistant Role"
+  },
+  "language": {
+    "english": "English",
+    "georgian": "ქართული",
+    "selectLanguage": "Select Language"
+  }
+}

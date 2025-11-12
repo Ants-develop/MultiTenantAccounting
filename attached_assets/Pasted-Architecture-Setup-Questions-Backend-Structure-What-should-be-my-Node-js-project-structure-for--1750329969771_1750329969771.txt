@@ -1,0 +1,60 @@
+Architecture & Setup Questions
+Backend Structure:
+
+"What should be my Node.js project structure for a multi-tenant accounting app?"
+"How do I set up Express.js routes for different user roles and company switching?"
+"What database schema should I use for multi-tenant architecture with PostgreSQL/MongoDB?"
+"How do I implement proper data isolation between companies?"
+
+Frontend Structure:
+
+"What should be my React component hierarchy for role-based accounting interface?"
+"How do I structure my React context/state management for multi-tenant data?"
+"What routing strategy should I use for different user roles and company switching?"
+
+Authentication & Security Workflow
+
+"How do I implement JWT authentication with role-based access in Node.js?"
+"What's the complete workflow for user login, company selection, and role verification?"
+"How do I handle session management across multiple companies?"
+"What middleware should I create for protecting routes based on user roles?"
+"How do I implement secure company switching without re-authentication?"
+
+Database & Data Management
+
+"What's the complete database workflow for multi-tenant data separation?"
+"How do I structure my Mongoose/Sequelize models for accounting entities?"
+"What's the workflow for creating a new company and setting up its chart of accounts?"
+"How do I handle database migrations and seeding for multiple companies?"
+
+Core Accounting Workflows
+
+"What's the step-by-step workflow for creating and processing journal entries?"
+"How should invoice creation, editing, and payment tracking work?"
+"What's the complete workflow for bank reconciliation features?"
+"How do I implement financial reporting generation workflow?"
+"What's the approval workflow for transactions and payments?"
+
+API Design Questions
+
+"What REST API endpoints do I need for each accounting module?"
+"How should I structure my API responses for different user roles?"
+"What's the API workflow for company switching and data filtering?"
+"How do I implement proper error handling and validation workflows?"
+
+Deployment & Development Workflow
+
+"What's the complete development workflow from local to Replit deployment?"
+"How do I set up environment variables and secrets in Replit?"
+"What's the database setup workflow in Replit environment?"
+"How do I handle file uploads and document storage in Replit?"
+
+Specific Implementation Questions
+
+"Can you show me the complete code workflow for user registration and company assignment?"
+"What's the React component workflow for the company switcher interface?"
+"How do I implement the dashboard with company-specific financial data?"
+"What's the workflow for generating and downloading financial reports?"
+
+Most Important Starting Question:
+"Can you provide a complete technical architecture and implementation workflow for a multi-tenant accounting web app using Node.js, React, and [your database choice], including authentication, role-based access, company management, and core accounting features, structured for Replit deployment?"

@@ -1,0 +1,127 @@
+// Home Page API Routes
+import express from "express";
+import { db } from "../db";
+import { sql } from "drizzle-orm";
+import { requireAuth } from "../middleware/auth";
+
+const router = express.Router();
+
+// Apply authentication middleware to all routes
+router.use(requireAuth);
+
+// Home page KPIs
+router.get('/kpis', async (req, res) => {
+  try {
+    if (!req.session.currentCompanyId) {
+      return res.status(400).json({ message: 'No company selected' });
+    }
+
+    const companyId = req.session.currentCompanyId;
+    const { range } = req.query as { range?: string };
+
+    // Determine date range
+    const dateFilter = range === 'lastYear'
+      ? sql`AND je.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND je.date < DATE_TRUNC('year', CURRENT_DATE)`
+      : sql``; // thisYear default handled below where needed
+
+    const invoicesCountResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt
+      FROM invoices
+      WHERE company_id = ${companyId}
+    `);
+
+    const billsCountResult = await db.execute(sql`
+      SELECT COUNT(*)::int AS cnt
+      FROM bills
+      WHERE company_id = ${companyId}
+    `);
+
+    const cashflowResult = await db.execute(sql`
+      SELECT COALESCE(SUM(
+        CASE WHEN a.type = 'asset' AND (a.name ILIKE '%cash%' OR a.name ILIKE '%bank%')
+             THEN (jel.debit_amount::numeric - jel.credit_amount::numeric)
+             ELSE 0 END
+      ), 0) AS net_cashflow
+      FROM journal_entry_lines jel
+      JOIN accounts a ON jel.account_id = a.id
+      JOIN journal_entries je ON jel.journal_entry_id = je.id
+      WHERE a.company_id = ${companyId}
+        AND je.is_posted = true
+        ${range === 'lastYear' ? sql`AND je.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND je.date < DATE_TRUNC('year', CURRENT_DATE)` : sql``}
+    `);
+
+    res.json({
+      invoicesCount: (invoicesCountResult.rows[0] as any)?.cnt ?? 0,
+      billsCount: (billsCountResult.rows[0] as any)?.cnt ?? 0,
+      cashflowNet: parseFloat((cashflowResult.rows[0] as any)?.net_cashflow || '0'),
+    });
+  } catch (error) {
+    console.error('HOME_KPIS_ERROR', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Top customers
+router.get('/top-customers', async (req, res) => {
+  try {
+    if (!req.session.currentCompanyId) {
+      return res.status(400).json({ message: 'No company selected' });
+    }
+    const companyId = req.session.currentCompanyId;
+    const { range } = req.query as { range?: string };
+
+    const dateFilter = range === 'lastYear'
+      ? "AND i.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND i.date < DATE_TRUNC('year', CURRENT_DATE)"
+      : "AND i.date >= DATE_TRUNC('year', CURRENT_DATE)";
+
+    const result = await db.execute(sql.raw(`
+      SELECT c.name, COALESCE(SUM(i.total_amount::numeric), 0) AS amount
+      FROM invoices i
+      JOIN customers c ON i.customer_id = c.id
+      WHERE i.company_id = ${companyId}
+        ${dateFilter}
+      GROUP BY c.name
+      ORDER BY amount DESC
+      LIMIT 5
+    `));
+
+    res.json(result.rows.map((r: any) => ({ name: r.name, value: parseFloat(r.amount || '0') })));
+  } catch (error) {
+    console.error('HOME_TOP_CUSTOMERS_ERROR', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Top vendors
+router.get('/top-vendors', async (req, res) => {
+  try {
+    if (!req.session.currentCompanyId) {
+      return res.status(400).json({ message: 'No company selected' });
+    }
+    const companyId = req.session.currentCompanyId;
+    const { range } = req.query as { range?: string };
+
+    const dateFilter = range === 'lastYear'
+      ? "AND b.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND b.date < DATE_TRUNC('year', CURRENT_DATE)"
+      : "AND b.date >= DATE_TRUNC('year', CURRENT_DATE)";
+
+    const result = await db.execute(sql.raw(`
+      SELECT v.name, COALESCE(SUM(b.total_amount::numeric), 0) AS amount
+      FROM bills b
+      JOIN vendors v ON b.vendor_id = v.id
+      WHERE b.company_id = ${companyId}
+        ${dateFilter}
+      GROUP BY v.name
+      ORDER BY amount DESC
+      LIMIT 5
+    `));
+
+    res.json(result.rows.map((r: any) => ({ name: r.name, value: parseFloat(r.amount || '0') })));
+  } catch (error) {
+    console.error('HOME_TOP_VENDORS_ERROR', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+export default router;
+

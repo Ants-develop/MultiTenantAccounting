@@ -1,0 +1,162 @@
+/* Theme selector controls styling - adapted for shadcn Select component */
+.theme-examples-controls .example-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.theme-examples-controls .color-select {
+  position: relative;
+  display: inline-flex;
+  gap: 10px;
+}
+
+/* Style the SelectTrigger to match Handsontable docs style - compact version */
+.theme-examples-controls .color-select button[data-radix-select-trigger],
+.theme-examples-controls .color-select [data-radix-select-trigger] {
+  padding: 6px 50px 6px 12px !important;
+  border-radius: 6px !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  cursor: pointer !important;
+  min-width: 120px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  position: relative !important;
+  font-size: 12px !important;
+}
+
+/* Hide default Radix icon and add custom arrow */
+.theme-examples-controls .color-select [data-radix-select-trigger] [data-radix-select-icon] {
+  display: none !important;
+}
+
+/* Custom dropdown arrow positioning - compact version */
+.theme-examples-controls .color-select [data-radix-select-trigger]::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%) rotate(45deg);
+  right: 14px;
+  width: 5px;
+  height: 5px;
+  border-right: 1.5px solid hsl(var(--foreground));
+  border-bottom: 1.5px solid hsl(var(--foreground));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Basic theme customization using Handsontable CSS variables */
+/* Define variables at root level so they cascade to all Handsontable themes */
+:root {
+  /* Color System - Handsontable variables that use app theme colors */
+  --ht-accent-color: hsl(var(--primary));
+  --ht-foreground-color: hsl(var(--foreground));
+  --ht-foreground-secondary-color: hsl(var(--muted-foreground));
+  --ht-background-color: hsl(var(--background));
+  --ht-border-color: hsl(var(--border));
+  
+  /* Cell Styling */
+  --ht-cell-horizontal-padding: 8px;
+  --ht-cell-vertical-padding: 6px;
+  --ht-cell-horizontal-border-color: hsl(var(--border));
+  --ht-cell-vertical-border-color: hsl(var(--border));
+  
+  /* Header Styling */
+  --ht-header-background-color: hsl(var(--muted));
+  --ht-header-foreground-color: hsl(var(--foreground));
+  --ht-header-font-weight: 600;
+  --ht-header-highlighted-background-color: hsl(var(--accent));
+  --ht-header-highlighted-foreground-color: hsl(var(--accent-foreground));
+  
+        /* Selection */
+        --ht-cell-selection-background-color: hsl(var(--accent) / 0.2);
+        --ht-cell-selection-border-color: hsl(var(--primary));
+        
+        /* Indicators */
+        --ht-resize-indicator-color: hsl(var(--primary));
+        --ht-move-indicator-color: hsl(var(--primary));
+  
+  /* Scrollbar */
+  --ht-scrollbar-thumb-color: hsl(var(--muted-foreground) / 0.3);
+  --ht-scrollbar-track-color: hsl(var(--background));
+  --ht-scrollbar-border-radius: 4px;
+  
+  /* Editor */
+  --ht-cell-editor-border-color: hsl(var(--ring));
+  --ht-cell-editor-background-color: hsl(var(--background));
+  --ht-cell-editor-foreground-color: hsl(var(--foreground));
+  
+  /* Row Alternating Colors */
+  --ht-row-cell-odd-background-color: hsl(var(--background));
+  --ht-row-cell-even-background-color: hsl(var(--muted) / 0.3);
+  
+  /* Typography */
+  --ht-font-size: 14px;
+  --ht-line-height: 1.5;
+  
+  /* Shadows */
+  --ht-shadow-color: hsl(var(--foreground) / 0.1);
+  --ht-menu-shadow-blur: 8px;
+  --ht-menu-shadow-color: hsl(var(--foreground) / 0.1);
+}
+
+/* Apply to theme classes - Handsontable adds these to the wrapper div */
+/* Variables defined at :root will cascade here automatically */
+/* No need to redeclare - they inherit from :root above */
+
+/* Prevent text wrapping in Handsontable cells - but not in all contexts */
+.handsontable:not(.fullscreen-grid) td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Keep filter/dropdown menus above app UI */
+.htMenu, .htDropdownMenu, .htFiltersMenu {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+/* Fullscreen mode - app-specific feature */
+.fullscreen-grid {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+.fullscreen-grid .handsontable {
+  height: calc(100vh - 250px) !important;
+}
+
+/* Ensure corner headers are visible */
+.handsontable thead tr th.cornerHeader,
+.handsontable thead tr th[aria-colindex="1"],
+.handsontable thead tr th[aria-label="Select whole grid"] {
+  display: table-cell !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Make column resize handles visible - minimal CSS override */
+.handsontable .manualColumnResizer {
+  opacity: 0.6;
+}
+
+.handsontable .manualColumnResizer:hover,
+.handsontable .manualColumnResizer.active {
+  opacity: 1;
+}
+
