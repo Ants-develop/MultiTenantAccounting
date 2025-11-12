@@ -66,6 +66,8 @@ import {
   KeyRound,
   Database,
   ListChecks,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const mainFormSchema = z.object({
@@ -137,10 +139,9 @@ export default function RSAdmin() {
 
   const isGlobalAdmin = user?.globalRole === "global_administrator";
   
-  // Get current company code
-  const currentCompanyId = user?.currentCompanyId;
-  const currentCompany = companies.find(c => c.id === currentCompanyId);
-  const currentCompanyCode = currentCompany?.code;
+  // In single-company mode, we use the first available client as context
+  // This is for reference only (e.g., for TIN validation if needed)
+  const currentCompanyCode = companies?.[0]?.code;
 
   const [mainValidation, setMainValidation] = useState<MainUserValidationResponse | null>(null);
   const [serviceValidation, setServiceValidation] = useState<ServiceUserValidationResponse | null>(null);
@@ -631,143 +632,377 @@ export default function RSAdmin() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-primary" />
-            {t("rsAdmin.steps.credentials.title")}
-          </CardTitle>
-          <CardDescription>{t("rsAdmin.steps.credentials.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-6" onSubmit={credentialForm.handleSubmit(handleCredentialSubmit)}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="final-main-user">{t("rsAdmin.labels.mainUsername")}</Label>
-                <Input
-                  id="final-main-user"
-                  placeholder="user@rs.ge"
-                  {...credentialForm.register("mainUser")}
-                />
-                {credentialForm.formState.errors.mainUser && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.mainUser.message}
-                  </p>
-                )}
+      {/* RS Credential Wizard Modal */}
+      {editingCredential === null && !isEditing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl shadow-2xl overflow-hidden max-w-md w-full">
+            {/* Wizard Header */}
+            <div className="bg-gradient-to-br from-blue-600 to-purple-700 text-white p-8 text-center">
+              <div className="flex justify-center mb-3">
+                <ShieldCheck className="h-10 w-10" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-main-password">{t("rsAdmin.labels.mainPassword")}</Label>
-                <Input
-                  id="final-main-password"
-                  type="password"
-                  placeholder={isEditing ? t("rsAdmin.placeholders.leaveBlank") : "••••••••"}
-                  {...credentialForm.register("mainPassword")}
-                />
-                {credentialForm.formState.errors.mainPassword && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.mainPassword.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-service-user">{t("rsAdmin.labels.serviceUser")}</Label>
-                <Input
-                  id="final-service-user"
-                  placeholder="service_user"
-                  {...credentialForm.register("serviceUser")}
-                />
-                {credentialForm.formState.errors.serviceUser && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.serviceUser.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-service-password">{t("rsAdmin.labels.servicePassword")}</Label>
-                <Input
-                  id="final-service-password"
-                  type="password"
-                  placeholder={isEditing ? t("rsAdmin.placeholders.leaveBlank") : "••••••••"}
-                  {...credentialForm.register("servicePassword")}
-                />
-                {credentialForm.formState.errors.servicePassword && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.servicePassword.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-company-tin">{t("rsAdmin.labels.companyTin")}</Label>
-                <Input
-                  id="final-company-tin"
-                  placeholder="123456789"
-                  {...credentialForm.register("companyTin")}
-                />
-                {credentialForm.formState.errors.companyTin && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.companyTin.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-company-name">{t("rsAdmin.labels.companyName")}</Label>
-                <Input
-                  id="final-company-name"
-                  placeholder={t("rsAdmin.placeholders.companyName") || ""}
-                  {...credentialForm.register("companyName")}
-                />
-                {credentialForm.formState.errors.companyName && (
-                  <p className="text-sm text-destructive">
-                    {credentialForm.formState.errors.companyName.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-rs-user-id">{t("rsAdmin.labels.rsUserId")}</Label>
-                <Input
-                  id="final-rs-user-id"
-                  placeholder={t("rsAdmin.placeholders.optional") || ""}
-                  {...credentialForm.register("rsUserId")}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="final-un-id">UN ID</Label>
-                <Input
-                  id="final-un-id"
-                  placeholder={t("rsAdmin.placeholders.optional") || ""}
-                  {...credentialForm.register("unId")}
-                />
-              </div>
+              <h3 className="text-2xl font-bold mb-2">{t("rsAdmin.title")}</h3>
+              <p className="opacity-90 text-sm">{t("rsAdmin.steps.mainUser.title")} - 3-ნაბიჯიანი პროცესი</p>
             </div>
 
-            <div className="flex items-center justify-between gap-3">
-              {isEditing && (
-                <p className="text-sm text-muted-foreground">
-                  {t("rsAdmin.hints.updatePasswords")}
-                </p>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <Button
-                  type="submit"
-                  disabled={createCredentialMutation.isPending || updateCredentialMutation.isPending}
-                >
-                  {(createCredentialMutation.isPending || updateCredentialMutation.isPending) ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      {isEditing ? t("rsAdmin.actions.updating") : t("rsAdmin.actions.saving")}
-                    </>
-                  ) : (
-                    <>
-                      <Save className="h-4 w-4 mr-2" />
-                      {isEditing ? t("rsAdmin.actions.update") : t("rsAdmin.actions.save")}
-                    </>
-                  )}
-                </Button>
+            <div className="bg-white p-8">
+              {/* Progress Bar */}
+              <div className="mb-6 bg-gray-200 rounded-full h-1 overflow-hidden">
+                <div 
+                  className="bg-gradient-to-r from-blue-600 to-purple-700 h-full transition-all duration-300"
+                  style={{width: `${((editingCredential ? (mainValidation && serviceValidation ? 66 : 33) : 0) + (mainValidation ? 33 : 0) + (serviceValidation ? 33 : 0))}%`}}
+                />
               </div>
+              <p className="text-xs text-gray-600 mb-6 font-semibold">
+                {mainValidation && serviceValidation ? 'ნაბიჯი 3/3' : mainValidation ? 'ნაბიჯი 2/3' : 'ნაბიჯი 1/3'}
+              </p>
+
+              <form onSubmit={credentialForm.handleSubmit(handleCredentialSubmit)} className="space-y-4">
+                {/* Step 1: Main Credentials */}
+                {!mainValidation && (
+                  <>
+                    <div className="space-y-3">
+                      <Label htmlFor="wizard-main-user" className="text-sm font-semibold text-gray-700">
+                        {t("rsAdmin.labels.mainUsername")}
+                      </Label>
+                      <Input
+                        id="wizard-main-user"
+                        type="text"
+                        placeholder="user@rs.ge"
+                        className="rounded-xl border-2 border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 px-4 py-3"
+                        {...mainForm.register("username")}
+                      />
+                      {mainForm.formState.errors.username && (
+                        <p className="text-sm text-red-600 mt-1">
+                          {mainForm.formState.errors.username.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label htmlFor="wizard-main-password" className="text-sm font-semibold text-gray-700">
+                        {t("rsAdmin.labels.mainPassword")}
+                      </Label>
+                      <Input
+                        id="wizard-main-password"
+                        type="password"
+                        placeholder="••••••••"
+                        className="rounded-xl border-2 border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 px-4 py-3"
+                        {...mainForm.register("password")}
+                      />
+                      {mainForm.formState.errors.password && (
+                        <p className="text-sm text-red-600 mt-1">
+                          {mainForm.formState.errors.password.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      onClick={mainForm.handleSubmit(handleMainValidate)}
+                      disabled={mainValidationMutation.isPending}
+                      className="w-full mt-6 bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white font-semibold py-3 rounded-xl transition-all hover:shadow-lg"
+                    >
+                      {mainValidationMutation.isPending ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                          {t("rsAdmin.steps.mainUser.validating")}
+                        </>
+                      ) : (
+                        <>
+                          {t("rsAdmin.steps.mainUser.submit")} <ChevronRight className="h-4 w-4 ml-2 inline" />
+                        </>
+                      )}
+                    </Button>
+                  </>
+                )}
+
+                {/* Step 2: Service User Credentials */}
+                {mainValidation && !serviceValidation && (
+                  <>
+                    <div className="bg-blue-50 p-3 rounded-lg mb-4">
+                      <Badge variant="secondary" className="bg-blue-200 text-blue-800">
+                        {t("rsAdmin.steps.mainUser.serviceUsersFound", { count: mainValidation.serviceUsers.length })}
+                      </Badge>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label htmlFor="wizard-service-user" className="text-sm font-semibold text-gray-700">
+                        {t("rsAdmin.labels.serviceUser")}
+                      </Label>
+                      <Select
+                        value={serviceForm.watch("serviceUser")}
+                        onValueChange={(value) => {
+                          serviceForm.setValue("serviceUser", value);
+                          credentialForm.setValue("serviceUser", value);
+                        }}
+                      >
+                        <SelectTrigger className="rounded-xl border-2 border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200">
+                          <SelectValue placeholder={t("rsAdmin.placeholders.selectServiceUser")} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(mainValidation.serviceUsers ?? []).map((user) => (
+                            <SelectItem key={user} value={user}>
+                              {user}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label htmlFor="wizard-service-password" className="text-sm font-semibold text-gray-700">
+                        {t("rsAdmin.labels.servicePassword")}
+                      </Label>
+                      <Input
+                        id="wizard-service-password"
+                        type="password"
+                        placeholder="••••••••"
+                        className="rounded-xl border-2 border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-200 px-4 py-3"
+                        {...serviceForm.register("servicePassword")}
+                      />
+                      {serviceForm.formState.errors.servicePassword && (
+                        <p className="text-sm text-red-600 mt-1">
+                          {serviceForm.formState.errors.servicePassword.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setMainValidation(null);
+                          mainForm.reset({ username: "", password: "" });
+                          serviceForm.reset({ serviceUser: "", servicePassword: "" });
+                        }}
+                        className="flex-1 rounded-xl border-2 border-gray-300 hover:bg-gray-50"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" /> {t("rsAdmin.actions.back")}
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={serviceForm.handleSubmit(handleServiceValidate)}
+                        disabled={serviceValidationMutation.isPending}
+                        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg"
+                      >
+                        {serviceValidationMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                            {t("rsAdmin.steps.serviceUser.validating")}
+                          </>
+                        ) : (
+                          <>
+                            {t("rsAdmin.actions.verify")} <ChevronRight className="h-4 w-4 ml-2 inline" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {/* Step 3: Confirmation */}
+                {mainValidation && serviceValidation && (
+                  <>
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border-2 border-green-200 mb-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-3">გთხოვთ, შეამოწმოთ RS.GE-დან მიღებული მონაცემები:</p>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <p className="text-gray-600 font-semibold">დასახელება:</p>
+                          <p className="font-bold text-gray-900">{serviceValidation.companyName || credentialForm.watch("companyName")}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-600 font-semibold">საიდ. კოდი (TIN):</p>
+                          <p className="font-bold text-gray-900">{serviceValidation.companyTin}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setServiceValidation(null);
+                          serviceForm.reset({ serviceUser: "", servicePassword: "" });
+                        }}
+                        className="flex-1 rounded-xl border-2 border-gray-300 hover:bg-gray-50"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-2" /> {t("rsAdmin.actions.back")}
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={createCredentialMutation.isPending}
+                        className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white font-semibold rounded-xl transition-all hover:shadow-lg"
+                      >
+                        {createCredentialMutation.isPending ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin inline" />
+                            {t("rsAdmin.actions.saving")}
+                          </>
+                        ) : (
+                          <>
+                            <ShieldCheck className="h-4 w-4 mr-2 inline" /> {t("rsAdmin.actions.save")}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </form>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Existing Card for Editing */}
+      {isEditing && editingCredential && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-primary" />
+              {t("rsAdmin.steps.credentials.title")} - {t("rsAdmin.actions.edit")}
+            </CardTitle>
+            <CardDescription>{editingCredential.companyName}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-6" onSubmit={credentialForm.handleSubmit(handleCredentialSubmit)}>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="final-main-user">{t("rsAdmin.labels.mainUsername")}</Label>
+                  <Input
+                    id="final-main-user"
+                    placeholder="user@rs.ge"
+                    {...credentialForm.register("mainUser")}
+                  />
+                  {credentialForm.formState.errors.mainUser && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.mainUser.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-main-password">{t("rsAdmin.labels.mainPassword")}</Label>
+                  <Input
+                    id="final-main-password"
+                    type="password"
+                    placeholder={isEditing ? t("rsAdmin.placeholders.leaveBlank") : "••••••••"}
+                    {...credentialForm.register("mainPassword")}
+                  />
+                  {credentialForm.formState.errors.mainPassword && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.mainPassword.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-service-user">{t("rsAdmin.labels.serviceUser")}</Label>
+                  <Input
+                    id="final-service-user"
+                    placeholder="service_user"
+                    {...credentialForm.register("serviceUser")}
+                  />
+                  {credentialForm.formState.errors.serviceUser && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.serviceUser.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-service-password">{t("rsAdmin.labels.servicePassword")}</Label>
+                  <Input
+                    id="final-service-password"
+                    type="password"
+                    placeholder={isEditing ? t("rsAdmin.placeholders.leaveBlank") : "••••••••"}
+                    {...credentialForm.register("servicePassword")}
+                  />
+                  {credentialForm.formState.errors.servicePassword && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.servicePassword.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-company-tin">{t("rsAdmin.labels.companyTin")}</Label>
+                  <Input
+                    id="final-company-tin"
+                    placeholder="123456789"
+                    {...credentialForm.register("companyTin")}
+                  />
+                  {credentialForm.formState.errors.companyTin && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.companyTin.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-company-name">{t("rsAdmin.labels.companyName")}</Label>
+                  <Input
+                    id="final-company-name"
+                    placeholder={t("rsAdmin.placeholders.companyName") || ""}
+                    {...credentialForm.register("companyName")}
+                  />
+                  {credentialForm.formState.errors.companyName && (
+                    <p className="text-sm text-destructive">
+                      {credentialForm.formState.errors.companyName.message}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-rs-user-id">{t("rsAdmin.labels.rsUserId")}</Label>
+                  <Input
+                    id="final-rs-user-id"
+                    placeholder={t("rsAdmin.placeholders.optional") || ""}
+                    {...credentialForm.register("rsUserId")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="final-un-id">UN ID</Label>
+                  <Input
+                    id="final-un-id"
+                    placeholder={t("rsAdmin.placeholders.optional") || ""}
+                    {...credentialForm.register("unId")}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                {isEditing && (
+                  <p className="text-sm text-muted-foreground">
+                    {t("rsAdmin.hints.updatePasswords")}
+                  </p>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingCredential(null)}
+                  >
+                    {t("rsAdmin.actions.cancel")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={updateCredentialMutation.isPending}
+                  >
+                    {updateCredentialMutation.isPending ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        {t("rsAdmin.actions.updating")}
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        {t("rsAdmin.actions.update")}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
