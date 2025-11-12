@@ -13,8 +13,6 @@ import {
   MigrationProgress,
 } from "../services/mssql-migration";
 import { db } from "../db";
-import { companies } from "@shared/schema";
-import { eq } from "drizzle-orm";
 import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
@@ -59,43 +57,30 @@ router.get("/tenant-codes", async (req, res) => {
   console.log("=".repeat(60));
 
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
-    console.log("\n1️⃣ Fetching current company details...");
-    const [company] = await db
-      .select()
-      .from(companies)
-      .where(eq(companies.id, DEFAULT_CLIENT_ID))
-      .limit(1);
-
-    if (!company) {
-      return res.status(404).json({ message: "Company not found" });
-    }
-
-    console.log(`   Company: ${company.name} (ID: ${company.id})`);
-    console.log(`   Company Tenant Code: ${company.tenantCode || "NOT SET"}`);
-
-    if (!company.tenantCode) {
-      console.log("   ⚠️  Company has no tenant code assigned");
-      return res.json({ tenantCodes: [] });
-    }
-
-    console.log("\n2️⃣ Initializing MSSQL pool...");
+    console.log("\n1️⃣ Initializing MSSQL pool...");
     const pool = await initMSSQLPool();
     
-    console.log("\n3️⃣ Fetching tenant codes with names and counts...");
-    const tenants = await getTenantCodes(pool);
+    // Get optional date filters and client company tenant codes from query parameters
+    const postingsPeriodFrom = req.query.postingsPeriodFrom as string | undefined;
+    const postingsPeriodTo = req.query.postingsPeriodTo as string | undefined;
+    const tenantCodesFilter = req.query.tenantCodes as string | undefined;
+    
+    console.log("\n2️⃣ Fetching tenant codes with names and counts...");
+    console.log("   Date filters:", { postingsPeriodFrom, postingsPeriodTo });
+    console.log("   Client company tenant codes filter:", tenantCodesFilter);
+    
+    // Only use client company tenant codes - do NOT use main company tenant code
+    if (!tenantCodesFilter) {
+      console.log("   ⚠️  No client company tenant codes provided");
+      return res.json({ tenantCodes: [] });
+    }
+    
+    const tenants = await getTenantCodes(pool, postingsPeriodFrom, postingsPeriodTo, tenantCodesFilter);
 
-    console.log("\n4️⃣ Filtering tenant codes to match company tenant code...");
-    const filteredTenants = tenants.filter(
-      (tenant) => tenant.tenantCode === company.tenantCode
-    );
-
-    console.log("\n5️⃣ Formatting response...");
+    console.log("\n3️⃣ Formatting response...");
+    // No need to filter again - getTenantCodes already filtered by tenant codes if provided
     const response = {
-      tenantCodes: filteredTenants.map((tenant) => ({
+      tenantCodes: tenants.map((tenant) => ({
         tenantCode: tenant.tenantCode,
         tenantName: tenant.tenantName,
         recordCount: tenant.recordCount,
@@ -132,7 +117,7 @@ router.post("/start-update", async (req, res) => {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, clientId, batchSize } = req.body;
+    const { tenantCode, clientId, batchSize, postingsPeriodFrom, postingsPeriodTo } = req.body;
 
     if (!tenantCode || !clientId) {
       return res.status(400).json({ message: "Missing required parameters" });
@@ -173,7 +158,9 @@ router.post("/start-update", async (req, res) => {
           pool,
           tenantCode,
           clientId,
-          batchSize || 1000
+          batchSize || 1000,
+          postingsPeriodFrom,
+          postingsPeriodTo
         );
         console.log(
           `✅ Update ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
@@ -207,7 +194,7 @@ router.post("/start-migration", async (req, res) => {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, clientId, batchSize } = req.body;
+    const { tenantCode, clientId, batchSize, postingsPeriodFrom, postingsPeriodTo } = req.body;
 
     if (!tenantCode || !clientId) {
       return res.status(400).json({ message: "Missing required parameters" });
@@ -248,7 +235,9 @@ router.post("/start-migration", async (req, res) => {
           pool,
           tenantCode,
           clientId,
-          batchSize || 1000
+          batchSize || 1000,
+          postingsPeriodFrom,
+          postingsPeriodTo
         );
         console.log(
           `✅ Migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`

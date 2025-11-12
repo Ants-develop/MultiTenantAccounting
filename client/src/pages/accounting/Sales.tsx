@@ -293,8 +293,7 @@ export default function Sales() {
   const [taxModal, setTaxModal] = useState(false);
   const [activeTab, setActiveTab] = useState("nomenclature");
   
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();
@@ -308,12 +307,12 @@ export default function Sales() {
 
   const { data: salesDocuments, isLoading: documentsLoading } = useQuery<SalesDocument[]>({
     queryKey: ['/api/sales-documents'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: customers, isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ['/api/customers'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const form = useForm<SalesDocumentForm>({
@@ -448,12 +447,12 @@ export default function Sales() {
     });
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to manage sales.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to manage sales.</p>
         </div>
       </div>
     );

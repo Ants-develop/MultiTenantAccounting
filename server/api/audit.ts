@@ -1,10 +1,11 @@
 // Audit Analytics API Routes
 import express from "express";
 import { db } from "../db";
-import { sql, eq } from "drizzle-orm";
-import { companies as companiesTable } from "@shared/schema";
+import { sql, eq, inArray } from "drizzle-orm";
+import { clients as clientsTable } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
 import { DEFAULT_CLIENT_ID } from "../constants";
+import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
 
@@ -14,7 +15,7 @@ router.use(requireAuth);
 // Get audit table data with pagination and tenant filtering
 router.get('/:tableName', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const userId = (req.session as any)?.userId;
     const { tableName } = req.params;
     
     // Parse pagination parameters
@@ -22,14 +23,39 @@ router.get('/:tableName', async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 500;
     const offset = (page - 1) * limit;
 
-    // Get company to access tenant code
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, clientId));
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
     
-    if (!company) {
-      return res.status(404).json({ message: 'Company not found' });
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
     }
 
-    console.log(`[Audit API] Fetching ${tableName} for clientId: ${clientId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'audit');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
+
+    // Get companies to access tenant codes
+    const companies = await db
+      .select()
+      .from(clientsTable)
+      .where(inArray(clientsTable.id, clientIds));
+    
+    if (companies.length === 0) {
+      return res.status(404).json({ message: 'No companies found' });
+    }
+
+    console.log(`[Audit API] Fetching ${tableName} for clientIds: ${clientIds.join(',')}, page: ${page}, limit: ${limit}`);
 
     // Validate table name to prevent SQL injection
     const allowedTables = [
@@ -47,12 +73,16 @@ router.get('/:tableName', async (req, res) => {
     }
 
     // Build the query dynamically
-    // Filter by tenant_code if available (following journal entries pattern)
+    // Filter by tenant_codes if available
+    const tenantCodes = companies
+      .filter(c => c.tenantCode)
+      .map(c => `'${c.tenantCode}'`);
+    
     let whereClause = '';
     let countWhereClause = '';
     
-    if (company.tenantCode) {
-      whereClause = `WHERE tenant_code = '${company.tenantCode}'`;
+    if (tenantCodes.length > 0) {
+      whereClause = `WHERE tenant_code IN (${tenantCodes.join(',')})`;
       countWhereClause = whereClause;
     }
 

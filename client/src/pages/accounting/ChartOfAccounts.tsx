@@ -9,6 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useClientFilter } from "@/hooks/useClientFilter";
+import { ClientFilter } from "@/components/filters/ClientFilter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm, Controller } from "react-hook-form";
@@ -89,15 +91,20 @@ export default function ChartOfAccounts() {
   const [selectedType, setSelectedType] = useState<string>("");
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
+  const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading: clientsLoading } = useClientFilter('accounting');
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();
 
   const { data: accounts, isLoading } = useQuery<Account[]>({
-    queryKey: ['/api/accounts'],
-    enabled: !!currentCompany,
+    queryKey: ['/api/accounts', selectedClientIds],
+    queryFn: async () => {
+      const clientIdsParam = selectedClientIds.length > 0 ? `?clientIds=${selectedClientIds.join(',')}` : '';
+      const response = await apiRequest('GET', `/api/accounts${clientIdsParam}`);
+      return response.json();
+    },
+    enabled: !!mainCompany && selectedClientIds.length > 0,
   });
 
   const form = useForm<AccountForm>({
@@ -323,12 +330,12 @@ export default function ChartOfAccounts() {
     });
   }, [registerTrigger]);
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to view accounts.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to view accounts.</p>
         </div>
       </div>
     );
@@ -518,7 +525,17 @@ export default function ChartOfAccounts() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Accounts</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Accounts</CardTitle>
+            <div className="w-48">
+              <ClientFilter
+                selectedIds={selectedClientIds}
+                onSelectionChange={setSelectedClientIds}
+                clients={accessibleClients}
+                isLoading={clientsLoading}
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (

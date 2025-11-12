@@ -27,39 +27,39 @@ router.get('/metrics', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${clientId} 
+      WHERE a.client_id = ${clientId}
       AND a.type = 'revenue'
       AND je.is_posted = true
     `);
-    
+
     // Outstanding Invoices - sum of unpaid invoices
     const invoicesResult = await db.execute(sql`
       SELECT COALESCE(SUM(total_amount::numeric), 0) as outstanding_invoices
-      FROM invoices 
-      WHERE company_id = ${clientId} 
+      FROM invoices
+      WHERE client_id = ${clientId}
       AND status IN ('sent', 'overdue')
     `);
-    
+
     // Cash Balance - sum of cash accounts
     const cashResult = await db.execute(sql`
       SELECT COALESCE(SUM(jel.debit_amount::numeric - jel.credit_amount::numeric), 0) as cash_balance
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${clientId} 
-      AND a.type = 'asset' 
+      WHERE a.client_id = ${clientId}
+      AND a.type = 'asset'
       AND a.sub_type = 'current_asset'
       AND (a.name ILIKE '%cash%' OR a.name ILIKE '%bank%')
       AND je.is_posted = true
     `);
-    
+
     // Monthly Expenses - current month expense totals
     const expensesResult = await db.execute(sql`
       SELECT COALESCE(SUM(jel.debit_amount::numeric - jel.credit_amount::numeric), 0) as monthly_expenses
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${clientId} 
+      WHERE a.client_id = ${clientId} 
       AND a.type = 'expense'
       AND je.is_posted = true
       AND je.date >= DATE_TRUNC('month', CURRENT_DATE)

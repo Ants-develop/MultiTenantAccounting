@@ -28,13 +28,13 @@ router.get('/kpis', async (req, res) => {
     const invoicesCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
       FROM invoices
-      WHERE company_id = ${clientId}
+      WHERE client_id = ${clientId}
     `);
 
     const billsCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
       FROM bills
-      WHERE company_id = ${clientId}
+      WHERE client_id = ${clientId}
     `);
 
     const cashflowResult = await db.execute(sql`
@@ -46,7 +46,7 @@ router.get('/kpis', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${clientId}
+      WHERE a.client_id = ${clientId}
         AND je.is_posted = true
         ${range === 'lastYear' ? sql`AND je.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND je.date < DATE_TRUNC('year', CURRENT_DATE)` : sql``}
     `);
@@ -79,7 +79,7 @@ router.get('/top-customers', async (req, res) => {
       SELECT c.name, COALESCE(SUM(i.total_amount::numeric), 0) AS amount
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
-      WHERE i.company_id = ${clientId}
+      WHERE i.client_id = ${clientId}
         ${dateFilter}
       GROUP BY c.name
       ORDER BY amount DESC
@@ -110,7 +110,7 @@ router.get('/top-vendors', async (req, res) => {
       SELECT v.name, COALESCE(SUM(b.total_amount::numeric), 0) AS amount
       FROM bills b
       JOIN vendors v ON b.vendor_id = v.id
-      WHERE b.company_id = ${clientId}
+      WHERE b.client_id = ${clientId}
         ${dateFilter}
       GROUP BY v.name
       ORDER BY amount DESC

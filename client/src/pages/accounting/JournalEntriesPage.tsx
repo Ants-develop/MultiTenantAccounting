@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { ClientFilter } from "@/components/filters/ClientFilter";
 import { apiRequest } from "@/lib/queryClient";
 import { JournalEntriesGrid } from "@/components/accounting/JournalEntriesGrid";
 
@@ -82,33 +83,71 @@ interface PaginatedResponse {
 }
 
 export default function JournalEntriesPage() {
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
-  const currentCompanyId = currentCompany?.id;
+  const { mainCompany } = useAuth();
   const queryClient = useQueryClient();
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(500);
+  const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
+
+  // Fetch all available clients directly (like MSSQLImport.tsx)
+  const { data: availableClients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ['/api/clients'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/clients');
+      const data = await response.json();
+      return data || [];
+    },
+    enabled: !!mainCompany?.id,
+  });
+
+  // Transform clients to match ClientFilter expected format
+  const accessibleClients = availableClients.map((client: any) => ({
+    id: client.id,
+    name: client.name,
+    code: client.code,
+  }));
+
+  // Load from localStorage on mount and set default selection
+  useEffect(() => {
+    const stored = localStorage.getItem('clientFilter_accounting');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setSelectedClientIds(parsed);
+          return;
+        }
+      } catch {
+        // Invalid JSON, ignore
+      }
+    }
+    
+    // Default to first client if available
+    if (availableClients.length > 0) {
+      setSelectedClientIds([availableClients[0].id]);
+    }
+  }, [availableClients]);
+
+  // Save to localStorage on change
+  const handleClientSelectionChange = (ids: number[]) => {
+    setSelectedClientIds(ids);
+    localStorage.setItem('clientFilter_accounting', JSON.stringify(ids));
+  };
 
   // Get company name
-  const companyName = currentCompany?.name || 'Loading...';
-
-  // Reset page when company changes
-  useEffect(() => {
-    if (currentCompanyId) {
-      setCurrentPage(1);
-    }
-  }, [currentCompanyId]);
+  const companyName = mainCompany?.name || 'Loading...';
 
   // Fetch journal entries with pagination
   const { data: entriesData, isLoading: entriesLoading, isFetching } = useQuery<PaginatedResponse>({
-    queryKey: ['/api/journal-entries', currentCompanyId, currentPage, itemsPerPage],
+    queryKey: ['/api/journal-entries', selectedClientIds, currentPage, itemsPerPage],
     queryFn: async () => {
       const limit = itemsPerPage === 0 ? 999999 : itemsPerPage;
-      const response = await apiRequest('GET', `/api/journal-entries?page=${currentPage}&limit=${limit}`);
+      const clientIdsParam = selectedClientIds.length > 0 ? `&clientIds=${selectedClientIds.join(',')}` : '';
+      const response = await apiRequest('GET', `/api/journal-entries?page=${currentPage}&limit=${limit}${clientIdsParam}`);
       return response.json();
     },
-    enabled: !!currentCompany && !!currentCompanyId,
+    enabled: !!mainCompany && selectedClientIds.length > 0,
     staleTime: 0,
     gcTime: 0,
   });
@@ -157,11 +196,11 @@ export default function JournalEntriesPage() {
     queryClient.invalidateQueries({ queryKey: ['/api/journal-entries'] });
   }, [queryClient]);
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <Card>
         <CardContent className="p-6">
-          <p className="text-center text-muted-foreground">Please select a company to view journal entries.</p>
+          <p className="text-center text-muted-foreground">Company not configured. Please complete the setup wizard to view journal entries.</p>
         </CardContent>
       </Card>
     );
@@ -170,7 +209,7 @@ export default function JournalEntriesPage() {
   return (
     <div className="flex flex-col h-full">
       <Card className="flex flex-col h-full flex-1 min-h-0">
-        <CardHeader className="pb-3 pt-4 px-4 flex-shrink-0">
+        <CardHeader className="pb-3 pt-4 px-4 flex-shrink-0 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -182,6 +221,20 @@ export default function JournalEntriesPage() {
                   {companyName} • {pagination ? `${pagination.total.toLocaleString()} total entries (showing ${journalEntries.length})` : `${journalEntries.length} entries`} • Page {currentPage}{pagination ? ` of ${pagination.totalPages}` : ''}
                 </p>
               </div>
+            </div>
+          </div>
+          {/* Client Filter */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-1 block">
+                Select Clients
+              </label>
+              <ClientFilter
+                selectedIds={selectedClientIds}
+                onSelectionChange={handleClientSelectionChange}
+                clients={accessibleClients}
+                isLoading={clientsLoading}
+              />
             </div>
           </div>
         </CardHeader>

@@ -54,20 +54,19 @@ type InvoiceForm = z.infer<typeof invoiceSchema>;
 export default function Invoices() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();
 
   const { data: invoices, isLoading: invoicesLoading } = useQuery<Invoice[]>({
     queryKey: ['/api/invoices'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: customers, isLoading: customersLoading } = useQuery<Customer[]>({
     queryKey: ['/api/customers'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const form = useForm<InvoiceForm>({
@@ -191,12 +190,12 @@ export default function Invoices() {
     });
   }, [registerTrigger]);
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to manage invoices.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to manage invoices.</p>
         </div>
       </div>
     );

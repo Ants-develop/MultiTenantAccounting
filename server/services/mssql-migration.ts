@@ -132,11 +132,50 @@ interface TenantInfo {
 /**
  * Get available tenant codes with names and record counts from GeneralLedger
  */
-export async function getTenantCodes(mssqlPool: sql.ConnectionPool): Promise<TenantInfo[]> {
+export async function getTenantCodes(
+  mssqlPool: sql.ConnectionPool,
+  postingsPeriodFrom?: string,
+  postingsPeriodTo?: string,
+  tenantCodes?: string
+): Promise<TenantInfo[]> {
   console.log('\n📋 Fetching tenant codes with names and counts from MSSQL...');
+  console.log('   Date filter:', { postingsPeriodFrom, postingsPeriodTo });
+  console.log('   Tenant codes filter:', tenantCodes);
   
   try {
     console.log('   Pool connected:', mssqlPool.connected);
+    
+    // Build WHERE clause for date filtering using parameterized queries
+    let whereClause = '';
+    const conditions: string[] = [];
+    const request = mssqlPool.request();
+    
+    if (postingsPeriodFrom) {
+      // Convert YYYY-MM-DD to DATETIME at start of day (00:00:00)
+      const fromDate = new Date(postingsPeriodFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      request.input('postingsPeriodFrom', sql.DateTime, fromDate);
+      conditions.push(`PostingsPeriod >= @postingsPeriodFrom`);
+    }
+    if (postingsPeriodTo) {
+      // Convert YYYY-MM-DD to DATETIME at end of day (23:59:59)
+      const toDate = new Date(postingsPeriodTo);
+      toDate.setHours(23, 59, 59, 999);
+      request.input('postingsPeriodTo', sql.DateTime, toDate);
+      conditions.push(`PostingsPeriod <= @postingsPeriodTo`);
+    }
+    if (tenantCodes) {
+      const codes = tenantCodes.split(',').map(c => c.trim()).filter(c => c);
+      // Validate codes are numbers to prevent SQL injection
+      const validCodes = codes.filter(c => /^\d+$/.test(c));
+      if (validCodes.length > 0) {
+        conditions.push(`TenantCode IN (${validCodes.join(',')})`);
+      }
+    }
+    
+    if (conditions.length > 0) {
+      whereClause = 'WHERE ' + conditions.join(' AND ');
+    }
     
     // Query to get tenant codes, names, and record counts
     const query = `
@@ -145,13 +184,14 @@ export async function getTenantCodes(mssqlPool: sql.ConnectionPool): Promise<Ten
         MAX(TenantName) AS TenantName,
         COUNT(*) AS RecordCount
       FROM GeneralLedger
+      ${whereClause}
       GROUP BY TenantCode
       ORDER BY TenantCode
     `;
     
     console.log('   Executing query:', query.trim());
+    console.log('   Date filters applied:', { postingsPeriodFrom, postingsPeriodTo });
     
-    const request = mssqlPool.request();
     const startTime = Date.now();
     const result = await request.query(query);
     const duration = Date.now() - startTime;
@@ -228,7 +268,9 @@ export async function migrateGeneralLedger(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
   clientId: number,
-  batchSize: number = 1000
+  batchSize: number = 1000,
+  postingsPeriodFrom?: string,
+  postingsPeriodTo?: string
 ): Promise<MigrationProgress> {
   const migrationId = `migration_${Date.now()}`;
   const progress: MigrationProgress = {
@@ -246,10 +288,32 @@ export async function migrateGeneralLedger(
   };
 
   try {
-    // Get total count
+    // Build WHERE clause for date filtering using parameterized queries
+    const conditions: string[] = [`TenantCode = @tenantCode`];
     const countRequest = mssqlPool.request();
+    countRequest.input('tenantCode', sql.Int, tenantCode);
+    
+    if (postingsPeriodFrom) {
+      // Convert YYYY-MM-DD to DATETIME at start of day (00:00:00)
+      const fromDate = new Date(postingsPeriodFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      countRequest.input('postingsPeriodFrom', sql.DateTime, fromDate);
+      conditions.push(`PostingsPeriod >= @postingsPeriodFrom`);
+    }
+    if (postingsPeriodTo) {
+      // Convert YYYY-MM-DD to DATETIME at end of day (23:59:59)
+      const toDate = new Date(postingsPeriodTo);
+      toDate.setHours(23, 59, 59, 999);
+      countRequest.input('postingsPeriodTo', sql.DateTime, toDate);
+      conditions.push(`PostingsPeriod <= @postingsPeriodTo`);
+    }
+    const whereClause = conditions.join(' AND ');
+    
+    console.log(`📊 Migrating with date filter: ${postingsPeriodFrom || 'any'} to ${postingsPeriodTo || 'any'}`);
+
+    // Get total count
     const countResult = await countRequest.query(
-      `SELECT COUNT(*) as count FROM GeneralLedger WHERE TenantCode = ${tenantCode}`
+      `SELECT COUNT(*) as count FROM GeneralLedger WHERE ${whereClause}`
     );
     progress.totalRecords = countResult.recordset[0].count;
 
@@ -275,11 +339,23 @@ export async function migrateGeneralLedger(
         AttachedFiles, DocType, DocDate, DocNumber, DocumentCreationDate, DocumentModifyDate,
         DocumentComments, PostingNumber
       FROM GeneralLedger
-      WHERE TenantCode = ${tenantCode}
+      WHERE ${whereClause}
       ORDER BY PostingsPeriod, TenantCode
     `;
 
+    // Create new request with same parameters for the main query
     const request = mssqlPool.request();
+    request.input('tenantCode', sql.Int, tenantCode);
+    if (postingsPeriodFrom) {
+      const fromDate = new Date(postingsPeriodFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      request.input('postingsPeriodFrom', sql.DateTime, fromDate);
+    }
+    if (postingsPeriodTo) {
+      const toDate = new Date(postingsPeriodTo);
+      toDate.setHours(23, 59, 59, 999);
+      request.input('postingsPeriodTo', sql.DateTime, toDate);
+    }
     let batch: any[] = [];
 
     request.stream = true;
@@ -979,7 +1055,9 @@ export async function updateJournalEntries(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
   clientId: number,
-  batchSize: number = 1000
+  batchSize: number = 1000,
+  postingsPeriodFrom?: string,
+  postingsPeriodTo?: string
 ): Promise<MigrationProgress> {
   const migrationId = `update_${Date.now()}`;
   const progress: MigrationProgress = {
@@ -997,10 +1075,32 @@ export async function updateJournalEntries(
   };
 
   try {
-    // Get total count
+    // Build WHERE clause for date filtering using parameterized queries
+    const conditions: string[] = [`TenantCode = @tenantCode`];
     const countRequest = mssqlPool.request();
+    countRequest.input('tenantCode', sql.Int, tenantCode);
+    
+    if (postingsPeriodFrom) {
+      // Convert YYYY-MM-DD to DATETIME at start of day (00:00:00)
+      const fromDate = new Date(postingsPeriodFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      countRequest.input('postingsPeriodFrom', sql.DateTime, fromDate);
+      conditions.push(`PostingsPeriod >= @postingsPeriodFrom`);
+    }
+    if (postingsPeriodTo) {
+      // Convert YYYY-MM-DD to DATETIME at end of day (23:59:59)
+      const toDate = new Date(postingsPeriodTo);
+      toDate.setHours(23, 59, 59, 999);
+      countRequest.input('postingsPeriodTo', sql.DateTime, toDate);
+      conditions.push(`PostingsPeriod <= @postingsPeriodTo`);
+    }
+    const whereClause = conditions.join(' AND ');
+    
+    console.log(`📊 Updating with date filter: ${postingsPeriodFrom || 'any'} to ${postingsPeriodTo || 'any'}`);
+
+    // Get total count
     const countResult = await countRequest.query(
-      `SELECT COUNT(*) as count FROM GeneralLedger WHERE TenantCode = ${tenantCode}`
+      `SELECT COUNT(*) as count FROM GeneralLedger WHERE ${whereClause}`
     );
     progress.totalRecords = countResult.recordset[0].count;
 
@@ -1014,9 +1114,21 @@ export async function updateJournalEntries(
     console.log(`📊 Total records to update: ${progress.totalRecords}`);
 
     // Read and update data
-    const query = `SELECT TenantCode, TenantName, Abonent, PostingsPeriod, Register, Branch, Content, ResponsiblePerson, AccountDr, AccountNameDr, AnalyticDr, AnalyticRefDr, IDDr, LegalFormDr, CountryDr, ProfitTaxDr, WithholdingTaxDr, DoubleTaxationDr, PensionSchemeParticipantDr, AccountCr, AccountNameCr, AnalyticCr, AnalyticRefCr, IDCr, LegalFormCr, CountryCr, ProfitTaxCr, WithholdingTaxCr, DoubleTaxationCr, PensionSchemeParticipantCr, Currency, Amount, AmountCur, QuantityDr, QuantityCr, Rate, DocumentRate, TAXInvoiceNumber, TAXInvoiceDate, TAXInvoiceSeries, WaybillNumber, AttachedFiles, DocType, DocDate, DocNumber, DocumentCreationDate, DocumentModifyDate, DocumentComments, PostingNumber FROM GeneralLedger WHERE TenantCode = ${tenantCode} ORDER BY PostingsPeriod, TenantCode`;
+    const query = `SELECT TenantCode, TenantName, Abonent, PostingsPeriod, Register, Branch, Content, ResponsiblePerson, AccountDr, AccountNameDr, AnalyticDr, AnalyticRefDr, IDDr, LegalFormDr, CountryDr, ProfitTaxDr, WithholdingTaxDr, DoubleTaxationDr, PensionSchemeParticipantDr, AccountCr, AccountNameCr, AnalyticCr, AnalyticRefCr, IDCr, LegalFormCr, CountryCr, ProfitTaxCr, WithholdingTaxCr, DoubleTaxationCr, PensionSchemeParticipantCr, Currency, Amount, AmountCur, QuantityDr, QuantityCr, Rate, DocumentRate, TAXInvoiceNumber, TAXInvoiceDate, TAXInvoiceSeries, WaybillNumber, AttachedFiles, DocType, DocDate, DocNumber, DocumentCreationDate, DocumentModifyDate, DocumentComments, PostingNumber FROM GeneralLedger WHERE ${whereClause} ORDER BY PostingsPeriod, TenantCode`;
 
+    // Create new request with same parameters for the main query
     const request = mssqlPool.request();
+    request.input('tenantCode', sql.Int, tenantCode);
+    if (postingsPeriodFrom) {
+      const fromDate = new Date(postingsPeriodFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      request.input('postingsPeriodFrom', sql.DateTime, fromDate);
+    }
+    if (postingsPeriodTo) {
+      const toDate = new Date(postingsPeriodTo);
+      toDate.setHours(23, 59, 59, 999);
+      request.input('postingsPeriodTo', sql.DateTime, toDate);
+    }
     let batch: any[] = [];
     let index = 0;
 

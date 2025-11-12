@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +39,7 @@ interface SetupWizardProps {
 export default function SetupWizard({ onComplete }: SetupWizardProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const totalSteps = 3;
 
   const companyForm = useForm<CompanyInfoForm>({
@@ -68,6 +69,9 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
       return await apiRequest('POST', '/api/company/setup', data);
     },
     onSuccess: () => {
+      // Invalidate auth query to refresh main company data
+      queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+      
       toast({
         title: "Setup Complete!",
         description: "Your company has been configured successfully.",

@@ -52,13 +52,12 @@ export default function FinancialStatements() {
   const [reportType, setReportType] = useState("profit-loss");
   const [startDate, setStartDate] = useState(new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { toast } = useToast();
 
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: financialData, isLoading: financialLoading } = useQuery<FinancialStatementData>({
@@ -77,7 +76,7 @@ export default function FinancialStatements() {
       }
       return response.json();
     },
-    enabled: !!currentCompany && (reportType === 'profit-loss' || reportType === 'balance-sheet'),
+    enabled: !!mainCompany && (reportType === 'profit-loss' || reportType === 'balance-sheet'),
   });
 
   const { data: trialBalanceData, isLoading: trialBalanceLoading } = useQuery<TrialBalanceData>({
@@ -94,7 +93,7 @@ export default function FinancialStatements() {
       }
       return response.json();
     },
-    enabled: !!currentCompany && reportType === 'trial-balance',
+    enabled: !!mainCompany && reportType === 'trial-balance',
   });
 
   const formatCurrency = (amount: number) => {
@@ -133,7 +132,7 @@ export default function FinancialStatements() {
     return (
       <div className="space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold">{currentCompany?.name}</h2>
+          <h2 className="text-2xl font-bold">{mainCompany?.name}</h2>
           <h3 className="text-xl font-semibold">Profit & Loss Statement</h3>
           <p className="text-muted-foreground">
             For the period {formatDate(startDate)} to {formatDate(endDate)}
@@ -245,7 +244,7 @@ export default function FinancialStatements() {
     return (
       <div className="space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold">{currentCompany?.name}</h2>
+          <h2 className="text-2xl font-bold">{mainCompany?.name}</h2>
           <h3 className="text-xl font-semibold">Balance Sheet</h3>
           <p className="text-muted-foreground">
             As of {formatDate(endDate)}
@@ -397,7 +396,7 @@ export default function FinancialStatements() {
     return (
       <div className="space-y-6">
         <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold">{currentCompany?.name}</h2>
+          <h2 className="text-2xl font-bold">{mainCompany?.name}</h2>
           <h3 className="text-xl font-semibold">Trial Balance</h3>
           <p className="text-muted-foreground">
             As of {formatDate(endDate)}
@@ -453,7 +452,7 @@ export default function FinancialStatements() {
     );
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -491,7 +490,7 @@ export default function FinancialStatements() {
                   data = financialData;
                 }
 
-                if (!data || !currentCompany) {
+                if (!data || !mainCompany) {
                   toast({
                     title: "Export failed",
                     description: "No data available to export.",
@@ -504,11 +503,11 @@ export default function FinancialStatements() {
                   data,
                   reportType,
                   {
-                    name: currentCompany.name,
-                    address: (currentCompany as any).address || '',
-                    phone: (currentCompany as any).phone || '',
-                    email: (currentCompany as any).email || '',
-                    taxId: (currentCompany as any).taxId || '',
+                    name: mainCompany.name,
+                    address: (mainCompany as any).address || '',
+                    phone: (mainCompany as any).phone || '',
+                    email: (mainCompany as any).email || '',
+                    taxId: (mainCompany as any).taxId || '',
                   },
                   {
                     startDate: reportType === 'profit-loss' ? startDate : undefined,

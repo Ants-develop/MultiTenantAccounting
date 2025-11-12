@@ -1,11 +1,12 @@
 // Bank Module API Routes
 import express from "express";
 import { db } from "../db";
-import { eq, and, desc, sql, count } from "drizzle-orm";
+import { eq, and, desc, sql, count, inArray } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
 import { bankAccounts, rawBankTransactions, normalizedBankTransactions, insertBankAccountSchema, insertRawBankTransactionSchema } from "@shared/schema";
 import { activityLogger } from "../services/activity-logger";
 import { DEFAULT_CLIENT_ID } from "../constants";
+import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
 
@@ -14,15 +15,38 @@ router.use(requireAuth);
 
 // ===== BANK ACCOUNTS CRUD =====
 
-// GET /api/bank/accounts - Get all bank accounts for the current company
+// GET /api/bank/accounts - Get all bank accounts for specified clients
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/accounts', async (req, res) => {
   try {
-    const companyId = DEFAULT_CLIENT_ID!;
+    const userId = (req.session as any)?.userId;
+    
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'banking');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
     
     const accounts = await db
       .select()
       .from(bankAccounts)
-      .where(eq(bankAccounts.clientId, companyId))
+      .where(inArray(bankAccounts.clientId, clientIds))
       .orderBy(desc(bankAccounts.createdAt));
 
     res.json(accounts);
@@ -199,18 +223,41 @@ router.delete('/accounts/:id', async (req, res) => {
 // ===== RAW BANK TRANSACTIONS CRUD =====
 
 // GET /api/bank/transactions - Get all raw bank transactions with pagination
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/transactions', async (req, res) => {
   try {
-    const companyId = DEFAULT_CLIENT_ID!;
+    const userId = (req.session as any)?.userId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = (page - 1) * limit;
+    
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'banking');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
     
     // Optional filters
     const bankAccountId = req.query.bankAccountId as string;
     const search = req.query.search as string;
 
-    let whereConditions = [eq(rawBankTransactions.clientId, companyId)];
+    let whereConditions = [inArray(rawBankTransactions.clientId, clientIds)];
     
     if (bankAccountId) {
       whereConditions.push(eq(rawBankTransactions.bankAccountId, parseInt(bankAccountId)));
@@ -691,15 +738,38 @@ router.post('/transactions/normalize', async (req, res) => {
 });
 
 // GET /api/bank/transactions/normalized - Get normalized transactions with pagination
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/transactions/normalized', async (req, res) => {
   try {
-    const companyId = DEFAULT_CLIENT_ID!;
+    const userId = (req.session as any)?.userId;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = (page - 1) * limit;
     const bankAccountId = req.query.bankAccountId as string;
 
-    let whereConditions = [eq(normalizedBankTransactions.clientId, companyId)];
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'banking');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
+
+    let whereConditions = [inArray(normalizedBankTransactions.clientId, clientIds)];
     
     if (bankAccountId && bankAccountId !== 'all') {
       whereConditions.push(eq(normalizedBankTransactions.bankAccountId, parseInt(bankAccountId)));

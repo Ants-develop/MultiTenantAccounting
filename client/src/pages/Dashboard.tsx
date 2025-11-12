@@ -25,18 +25,17 @@ interface Transaction {
 }
 
 export default function Dashboard() {
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { t } = useTranslation();
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<DashboardMetrics>({
     queryKey: ['/api/dashboard/metrics'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: recentTransactions, isLoading: transactionsLoading } = useQuery<Transaction[]>({
     queryKey: ['/api/dashboard/recent-transactions'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const formatDate = (dateString: string) => {
@@ -78,12 +77,12 @@ export default function Dashboard() {
     },
   ];
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">{t('dashboard.noCompanySelected')}</h3>
-          <p className="text-muted-foreground">{t('dashboard.selectCompanyMessage')}</p>
+          <h3 className="text-lg font-medium text-foreground">Company Not Configured</h3>
+          <p className="text-muted-foreground">Please complete the setup wizard to configure your company.</p>
         </div>
       </div>
     );

@@ -12,7 +12,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Plus, Edit, Trash2, UserPlus, Building, Shield, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { apiRequest } from "@/lib/queryClient";
@@ -109,8 +108,7 @@ export default function UserManagement() {
   const [isRoleDetailsOpen, setIsRoleDetailsOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const { user: currentUser, companies: userCompanies } = useAuth();
-  const currentCompany = userCompanies?.[0] || null;
+  const { user: currentUser, mainCompany } = useAuth();
   const { toast } = useToast();
   const { currentRole, canViewUsers, canCreateUsers, canAssignRoles } = usePermissions();
   const queryClient = useQueryClient();

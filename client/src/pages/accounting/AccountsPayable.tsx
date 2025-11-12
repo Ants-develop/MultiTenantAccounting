@@ -20,13 +20,12 @@ interface Bill {
 }
 
 export default function AccountsPayable() {
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
 
   // Fetch bills
   const { data: bills, isLoading: billsLoading } = useQuery<Bill[]>({
     queryKey: ['/api/bills'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   // Calculate summary metrics
@@ -61,12 +60,12 @@ export default function AccountsPayable() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to view accounts payable.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to view accounts payable.</p>
         </div>
       </div>
     );

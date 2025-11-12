@@ -414,8 +414,7 @@ export default function Purchases() {
   const [activeTab, setActiveTab] = useState("nomenclature");
   const [purchaseType, setPurchaseType] = useState<'regular' | 'accountable_person'>('regular');
   
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();
@@ -429,17 +428,17 @@ export default function Purchases() {
 
   const { data: purchaseDocuments, isLoading: documentsLoading } = useQuery<PurchaseDocument[]>({
     queryKey: ['/api/purchase-documents'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: vendors, isLoading: vendorsLoading } = useQuery<Vendor[]>({
     queryKey: ['/api/vendors'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: employees, isLoading: employeesLoading } = useQuery<Employee[]>({
     queryKey: ['/api/employees'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const form = useForm<PurchaseDocumentForm>({
@@ -582,12 +581,12 @@ export default function Purchases() {
     });
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to manage purchases.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to manage purchases.</p>
         </div>
       </div>
     );

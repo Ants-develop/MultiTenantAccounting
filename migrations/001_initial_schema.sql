@@ -26,8 +26,13 @@ CREATE TABLE IF NOT EXISTS clients (
   fiscal_year_start INTEGER DEFAULT 1,
   currency TEXT DEFAULT 'GEL',
   tenant_code INTEGER UNIQUE,
+  manager TEXT,
+  accounting_software TEXT,
+  id_code TEXT,
+  verification_status TEXT DEFAULT 'not_registered',
   is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- User-Company relationships with roles
@@ -321,6 +326,97 @@ CREATE TABLE IF NOT EXISTS company_settings (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Main Company Settings
+-- Dedicated table for the accounting firm's own company information
+-- Only ONE row should exist in this table (system-wide main company)
+CREATE TABLE IF NOT EXISTS main_company_settings (
+  id SERIAL PRIMARY KEY,
+  
+  -- Company Profile
+  name VARCHAR(255) NOT NULL,
+  code VARCHAR(20) NOT NULL,
+  address TEXT,
+  phone VARCHAR(20),
+  email VARCHAR(255),
+  tax_id VARCHAR(50),
+  
+  -- Financial Settings
+  fiscal_year_start INTEGER CHECK (fiscal_year_start >= 1 AND fiscal_year_start <= 12),
+  currency VARCHAR(3) DEFAULT 'GEL',
+  date_format VARCHAR(20) DEFAULT 'MM/DD/YYYY',
+  decimal_places INTEGER DEFAULT 2 CHECK (decimal_places >= 0 AND decimal_places <= 4),
+  
+  -- Notification Settings
+  email_notifications BOOLEAN DEFAULT true,
+  invoice_reminders BOOLEAN DEFAULT true,
+  payment_alerts BOOLEAN DEFAULT true,
+  report_reminders BOOLEAN DEFAULT false,
+  system_updates BOOLEAN DEFAULT true,
+  
+  -- Document Settings
+  auto_numbering BOOLEAN DEFAULT true,
+  invoice_prefix VARCHAR(20) DEFAULT 'INV',
+  bill_prefix VARCHAR(20) DEFAULT 'BILL',
+  journal_prefix VARCHAR(20) DEFAULT 'JE',
+  negative_format VARCHAR(20) DEFAULT 'minus',
+  
+  -- Security Settings
+  require_password_change BOOLEAN DEFAULT false,
+  password_expire_days INTEGER DEFAULT 90,
+  session_timeout INTEGER DEFAULT 30,
+  enable_two_factor BOOLEAN DEFAULT false,
+  allow_multiple_sessions BOOLEAN DEFAULT true,
+  
+  -- Integration Settings
+  bank_connection BOOLEAN DEFAULT false,
+  payment_gateway BOOLEAN DEFAULT false,
+  tax_service BOOLEAN DEFAULT false,
+  reporting_tools BOOLEAN DEFAULT false,
+  
+  -- Backup Settings
+  auto_backup BOOLEAN DEFAULT false,
+  backup_frequency VARCHAR(20) DEFAULT 'weekly',
+  retention_days INTEGER DEFAULT 30,
+  backup_location VARCHAR(50) DEFAULT 'cloud',
+  
+  -- Timestamps
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  CONSTRAINT only_one_main_company CHECK (id = 1)
+);
+
+-- Module-Level Permissions: Controls access to entire modules
+CREATE TABLE IF NOT EXISTS user_client_modules (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  module VARCHAR(50) NOT NULL,
+  can_view BOOLEAN DEFAULT false,
+  can_create BOOLEAN DEFAULT false,
+  can_edit BOOLEAN DEFAULT false,
+  can_delete BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, client_id, module)
+);
+
+-- Feature-Level Permissions: Controls access to specific features within modules
+CREATE TABLE IF NOT EXISTS user_client_features (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  module VARCHAR(50) NOT NULL,
+  feature VARCHAR(100) NOT NULL,
+  can_view BOOLEAN DEFAULT false,
+  can_create BOOLEAN DEFAULT false,
+  can_edit BOOLEAN DEFAULT false,
+  can_delete BOOLEAN DEFAULT false,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, client_id, module, feature)
+);
+
 -- Create performance indexes
 CREATE INDEX IF NOT EXISTS idx_user_companies_user_id ON user_companies(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_companies_client_id ON user_companies(client_id);
@@ -328,6 +424,7 @@ CREATE INDEX IF NOT EXISTS idx_user_companies_user_company ON user_companies(use
 CREATE INDEX IF NOT EXISTS idx_accounts_client_id ON accounts(client_id);
 CREATE INDEX IF NOT EXISTS idx_accounts_parent_id ON accounts(parent_id);
 CREATE INDEX IF NOT EXISTS idx_clients_tenant_code ON clients(tenant_code);
+CREATE INDEX IF NOT EXISTS idx_clients_verification_status ON clients(verification_status);
 CREATE INDEX IF NOT EXISTS idx_general_ledger_client_id ON general_ledger(client_id);
 CREATE INDEX IF NOT EXISTS idx_general_ledger_account_dr ON general_ledger(account_dr);
 CREATE INDEX IF NOT EXISTS idx_general_ledger_account_cr ON general_ledger(account_cr);
@@ -335,6 +432,9 @@ CREATE INDEX IF NOT EXISTS idx_general_ledger_doc_date ON general_ledger(doc_dat
 CREATE INDEX IF NOT EXISTS idx_general_ledger_posting_number ON general_ledger(posting_number);
 CREATE INDEX IF NOT EXISTS idx_general_ledger_tenant_code ON general_ledger(tenant_code);
 CREATE INDEX IF NOT EXISTS idx_company_settings_client_id ON company_settings(client_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_main_company_single_row 
+ON main_company_settings (id) 
+WHERE id = 1;
 CREATE INDEX IF NOT EXISTS idx_journal_entries_client_id ON journal_entries(client_id);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_date ON journal_entries(date);
 CREATE INDEX IF NOT EXISTS idx_journal_entries_company_date ON journal_entries(client_id, date);
@@ -356,6 +456,10 @@ CREATE INDEX IF NOT EXISTS idx_journal_entries_posting_number ON journal_entries
 CREATE INDEX IF NOT EXISTS idx_activity_logs_user_id ON activity_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_client_id ON activity_logs(client_id);
 CREATE INDEX IF NOT EXISTS idx_activity_logs_timestamp ON activity_logs(timestamp);
+CREATE INDEX IF NOT EXISTS idx_user_client_modules_user_client ON user_client_modules(user_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_modules_module ON user_client_modules(module);
+CREATE INDEX IF NOT EXISTS idx_user_client_features_user_client ON user_client_features(user_id, client_id);
+CREATE INDEX IF NOT EXISTS idx_user_client_features_feature ON user_client_features(feature);
 
 -- Add constraints for business rules (only if they don't exist)
 DO $$
@@ -432,6 +536,10 @@ DROP FUNCTION IF EXISTS update_general_ledger_updated_at();
 DROP FUNCTION IF EXISTS update_company_settings_updated_at();
 
 -- Drop indexes
+DROP INDEX IF EXISTS idx_user_client_features_feature;
+DROP INDEX IF EXISTS idx_user_client_features_user_client;
+DROP INDEX IF EXISTS idx_user_client_modules_module;
+DROP INDEX IF EXISTS idx_user_client_modules_user_client;
 DROP INDEX IF EXISTS idx_activity_logs_timestamp;
 DROP INDEX IF EXISTS idx_activity_logs_client_id;
 DROP INDEX IF EXISTS idx_activity_logs_user_id;
@@ -468,6 +576,9 @@ DROP INDEX IF EXISTS idx_user_companies_user_id;
 DROP INDEX IF EXISTS idx_user_companies_user_company;
 
 DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS user_client_features;
+DROP TABLE IF EXISTS user_client_modules;
+DROP TABLE IF EXISTS main_company_settings;
 DROP TABLE IF EXISTS company_settings;
 DROP TABLE IF EXISTS bills;
 DROP TABLE IF EXISTS invoices;
@@ -479,4 +590,5 @@ DROP TABLE IF EXISTS general_ledger;
 DROP TABLE IF EXISTS accounts;
 DROP TABLE IF EXISTS user_companies;
 DROP TABLE IF EXISTS clients;
-DROP TABLE IF EXISTS users; 
+DROP TABLE IF EXISTS users;
+DROP INDEX IF EXISTS idx_main_company_single_row; 

@@ -1,5 +1,7 @@
 import bcrypt from "bcrypt";
 import { storage } from "./storage";
+import { db } from "./db";
+import { mainCompanySettings } from "@shared/schema";
 import type { User } from "@shared/schema";
 
 export interface AuthenticatedUser {
@@ -40,37 +42,39 @@ export async function authenticateUser(username: string, password: string): Prom
 }
 
 export async function getUserWithCompanies(userId: number) {
-  const user = await storage.getUser(userId);
-  if (!user) return null;
+  try {
+    const user = await storage.getUser(userId);
+    if (!user) return null;
 
-  const companies = await storage.getCompaniesByUser(userId);
-  const userCompanies = await storage.getUserCompanies(userId);
+    // Check if main company is configured
+    let mainCompany = null;
+    let needsSetup = true;
 
-  // Check if setup is needed (if there's a company but it has no name, it needs setup)
-  const needsSetup = companies.length > 0 && !companies[0].name;
+    try {
+      const mainCompanyResult = await db.select().from(mainCompanySettings).limit(1);
+      mainCompany = mainCompanyResult[0] || null;
+      // Setup is needed if main company doesn't exist or has no name
+      needsSetup = !mainCompany || !mainCompany.name;
+    } catch (error) {
+      console.warn('Could not query main company settings (table may not exist):', error);
+      // If table doesn't exist, setup is definitely needed
+      needsSetup = true;
+    }
 
-  return {
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      globalRole: user.globalRole,
-    },
-    companies: companies.map(company => {
-      const userCompany = userCompanies.find(uc => uc.companyId === company.id);
-      
-      let role = userCompany?.role || 'assistant';
-      if (user.globalRole === 'global_administrator' && !userCompany) {
-        role = 'administrator';
-      }
-      
-      return {
-        ...company,
-        role: role,
-      };
-    }),
-    needsSetup,
-  };
+    return {
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        globalRole: user.globalRole,
+      },
+      mainCompany: mainCompany,
+      needsSetup,
+    };
+  } catch (error) {
+    console.error('Error in getUserWithCompanies:', error);
+    throw error;
+  }
 }

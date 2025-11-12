@@ -214,8 +214,7 @@ export default function AccountingOperations() {
     lineIndex: number;
   }>({ isOpen: false, accountType: 'debit', lineIndex: 0 });
   
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();
@@ -229,12 +228,12 @@ export default function AccountingOperations() {
 
   const { data: journalEntries, isLoading: entriesLoading } = useQuery<JournalEntry[]>({
     queryKey: ['/api/journal-entries'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const form = useForm<JournalEntryForm>({
@@ -369,12 +368,12 @@ export default function AccountingOperations() {
     });
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to manage accounting operations.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to manage accounting operations.</p>
         </div>
       </div>
     );

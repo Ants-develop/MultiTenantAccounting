@@ -2,10 +2,10 @@
 import express from "express";
 import { db } from "../db";
 import { sql, eq, desc, and, or } from "drizzle-orm";
-import { 
+import {
   users, companies, userCompanies, accounts, activityLogs, companySettings,
-  customers, vendors, invoices, bills,
-  type User, type Company, type UserCompany 
+  customers, vendors, invoices, bills, userClientModules,
+  type User, type Company, type UserCompany
 } from "../../shared/schema";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 import { z } from "zod";
@@ -45,15 +45,15 @@ router.get("/users", async (req, res) => {
       allUsers.map(async (user) => {
         const companyAssignments = await db
           .select({
-            companyId: companies.id,
-            companyName: companies.name,
-            companyCode: companies.code,
+            id: companies.id,
+            name: companies.name,
+            code: companies.code,
             role: userCompanies.role,
             isActive: userCompanies.isActive,
             assignedAt: userCompanies.createdAt
           })
           .from(userCompanies)
-          .innerJoin(companies, eq(userCompanies.companyId, companies.id))
+          .innerJoin(companies, eq(userCompanies.clientId, companies.id))
           .where(eq(userCompanies.userId, user.id))
           .orderBy(companies.name);
 
@@ -167,30 +167,58 @@ router.post("/users", async (req, res) => {
   }
 });
 
-// Get all companies with user counts
-router.get("/companies", async (req, res) => {
+// Get all client companies with user counts
+router.get("/clients", async (req, res) => {
   try {
-    const companiesWithStats = await db
-      .select({
-        id: companies.id,
-        name: companies.name,
-        code: companies.code,
-        address: companies.address,
-        phone: companies.phone,
-        email: companies.email,
-        taxId: companies.taxId,
-        fiscalYearStart: companies.fiscalYearStart,
-        currency: companies.currency,
-        tenantCode: companies.tenantCode,
-        isActive: companies.isActive,
-        createdAt: companies.createdAt,
-        userCount: sql<number>`count(${userCompanies.userId})::int`,
-        activeUserCount: sql<number>`count(case when ${userCompanies.isActive} then 1 end)::int`
+    const search = (req.query.search as string || "").toLowerCase();
+    const status = req.query.status as string || "all";
+    const verification = req.query.verification as string || "all";
+
+    let whereConditions = [];
+
+    // Apply search filter
+    if (search) {
+      whereConditions.push(
+        sql`(LOWER(${companies.name}) LIKE ${`%${search}%`} OR LOWER(${companies.code}) LIKE ${`%${search}%`})`
+      );
+    }
+
+    // Apply status filter
+    if (status === "active") {
+      whereConditions.push(eq(companies.isActive, true));
+    } else if (status === "inactive") {
+      whereConditions.push(eq(companies.isActive, false));
+    }
+
+    // Build base query with where conditions
+    let baseQuery: any = db.select().from(companies);
+
+    // Apply where conditions
+    if (whereConditions.length > 0) {
+      baseQuery = baseQuery.where(and(...whereConditions));
+    }
+
+    // Execute base query to get filtered companies
+    const allFilteredCompanies = await baseQuery;
+
+    // Now get the stats for each filtered company
+    const companiesWithStats = await Promise.all(
+      allFilteredCompanies.map(async (company: any) => {
+        const stats = await db
+          .select({
+            userCount: sql<number>`count(${userCompanies.userId})::int`,
+            activeUserCount: sql<number>`count(case when ${userCompanies.isActive} then 1 end)::int`
+          })
+          .from(userCompanies)
+          .where(eq(userCompanies.clientId, company.id));
+
+        return {
+          ...company,
+          userCount: stats[0]?.userCount || 0,
+          activeUserCount: stats[0]?.activeUserCount || 0
+        };
       })
-      .from(companies)
-      .leftJoin(userCompanies, eq(companies.id, userCompanies.companyId))
-      .groupBy(companies.id)
-      .orderBy(companies.name);
+    ).then(results => results.sort((a: any, b: any) => a.name.localeCompare(b.name)));
 
     // Get user details for each company
     const companiesWithUsers = await Promise.all(
@@ -204,7 +232,7 @@ router.get("/companies", async (req, res) => {
           })
           .from(userCompanies)
           .innerJoin(users, eq(userCompanies.userId, users.id))
-          .where(eq(userCompanies.companyId, company.id))
+          .where(eq(userCompanies.clientId, company.id))
           .limit(5); // Only get first 5 for display
 
         return {
@@ -214,7 +242,14 @@ router.get("/companies", async (req, res) => {
       })
     );
 
-    res.json(companiesWithUsers);
+    // Apply verification filter (client-side for now, since we don't have that data in DB)
+    let filteredCompanies = companiesWithUsers;
+    if (verification !== "all") {
+      // You can add RS verification status field to the companies table later
+      // For now, this is a placeholder
+    }
+
+    res.json({ data: filteredCompanies });
   } catch (error) {
     console.error("Error fetching companies:", error);
     res.status(500).json({ error: "Failed to fetch companies" });
@@ -241,7 +276,7 @@ router.get("/user-assignments", async (req, res) => {
       })
       .from(userCompanies)
       .innerJoin(users, eq(userCompanies.userId, users.id))
-      .innerJoin(companies, eq(userCompanies.companyId, companies.id))
+      .innerJoin(companies, eq(userCompanies.clientId, companies.id))
       .orderBy(companies.name, users.username);
 
     res.json(assignments);
@@ -251,8 +286,8 @@ router.get("/user-assignments", async (req, res) => {
   }
 });
 
-// Get users for a specific company
-router.get("/companies/:companyId/users", async (req, res) => {
+// Get users for a specific client company
+router.get("/clients/:companyId/users", async (req, res) => {
   try {
     const companyId = parseInt(req.params.companyId);
     
@@ -287,7 +322,7 @@ router.get("/companies/:companyId/users", async (req, res) => {
       })
       .from(userCompanies)
       .innerJoin(users, eq(userCompanies.userId, users.id))
-      .where(eq(userCompanies.companyId, companyId))
+      .where(eq(userCompanies.clientId, companyId))
       .orderBy(users.firstName, users.lastName);
 
     res.json(companyUsers);
@@ -297,10 +332,10 @@ router.get("/companies/:companyId/users", async (req, res) => {
   }
 });
 
-// Create new company
-router.post("/companies", async (req, res) => {
+// Create new client company
+router.post("/clients", async (req, res) => {
   try {
-    const { name, code, address, description, phone, email, taxId, fiscalYearStart, currency, tenantCode } = req.body;
+    const { name, code, address, description, phone, email, taxId, fiscalYearStart, currency, tenantCode, manager, accountingSoftware, idCode, userAssignments } = req.body;
 
     // Validate required fields
     if (!name || !code) {
@@ -343,25 +378,44 @@ router.post("/companies", async (req, res) => {
         fiscalYearStart: fiscalYearStart || 1,
         currency: currency || 'USD',
         tenantCode: parsedTenantCode,
+        manager,
+        accountingSoftware,
+        idCode,
         isActive: true
       })
       .returning();
 
     // Get the current user ID from session (this should be available from the requireGlobalAdmin middleware)
     const currentUserId = (req as any).session?.userId;
-    
+
+    // Define available modules
+    const availableModules = ['audit', 'accounting', 'banking'];
+
     if (currentUserId) {
       // Automatically assign the global administrator as an administrator of the new company
       try {
         await db.insert(userCompanies).values({
           userId: currentUserId,
-          companyId: newCompany[0].id,
+          clientId: newCompany[0].id,
           role: 'administrator',
           isActive: true
         });
-        
-        console.log(`Auto-assigned global admin (user ${currentUserId}) to company ${newCompany[0].id} as administrator`);
-        
+
+        // Create module permissions for the global admin
+        const modulePermissions = availableModules.map(module => ({
+          userId: currentUserId,
+          clientId: newCompany[0].id,
+          module,
+          canView: true,
+          canCreate: true,
+          canEdit: true,
+          canDelete: true,
+        }));
+
+        await db.insert(userClientModules).values(modulePermissions);
+
+        console.log(`Auto-assigned global admin (user ${currentUserId}) to company ${newCompany[0].id} as administrator with full permissions`);
+
         // Log the assignment activity
         await activityLogger.logCRUD(
           ACTIVITY_ACTIONS.USER_ASSIGN,
@@ -396,6 +450,44 @@ router.post("/companies", async (req, res) => {
           newCompany[0].id,
           { autoAssignment: true }
         );
+      }
+
+      // Process additional user assignments from request body
+      if (userAssignments && Array.isArray(userAssignments)) {
+        try {
+          for (const assignment of userAssignments) {
+            // Skip if user is already auto-assigned (current user)
+            if (assignment.userId === currentUserId) {
+              continue;
+            }
+
+            await db.insert(userCompanies).values({
+              userId: assignment.userId,
+              clientId: newCompany[0].id,
+              role: assignment.role || 'accountant',
+              isActive: true
+            });
+
+            // Create module permissions for the assigned user
+            // Give accountants full access to all modules for now
+            const modulePermissions = availableModules.map(module => ({
+              userId: assignment.userId,
+              clientId: newCompany[0].id,
+              module,
+              canView: true,
+              canCreate: assignment.role === 'administrator' || assignment.role === 'manager',
+              canEdit: assignment.role === 'administrator' || assignment.role === 'manager',
+              canDelete: assignment.role === 'administrator' || assignment.role === 'manager',
+            }));
+
+            await db.insert(userClientModules).values(modulePermissions);
+
+            console.log(`Assigned user ${assignment.userId} to company ${newCompany[0].id} with role ${assignment.role || 'accountant'} and appropriate module permissions`);
+          }
+        } catch (assignmentError) {
+          console.error('Failed to assign additional users to company:', assignmentError);
+          // Don't fail the company creation if additional assignments fail
+        }
       }
 
       // Log the company creation activity
@@ -507,13 +599,13 @@ router.post("/companies", async (req, res) => {
         category?: string;
       }>;
 
-      const companyId = newCompany[0].id;
-      const existing = await db.select().from(accounts).where(eq(accounts.companyId, companyId));
+      const clientId = newCompany[0].id;
+      const existing = await db.select().from(accounts).where(eq(accounts.clientId, clientId));
       if (existing.length === 0) {
         // First pass: create all accounts
         for (const account of defaults) {
           await db.insert(accounts).values({
-            companyId,
+            clientId,
             code: account.code,
             name: account.name,
             type: account.type,
@@ -530,18 +622,18 @@ router.post("/companies", async (req, res) => {
             const parentAccount = await db
               .select({ id: accounts.id })
               .from(accounts)
-              .where(and(eq(accounts.companyId, companyId), eq(accounts.code, account.parentCode)));
+              .where(and(eq(accounts.clientId, clientId), eq(accounts.code, account.parentCode)));
             
             if (parentAccount.length > 0) {
               // Update child account with parent ID
               await db.update(accounts)
                 .set({ parentId: parentAccount[0].id })
-                .where(and(eq(accounts.companyId, companyId), eq(accounts.code, account.code)));
+                .where(and(eq(accounts.clientId, clientId), eq(accounts.code, account.code)));
             }
           }
         }
         
-        console.log(`✅ Seeded ${defaults.length} default accounts for company ${companyId}`);
+        console.log(`✅ Seeded ${defaults.length} default accounts for company ${clientId}`);
       }
     } catch (seedError) {
       console.error('Failed to seed default accounts for new company:', seedError);
@@ -570,7 +662,7 @@ router.post("/assign-user", async (req, res) => {
       .from(userCompanies)
       .where(and(
         eq(userCompanies.userId, userId),
-        eq(userCompanies.companyId, companyId)
+        eq(userCompanies.clientId, companyId)
       ))
       .limit(1);
 
@@ -582,7 +674,7 @@ router.post("/assign-user", async (req, res) => {
       .insert(userCompanies)
       .values({
         userId,
-        companyId,
+        clientId: companyId,
         role,
         isActive: true
       })
@@ -719,8 +811,8 @@ router.get("/activity", async (req, res) => {
   }
 });
 
-// Update company
-router.put("/companies/:id", async (req, res) => {
+// Update client company
+router.put("/clients/:id", async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
     const { name, code, description, tenantCode } = req.body;
@@ -792,8 +884,143 @@ router.put("/companies/:id", async (req, res) => {
   }
 });
 
-// Delete company
-router.delete("/companies/:id", async (req, res) => {
+// Delete client company
+// PUT /api/global-admin/clients/:id - Update a client company
+router.put("/clients/:id", async (req, res) => {
+  const clientId = parseInt(req.params.id);
+
+  try {
+    if (isNaN(clientId)) {
+      return res.status(400).json({ error: "Invalid client company ID" });
+    }
+
+    // Validate that the client company exists
+    const existingClient = await db
+      .select()
+      .from(companies)
+      .where(eq(companies.id, clientId))
+      .limit(1);
+
+    if (existingClient.length === 0) {
+      return res.status(404).json({ error: "Client company not found" });
+    }
+
+    // Destructure and validate input
+    const {
+      name,
+      code,
+      address,
+      phone,
+      email,
+      taxId,
+      fiscalYearStart,
+      currency,
+      tenantCode,
+      manager,
+      accountingSoftware,
+      idCode,
+      isActive,
+    } = req.body;
+
+    // Validate required fields if provided
+    if (name !== undefined && !name) {
+      return res.status(400).json({ error: "Client company name cannot be empty" });
+    }
+
+    // Check for code uniqueness if code is being updated
+    if (code !== undefined && code !== existingClient[0].code) {
+      const codeExists = await db
+        .select()
+        .from(companies)
+        .where(eq(companies.code, code))
+        .limit(1);
+
+      if (codeExists.length > 0) {
+        return res.status(400).json({ error: "Client company code already exists" });
+      }
+    }
+
+    // Check for tenant code uniqueness if tenant code is being updated
+    let parsedTenantCode: number | null = existingClient[0].tenantCode || null;
+    if (tenantCode !== undefined) {
+      if (tenantCode !== null) {
+        if (typeof tenantCode === 'number') {
+          parsedTenantCode = Math.floor(tenantCode);
+        } else if (typeof tenantCode === 'string' && tenantCode.trim()) {
+          const parsed = parseInt(tenantCode.trim(), 10);
+          parsedTenantCode = isNaN(parsed) ? null : parsed;
+        }
+      } else {
+        parsedTenantCode = null;
+      }
+
+      if (parsedTenantCode !== null && parsedTenantCode !== existingClient[0].tenantCode) {
+        const tenantCodeExists = await db
+          .select()
+          .from(companies)
+          .where(eq(companies.tenantCode, parsedTenantCode))
+          .limit(1);
+
+        if (tenantCodeExists.length > 0) {
+          return res.status(400).json({ error: "Tenant code already exists" });
+        }
+      }
+    }
+
+    // Build update object only with provided fields
+    const updateData: any = {};
+    if (name !== undefined) updateData.name = name;
+    if (code !== undefined) updateData.code = code;
+    if (address !== undefined) updateData.address = address;
+    if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email;
+    if (taxId !== undefined) updateData.taxId = taxId;
+    if (fiscalYearStart !== undefined) updateData.fiscalYearStart = fiscalYearStart;
+    if (currency !== undefined) updateData.currency = currency;
+    if (tenantCode !== undefined) updateData.tenantCode = parsedTenantCode;
+    if (manager !== undefined) updateData.manager = manager;
+    if (accountingSoftware !== undefined) updateData.accountingSoftware = accountingSoftware;
+    if (idCode !== undefined) updateData.idCode = idCode;
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    // Update the client company
+    const updatedClient = await db
+      .update(companies)
+      .set(updateData)
+      .where(eq(companies.id, clientId))
+      .returning();
+
+    if (updatedClient.length === 0) {
+      return res.status(404).json({ error: "Client company not found" });
+    }
+
+    // Log the update activity
+    try {
+      await activityLogger.logCRUD(
+        ACTIVITY_ACTIONS.COMPANY_UPDATE,
+        RESOURCE_TYPES.COMPANY,
+        {
+          userId: (req as any).session?.userId,
+          companyId: clientId,
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent"),
+        },
+        clientId,
+        undefined,
+        { updatedFields: Object.keys(updateData) }
+      );
+    } catch (logError) {
+      console.error("Failed to log client company update:", logError);
+    }
+
+    res.json(updatedClient[0]);
+  } catch (error) {
+    console.error("Error updating client company:", error);
+    res.status(500).json({ error: "Failed to update client company" });
+  }
+});
+
+router.delete("/clients/:id", async (req, res) => {
   const companyId = parseInt(req.params.id);
   
   try {
@@ -809,7 +1036,7 @@ router.delete("/companies/:id", async (req, res) => {
     const assignedUsers = await db
       .select()
       .from(userCompanies)
-      .where(eq(userCompanies.companyId, companyId))
+      .where(eq(userCompanies.clientId, companyId))
       .limit(1);
 
     if (assignedUsers.length > 0) {
@@ -823,7 +1050,7 @@ router.delete("/companies/:id", async (req, res) => {
     // Cascade: remove all accounting data, then the company
     const deletedCompany = await db.transaction(async (tx) => {
       // Remove company-user assignments
-      await tx.delete(userCompanies).where(eq(userCompanies.companyId, companyId));
+      await tx.delete(userCompanies).where(eq(userCompanies.clientId, companyId));
 
       // Delete journal entry lines tied to this company's entries
       await tx.execute(sql`
@@ -854,7 +1081,7 @@ router.delete("/companies/:id", async (req, res) => {
       await tx.execute(sql`DELETE FROM vendors WHERE company_id = ${companyId}`);
 
       // Delete company settings (FK constraint)
-      await tx.delete(companySettings).where(eq(companySettings.companyId, companyId));
+      await tx.delete(companySettings).where(eq(companySettings.clientId, companyId));
 
       // Finally, delete the company
       const dc = await tx
@@ -1042,8 +1269,8 @@ router.put("/users/:id/status", async (req, res) => {
   }
 });
 
-// Update company status
-router.put("/companies/:id/status", async (req, res) => {
+// Update client company status
+router.put("/clients/:id/status", async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
     const { isActive } = req.body;
@@ -1103,7 +1330,7 @@ router.post("/assign-user", async (req, res) => {
       .from(userCompanies)
       .where(and(
         eq(userCompanies.userId, userId),
-        eq(userCompanies.companyId, companyId)
+        eq(userCompanies.clientId, companyId)
       ))
       .limit(1);
 
@@ -1115,7 +1342,7 @@ router.post("/assign-user", async (req, res) => {
     const assignment = await db.insert(userCompanies)
       .values({
         userId,
-        companyId,
+        clientId: companyId,
         role,
         isActive: true,
       })
@@ -1175,7 +1402,7 @@ router.put("/user-assignments/:assignmentId", async (req, res) => {
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.ROLE_CHANGE,
       RESOURCE_TYPES.USER_COMPANY,
-      { userId: currentUserId, companyId: assignment[0].companyId },
+      { userId: currentUserId, companyId: assignment[0].clientId },
       assignmentId,
       { role: assignment[0].role },
       { role }
@@ -1201,13 +1428,13 @@ router.delete("/user-assignments/:assignmentId", async (req, res) => {
     const assignment = await db.select({
       id: userCompanies.id,
       userId: userCompanies.userId,
-      companyId: userCompanies.companyId,
+      companyId: userCompanies.clientId,
       role: userCompanies.role,
       companyName: companies.name,
       userName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`
     })
       .from(userCompanies)
-      .innerJoin(companies, eq(userCompanies.companyId, companies.id))
+      .innerJoin(companies, eq(userCompanies.clientId, companies.id))
       .innerJoin(users, eq(userCompanies.userId, users.id))
       .where(eq(userCompanies.id, assignmentId))
       .limit(1);

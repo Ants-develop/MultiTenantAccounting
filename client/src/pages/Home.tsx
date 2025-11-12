@@ -16,32 +16,31 @@ interface KpisResponse {
 interface TopItem { name: string; value: number; }
 
 export default function Home() {
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { t } = useTranslation();
   const [range, setRange] = useState<string>("thisYear");
 
   const { data: kpis, error: kpiError } = useQuery<KpisResponse>({
     queryKey: ["/api/home/kpis?range=" + range],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
   const { data: topCustomers, error: customersError } = useQuery<TopItem[]>({
     queryKey: ["/api/home/top-customers?range=" + range],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
   const { data: topVendors, error: vendorsError } = useQuery<TopItem[]>({
     queryKey: ["/api/home/top-vendors?range=" + range],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
     queryFn: getQueryFn({ on401: "throw" }),
   });
 
   if (kpiError || customersError || vendorsError) {
     // Debug information for troubleshooting API issues
-    console.error("HOME_PAGE_API_ERROR", { kpiError, customersError, vendorsError, range, currentCompany });
+    console.error("HOME_PAGE_API_ERROR", { kpiError, customersError, vendorsError, range, mainCompany });
   }
 
   const formatCurrency = (amount: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(amount || 0);

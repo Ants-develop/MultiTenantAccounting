@@ -9,16 +9,24 @@ export interface AuthUser {
   globalRole?: string;
 }
 
-export interface Company {
+export interface MainCompany {
   id: number;
   name: string;
   code: string;
-  role: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  taxId?: string | null;
+  fiscalYearStart?: number;
+  currency: string;
+  dateFormat: string;
+  decimalPlaces: number;
 }
 
 export interface AuthResponse {
   user: AuthUser;
-  companies: Company[];
+  mainCompany: MainCompany | null;
+  needsSetup: boolean;
 }
 
 export async function login(username: string, password: string): Promise<AuthResponse> {

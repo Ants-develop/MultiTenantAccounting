@@ -39,8 +39,7 @@ export default function BankReconciliation() {
   const [selectedBankTransactions, setSelectedBankTransactions] = useState<Set<number>>(new Set());
   const [selectedJournalEntries, setSelectedJournalEntries] = useState<Set<number>>(new Set());
   
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
 
   // Mock data - in a real app, this would come from the API
   const bankTransactions: BankTransaction[] = [
@@ -153,12 +152,12 @@ export default function BankReconciliation() {
     setSelectedJournalEntries(newSelected);
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to perform bank reconciliation.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to perform bank reconciliation.</p>
         </div>
       </div>
     );

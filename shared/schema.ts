@@ -31,7 +31,12 @@ export const clients = pgTable("clients", {
   fiscalYearStart: integer("fiscal_year_start").default(1), // Month 1-12
   currency: text("currency").default("GEL"),
   isActive: boolean("is_active").default(true),
+  manager: text("manager"), // Name of assigned manager/accountant
+  accountingSoftware: text("accounting_software"), // Name of accounting software used
+  idCode: text("id_code"), // Company identification code (tax ID or registration number)
+  verificationStatus: text("verification_status").default("not_registered"), // RS.GE verification status
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Keep companies as an alias for backwards compatibility during transition
@@ -63,6 +68,35 @@ export const userCompanies = pgTable("user_companies", {
   role: text("role").notNull(), // "administrator", "manager", "accountant", "assistant"
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Module-Level Permissions: Controls access to entire modules per user per client
+export const userClientModules = pgTable("user_client_modules", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  module: text("module").notNull(), // 'accounting', 'banking', 'reports', 'audit', 'rs_integration', 'tasks', 'messenger'
+  canView: boolean("can_view").default(false),
+  canCreate: boolean("can_create").default(false),
+  canEdit: boolean("can_edit").default(false),
+  canDelete: boolean("can_delete").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Feature-Level Permissions: Controls access to specific features within modules
+export const userClientFeatures = pgTable("user_client_features", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  module: text("module").notNull(), // parent module
+  feature: text("feature").notNull(), // 'invoices', 'bills', 'journal_entries', 'accounts', 'bank_accounts', etc.
+  canView: boolean("can_view").default(false),
+  canCreate: boolean("can_create").default(false),
+  canEdit: boolean("can_edit").default(false),
+  canDelete: boolean("can_delete").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Chart of Accounts
@@ -389,6 +423,55 @@ export const companySettings = pgTable("company_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Main Company Settings - dedicated table for the accounting firm's own company information
+// Only ONE row should exist in this table (system-wide main company)
+export const mainCompanySettings = pgTable("main_company_settings", {
+  id: serial("id").primaryKey(),
+  // Company Profile
+  name: text("name").notNull(),
+  code: text("code").notNull(),
+  address: text("address"),
+  phone: text("phone"),
+  email: text("email"),
+  taxId: text("tax_id"),
+  // Financial Settings
+  fiscalYearStart: integer("fiscal_year_start").default(1),
+  currency: text("currency").default("GEL"),
+  dateFormat: text("date_format").default("MM/DD/YYYY"),
+  decimalPlaces: integer("decimal_places").default(2),
+  // Notification Settings
+  emailNotifications: boolean("email_notifications").default(true),
+  invoiceReminders: boolean("invoice_reminders").default(true),
+  paymentAlerts: boolean("payment_alerts").default(true),
+  reportReminders: boolean("report_reminders").default(false),
+  systemUpdates: boolean("system_updates").default(true),
+  // Document Settings
+  autoNumbering: boolean("auto_numbering").default(true),
+  invoicePrefix: text("invoice_prefix").default("INV"),
+  billPrefix: text("bill_prefix").default("BILL"),
+  journalPrefix: text("journal_prefix").default("JE"),
+  negativeFormat: text("negative_format").default("minus"),
+  // Security Settings
+  requirePasswordChange: boolean("require_password_change").default(false),
+  passwordExpireDays: integer("password_expire_days").default(90),
+  sessionTimeout: integer("session_timeout").default(30),
+  enableTwoFactor: boolean("enable_two_factor").default(false),
+  allowMultipleSessions: boolean("allow_multiple_sessions").default(true),
+  // Integration Settings
+  bankConnection: boolean("bank_connection").default(false),
+  paymentGateway: boolean("payment_gateway").default(false),
+  taxService: boolean("tax_service").default(false),
+  reportingTools: boolean("reporting_tools").default(false),
+  // Backup Settings
+  autoBackup: boolean("auto_backup").default(false),
+  backupFrequency: text("backup_frequency").default("weekly"),
+  retentionDays: integer("retention_days").default(30),
+  backupLocation: text("backup_location").default("cloud"),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   userCompanies: many(userCompanies),
@@ -471,6 +554,8 @@ export const insertClientSchema = createInsertSchema(clients).omit({ id: true, c
 // Backwards compatibility alias
 export const insertCompanySchema = insertClientSchema;
 export const insertUserCompanySchema = createInsertSchema(userCompanies).omit({ id: true, createdAt: true });
+export const insertUserClientModuleSchema = createInsertSchema(userClientModules).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserClientFeatureSchema = createInsertSchema(userClientFeatures).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertRsUserSchema = createInsertSchema(rsUsers).omit({ id: true, createdAt: true, updatedAt: true, createdByUserId: true });
 export const insertAccountSchema = createInsertSchema(accounts).omit({ id: true, createdAt: true });
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({ id: true, createdAt: true });
@@ -482,6 +567,10 @@ export const insertBillSchema = createInsertSchema(bills).omit({ id: true, creat
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, timestamp: true, clientId: true });
 export const insertGeneralLedgerSchema = createInsertSchema(generalLedger).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Main Company Settings Schemas
+export const insertMainCompanySettingsSchema = createInsertSchema(mainCompanySettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const updateMainCompanySettingsSchema = createInsertSchema(mainCompanySettings).partial().omit({ id: true, createdAt: true, updatedAt: true });
 
 // Enhanced validation schemas with business rules
 export const insertUserSchemaEnhanced = insertUserSchema.extend({
@@ -497,9 +586,13 @@ export const insertClientSchemaEnhanced = insertClientSchema.extend({
   name: z.string().min(1, "Client name is required").max(100, "Client name too long"),
   code: z.string().min(2, "Client code must be at least 2 characters").max(10, "Client code too long").regex(/^[A-Z0-9]+$/, "Client code must contain only uppercase letters and numbers"),
   email: z.string().email("Invalid email format").optional(),
-  tenantCode: z.string().max(50, "Tenant code too long").optional(),
+  tenantCode: z.number().optional(),
   currency: z.string().length(3, "Currency must be 3 characters (ISO 4217)").default("GEL"),
-  fiscalYearStart: z.number().min(1).max(12, "Fiscal year start must be between 1-12")
+  fiscalYearStart: z.number().min(1).max(12, "Fiscal year start must be between 1-12"),
+  manager: z.string().max(100, "Manager name too long").optional(),
+  accountingSoftware: z.string().max(100, "Accounting software name too long").optional(),
+  idCode: z.string().max(50, "ID code too long").optional(),
+  isActive: z.boolean().default(true),
 });
 // Backwards compatibility alias
 export const insertCompanySchemaEnhanced = insertClientSchemaEnhanced;
@@ -736,6 +829,10 @@ export type Company = Client;
 export type InsertCompany = InsertClient;
 export type UserCompany = typeof userCompanies.$inferSelect;
 export type InsertUserCompany = z.infer<typeof insertUserCompanySchema>;
+export type UserClientModule = typeof userClientModules.$inferSelect;
+export type InsertUserClientModule = z.infer<typeof insertUserClientModuleSchema>;
+export type UserClientFeature = typeof userClientFeatures.$inferSelect;
+export type InsertUserClientFeature = z.infer<typeof insertUserClientFeatureSchema>;
 export type RsUser = typeof rsUsers.$inferSelect;
 export type InsertRsUser = z.infer<typeof insertRsUserSchema>;
 export type Account = typeof accounts.$inferSelect;
@@ -764,6 +861,9 @@ export type RawBankTransaction = typeof rawBankTransactions.$inferSelect;
 export type InsertRawBankTransaction = z.infer<typeof insertRawBankTransactionSchema>;
 export type NormalizedBankTransaction = typeof normalizedBankTransactions.$inferSelect;
 export type InsertNormalizedBankTransaction = z.infer<typeof insertNormalizedBankTransactionSchema>;
+export type MainCompanySettings = typeof mainCompanySettings.$inferSelect;
+export type InsertMainCompanySettings = z.infer<typeof insertMainCompanySettingsSchema>;
+export type UpdateMainCompanySettings = z.infer<typeof updateMainCompanySettingsSchema>;
 
 // Enhanced types with validation
 export type InsertUserEnhanced = z.infer<typeof insertUserSchemaEnhanced>;

@@ -30,17 +30,16 @@ export default function GeneralLedger() {
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
 
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const { data: journalEntries, isLoading: entriesLoading } = useQuery<JournalEntry[]>({
     queryKey: ['/api/journal-entries'],
-    enabled: !!currentCompany,
+    enabled: !!mainCompany,
   });
 
   const formatCurrency = (amount: string | number) => {
@@ -59,12 +58,12 @@ export default function GeneralLedger() {
     });
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">No Company Selected</h3>
-          <p className="text-muted-foreground">Please select a company to view the general ledger.</p>
+          <h3 className="text-lg font-medium text-foreground">No Company Configured</h3>
+          <p className="text-muted-foreground">Please complete company setup to view the general ledger.</p>
         </div>
       </div>
     );

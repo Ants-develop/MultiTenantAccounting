@@ -1,19 +1,20 @@
 // Journal Entries API Routes
 import express from "express";
 import { db } from "../db";
-import { sql, eq, desc } from "drizzle-orm";
+import { sql, eq, desc, inArray } from "drizzle-orm";
 import { z as zod } from "zod";
 import { 
   insertJournalEntrySchema, 
   insertJournalEntryLineSchema,
   journalEntries, 
   journalEntryLines,
-  companies as companiesTable 
+  clients as companiesTable 
 } from "@shared/schema";
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 import { DEFAULT_CLIENT_ID } from "../constants";
+import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
 
@@ -21,36 +22,65 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Get all journal entries with pagination and tenant filtering
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID;
+    const userId = (req.session as any)?.userId;
+    
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
     
     // Parse pagination parameters
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 1000;
     const offset = (page - 1) * limit;
 
-    // Get company to access tenant code
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, clientId));
+    // Get companies to access tenant codes
+    const companies = await db
+      .select()
+      .from(companiesTable)
+      .where(inArray(companiesTable.id, clientIds));
     
-    if (!company) {
-      return res.status(404).json({ message: 'Company not found' });
+    if (companies.length === 0) {
+      return res.status(404).json({ message: 'Companies not found' });
     }
     
-    console.log(`[JournalEntries API] Fetching entries for clientId: ${clientId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
+    console.log(`[JournalEntries API] Fetching entries for clientIds: ${clientIds.join(',')}, page: ${page}, limit: ${limit}`);
     
-    // CRITICAL: Require tenant code for data isolation
-    if (!company.tenantCode) {
-      console.error(`[JournalEntries API] Company ${clientId} (${company.name}) has no tenant_code configured`);
+    // Get tenant codes for all requested companies
+    const tenantCodes = companies
+      .filter(c => c.tenantCode)
+      .map(c => c.tenantCode!);
+    
+    if (tenantCodes.length === 0) {
+      console.error(`[JournalEntries API] No companies with tenant codes found for clientIds: ${clientIds.join(',')}`);
       return res.status(400).json({ 
-        message: 'Company has no tenant code configured. Please set a tenant code for this company to access journal entries.',
-        companyName: company.name,
-        clientId: clientId
+        message: 'No companies with tenant codes configured. Please set tenant codes for companies to access journal entries.',
+        clientIds: clientIds
       });
     }
     
-    // Build query - filter by tenantCode ONLY
-    // This ensures we only get transactions that belong to the company's tenant
+    // Build query - filter by tenantCodes
+    // This ensures we only get transactions that belong to the requested companies' tenants
     const query = db
       .select({
         // Core fields
@@ -123,15 +153,16 @@ router.get('/', async (req, res) => {
       })
       .from(journalEntries);
     
-    // Apply tenant code filter - only get entries with matching tenant code
-    const filteredQuery = query.where(eq(journalEntries.tenantCode, company.tenantCode));
-    console.log(`[JournalEntries API] Filtering by tenantCode: ${company.tenantCode}`);
+    // Apply tenant code filter - only get entries with matching tenant codes
+    const { sql: sqlFn } = require('drizzle-orm');
+    const filteredQuery = query.where(inArray(journalEntries.tenantCode, tenantCodes));
+    console.log(`[JournalEntries API] Filtering by tenantCodes: ${tenantCodes.join(',')}`);
     
     // Get total count for pagination
     const [{ count: totalCount }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(journalEntries)
-      .where(eq(journalEntries.tenantCode, company.tenantCode));
+      .where(inArray(journalEntries.tenantCode, tenantCodes));
     
     // Order by date descending with pagination
     const entries = await filteredQuery

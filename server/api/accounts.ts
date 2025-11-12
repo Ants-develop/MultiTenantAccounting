@@ -1,22 +1,54 @@
 // Account Management API Routes
 import express from "express";
 import { db } from "../db";
-import { sql, eq, and } from "drizzle-orm";
+import { sql, eq, and, inArray } from "drizzle-orm";
 import { insertAccountSchema, accounts } from "@shared/schema";
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 import { DEFAULT_CLIENT_ID } from "../constants";
+import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
 
-// Get all accounts for the main company
+// Get all accounts for specified clients
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/', async (req, res) => {
   try {
-    const accountsList = await storage.getAccountsByClient(DEFAULT_CLIENT_ID);
+    const userId = (req.session as any)?.userId;
+    
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+    }
+
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
+
+    // Get accounts for all requested clients
+    const accountsList = await db
+      .select()
+      .from(accounts)
+      .where(inArray(accounts.clientId, clientIds))
+      .orderBy(accounts.code);
+    
     res.json(accountsList);
   } catch (error) {
     console.error('Get accounts error:', error);
@@ -25,13 +57,35 @@ router.get('/', async (req, res) => {
 });
 
 // Get account balances
+// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
 router.get('/balances', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const userId = (req.session as any)?.userId;
+    
+    // Parse clientIds from query parameter (comma-separated)
+    const clientIdsParam = req.query.clientIds as string;
+    let clientIds: number[] = [];
+    
+    if (clientIdsParam) {
+      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
     }
 
-    const companyId = DEFAULT_CLIENT_ID;
+    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    if (clientIds.length === 0) {
+      clientIds = [DEFAULT_CLIENT_ID];
+    }
+
+    // Validate user has permission for all requested clients
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+    if (invalidIds.length > 0) {
+      return res.status(403).json({ message: 'Access denied to some clients' });
+    }
+
+    // Create SQL IN clause for multiple company IDs
+    const companyIdsList = clientIds.join(',');
     
     // Get account balances using SQL
     const balancesResult = await db.execute(sql`
@@ -41,6 +95,7 @@ router.get('/balances', async (req, res) => {
         a.name,
         a.type,
         a.sub_type,
+        a.company_id,
         COALESCE(SUM(jel.debit_amount::numeric), 0) as total_debits,
         COALESCE(SUM(jel.credit_amount::numeric), 0) as total_credits,
         CASE 
@@ -52,10 +107,10 @@ router.get('/balances', async (req, res) => {
       FROM accounts a
       LEFT JOIN journal_entry_lines jel ON a.id = jel.account_id
       LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId} 
+      WHERE a.company_id IN (${sql.raw(companyIdsList)})
       AND a.is_active = true
       AND (je.is_posted = true OR je.id IS NULL)
-      GROUP BY a.id, a.code, a.name, a.type, a.sub_type
+      GROUP BY a.id, a.code, a.name, a.type, a.sub_type, a.company_id
       ORDER BY a.code
     `);
 

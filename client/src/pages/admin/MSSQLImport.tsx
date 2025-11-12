@@ -18,7 +18,6 @@ import {
   Download, Info, Play, Pause, Square, Clock, BarChart3, ArrowUpCircle, Search
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -92,8 +91,7 @@ export default function MSSQLImport() {
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
   const [selectedAuditTables, setSelectedAuditTables] = useState<Set<string>>(new Set());
 
-  const { user, companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { user, mainCompany } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -132,15 +130,47 @@ export default function MSSQLImport() {
     }
   }, [activeMigration?.status]);
 
-  // Fetch available tenant codes from MSSQL
-  const { data: tenantCodes = [], isLoading: tenantCodesLoading, refetch: refetchTenantCodes } = useQuery<TenantCode[]>({
-    queryKey: ['/api/mssql/tenant-codes'],
+  // Fetch all available clients
+  const { data: availableClients = [], isLoading: clientsLoading } = useQuery({
+    queryKey: ['/api/clients'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/mssql/tenant-codes');
+      const response = await apiRequest('GET', '/api/clients');
+      const data = await response.json();
+      return data || [];
+    },
+    enabled: !!mainCompany?.id,
+  });
+
+  // Add PostingsPeriod filter state
+  const [postingsPeriodFrom, setPostingsPeriodFrom] = useState<string>('');
+  const [postingsPeriodTo, setPostingsPeriodTo] = useState<string>('');
+
+  // Fetch available tenant codes from MSSQL with optional PostingsPeriod filter
+  const { data: tenantCodes = [], isLoading: tenantCodesLoading, refetch: refetchTenantCodes } = useQuery<TenantCode[]>({
+    queryKey: ['/api/mssql/tenant-codes', postingsPeriodFrom, postingsPeriodTo, availableClients],
+    queryFn: async () => {
+      // Build query parameters
+      const params = new URLSearchParams();
+      if (postingsPeriodFrom) params.append('postingsPeriodFrom', postingsPeriodFrom);
+      if (postingsPeriodTo) params.append('postingsPeriodTo', postingsPeriodTo);
+      
+      // Add all client tenant codes if available
+      if (availableClients.length > 0) {
+        const tenantCodes = availableClients
+          .filter((c: any) => c.tenantCode)
+          .map((c: any) => c.tenantCode)
+          .join(',');
+        if (tenantCodes) {
+          params.append('tenantCodes', tenantCodes);
+        }
+      }
+
+      const url = `/api/mssql/tenant-codes${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await apiRequest('GET', url);
       const data = await response.json();
       return data.tenantCodes || [];
     },
-    enabled: !!currentCompany?.id,
+    enabled: !!mainCompany?.id,
   });
 
   // Fetch available audit tables
@@ -151,26 +181,28 @@ export default function MSSQLImport() {
       const data = await response.json();
       return data.auditTables || [];
     },
-    enabled: !!currentCompany?.id,
+    enabled: !!mainCompany?.id,
   });
 
   // Start migration mutation
   const startMigrationMutation = useMutation<MigrationResult, Error, MigrationForm>({
     mutationFn: async (data) => {
-      console.log('Mutation function called with:', { data, selectedTenant, currentCompany });
+      console.log('Mutation function called with:', { data, selectedTenant, mainCompany });
 
       if (!selectedTenant) {
         throw new Error("No tenant selected");
       }
-      if (!currentCompany?.id) {
-        throw new Error("No company selected");
+      if (!mainCompany?.id) {
+        throw new Error("Main company not configured");
       }
 
       console.log('Making API request to start migration...');
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         tenantCode: selectedTenant.tenantCode,
-        companyId: currentCompany.id,
+        companyId: mainCompany.id,
         batchSize: data.batchSize,
+        postingsPeriodFrom: postingsPeriodFrom || undefined,
+        postingsPeriodTo: postingsPeriodTo || undefined,
       });
       console.log('API response:', response);
       return response.json();
@@ -204,19 +236,21 @@ export default function MSSQLImport() {
   // Start update mutation
   const startUpdateMutation = useMutation<MigrationResult, Error, void>({
     mutationFn: async () => {
-      console.log('Starting update for:', { selectedTenant, currentCompany });
+      console.log('Starting update for:', { selectedTenant, mainCompany });
 
       if (!selectedTenant) {
         throw new Error("No tenant selected");
       }
-      if (!currentCompany?.id) {
-        throw new Error("No company selected");
+      if (!mainCompany?.id) {
+        throw new Error("Main company not configured");
       }
 
       console.log('Making API request to start update...');
       const response = await apiRequest('POST', '/api/mssql/start-update', {
         tenantCode: selectedTenant.tenantCode,
-        companyId: currentCompany.id,
+        companyId: mainCompany.id,
+        postingsPeriodFrom: postingsPeriodFrom || undefined,
+        postingsPeriodTo: postingsPeriodTo || undefined,
       });
       console.log('Update API response:', response);
       return response.json();
@@ -266,18 +300,18 @@ export default function MSSQLImport() {
   // Export to audit table (general_ledger) mutation
   const exportToAuditMutation = useMutation<MigrationResult, Error, void>({
     mutationFn: async () => {
-      if (!currentCompany?.id) {
-        throw new Error("No company selected");
+      if (!mainCompany?.id) {
+        throw new Error("Main company not configured");
       }
 
-      const tenantCode = (currentCompany as any)?.tenantCode;
+      const tenantCode = (mainCompany as any)?.tenantCode;
       if (!tenantCode) {
-        throw new Error("Company tenant code not configured. Please set tenant code in Global Admin.");
+        throw new Error("Main company tenant code not configured. Please set tenant code in Global Admin.");
       }
 
       const response = await apiRequest('POST', '/api/mssql/export-to-audit', {
         tenantCode: tenantCode,
-        companyId: currentCompany.id,
+        companyId: mainCompany.id,
       });
       return response.json();
     },
@@ -285,7 +319,7 @@ export default function MSSQLImport() {
       if (result.success) {
         toast({
           title: "Export Started",
-          description: `Exporting data from MSSQL to general_ledger for tenant code ${(currentCompany as any)?.tenantCode}`,
+          description: `Exporting data from MSSQL to general_ledger for tenant code ${(mainCompany as any)?.tenantCode}`,
         });
         setIsPolling(true);
         queryClient.invalidateQueries({ queryKey: ['/api/mssql/migration-status'] });
@@ -309,8 +343,8 @@ export default function MSSQLImport() {
   // Start audit table migration mutation
   const startAuditTableMigrationMutation = useMutation<AuditMigrationResult, Error, { tableName: string; batchSize: number }>({
     mutationFn: async (data) => {
-      if (!currentCompany?.id) {
-        throw new Error("No company selected");
+      if (!mainCompany?.id) {
+        throw new Error("Main company not configured");
       }
 
       const response = await apiRequest('POST', '/api/mssql-audit/start-audit-table-migration', {
@@ -348,8 +382,8 @@ export default function MSSQLImport() {
   // Start full audit export mutation
   const startFullAuditExportMutation = useMutation<AuditMigrationResult, Error, { batchSize: number }>({
     mutationFn: async (data) => {
-      if (!currentCompany?.id) {
-        throw new Error("No company selected");
+      if (!mainCompany?.id) {
+        throw new Error("Main company not configured");
       }
 
       const response = await apiRequest('POST', '/api/mssql-audit/start-full-audit-export', {
@@ -384,12 +418,12 @@ export default function MSSQLImport() {
   });
 
   const handleStartMigration = (data: MigrationForm) => {
-    console.log('handleStartMigration called with:', { data, selectedTenant, currentCompany });
+    console.log('handleStartMigration called with:', { data, selectedTenant, mainCompany });
     
-    if (!currentCompany?.id) {
+    if (!mainCompany?.id) {
       toast({
         title: "Error",
-        description: "No company selected",
+        description: "Main company not configured",
         variant: "destructive",
       });
       return;
@@ -495,40 +529,96 @@ export default function MSSQLImport() {
         </div>
       </div>
 
-      {/* Current Company Info */}
+      {/* Main Company Info & Filter */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Info className="w-5 h-5 mr-2" />
-            Current Company
+            Main Company & Available Clients
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm font-medium">Company Name</Label>
-              <p className="text-sm text-muted-foreground">{currentCompany?.name || 'No company selected'}</p>
+              <Label className="text-sm font-medium">Main Company Name</Label>
+              <p className="text-sm text-muted-foreground">{mainCompany?.name || 'Not configured'}</p>
             </div>
             <div>
-              <Label className="text-sm font-medium">Tenant Code</Label>
+              <Label className="text-sm font-medium">Main Company Tenant Code</Label>
               <p className="text-sm text-muted-foreground">
-                {(currentCompany as any)?.tenantCode ? (
-                  <span className="font-semibold text-primary">{(currentCompany as any).tenantCode}</span>
+                {(mainCompany as any)?.tenantCode ? (
+                  <span className="font-semibold text-primary">{(mainCompany as any).tenantCode}</span>
                 ) : (
                   <span className="text-amber-600">Not configured</span>
                 )}
               </p>
-              {!(currentCompany as any)?.tenantCode && currentCompany?.name && (
+              {!(mainCompany as any)?.tenantCode && mainCompany?.name && (
                 <p className="text-xs text-amber-600 mt-1">
                   ⚠️ Set tenant code in Global Admin to export data to general_ledger
                 </p>
               )}
-              {(currentCompany as any)?.tenantCode && (
+              {(mainCompany as any)?.tenantCode && (
                 <p className="text-xs text-green-600 mt-1">
-                  ✓ Ready to export MSSQL data to general_ledger using tenant code: {(currentCompany as any).tenantCode}
+                  ✓ Ready to export MSSQL data to general_ledger using tenant code: {(mainCompany as any).tenantCode}
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Available Clients Summary */}
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium">Available Clients ({availableClients.length})</Label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
+              {clientsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading clients...</p>
+              ) : availableClients.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No clients configured</p>
+              ) : (
+                availableClients.slice(0, 6).map((client: any) => (
+                  <div key={client.id} className="p-2 bg-gray-50 rounded border text-sm">
+                    <p className="font-medium">{client.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {client.tenantCode ? `Code: ${client.tenantCode}` : 'No tenant code'}
+                    </p>
+                  </div>
+                ))
+              )}
+              {availableClients.length > 6 && (
+                <p className="text-xs text-muted-foreground">... and {availableClients.length - 6} more</p>
+              )}
+            </div>
+          </div>
+
+          {/* PostingsPeriod Filter */}
+          <div className="border-t pt-4">
+            <Label className="text-sm font-medium mb-2 block">Filter by PostingsPeriod (Optional)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="postingsPeriodFrom" className="text-xs text-muted-foreground">From Date</Label>
+                <Input
+                  id="postingsPeriodFrom"
+                  type="date"
+                  value={postingsPeriodFrom}
+                  onChange={(e) => setPostingsPeriodFrom(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="postingsPeriodTo" className="text-xs text-muted-foreground">To Date</Label>
+                <Input
+                  id="postingsPeriodTo"
+                  type="date"
+                  value={postingsPeriodTo}
+                  onChange={(e) => setPostingsPeriodTo(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            {(postingsPeriodFrom || postingsPeriodTo) && (
+              <p className="text-xs text-blue-600 mt-2">
+                ℹ️ Filtering tenant codes by posting period: {postingsPeriodFrom || 'any'} to {postingsPeriodTo || 'any'}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -652,8 +742,8 @@ export default function MSSQLImport() {
               variant="default" 
               onClick={() => exportToAuditMutation.mutate()}
               disabled={
-                !currentCompany?.id || 
-                !(currentCompany as any)?.tenantCode || 
+                !mainCompany?.id || 
+                !(mainCompany as any)?.tenantCode || 
                 exportToAuditMutation.isPending ||
                 !!activeMigration
               }
@@ -724,12 +814,12 @@ export default function MSSQLImport() {
                           <Button
                             size="sm"
                             onClick={() => {
-                              if (tenant && currentCompany?.id) {
+                              if (tenant && mainCompany?.id) {
                                 setSelectedTenant(tenant);
                                 setIsImportDialogOpen(true);
                               }
                             }}
-                            disabled={!currentCompany?.id}
+                            disabled={!mainCompany?.id}
                           >
                             <Upload className="w-4 h-4 mr-2" />
                             Import
@@ -738,13 +828,13 @@ export default function MSSQLImport() {
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              if (tenant && currentCompany?.id) {
+                              if (tenant && mainCompany?.id) {
                                 setSelectedTenant(tenant);
                                 // Start update directly without dialog
                                 startUpdateMutation.mutate();
                               }
                             }}
-                            disabled={!currentCompany?.id || startUpdateMutation.isPending}
+                            disabled={!mainCompany?.id || startUpdateMutation.isPending}
                           >
                             <ArrowUpCircle className="w-4 h-4 mr-2" />
                             {startUpdateMutation.isPending ? 'Updating...' : 'Update'}
@@ -769,7 +859,7 @@ export default function MSSQLImport() {
               variant="default" 
               onClick={() => setIsAuditImportDialogOpen(true)}
               disabled={
-                !currentCompany?.id || 
+                !mainCompany?.id || 
                 auditTables.length === 0 ||
                 !!activeMigration
               }
@@ -787,7 +877,7 @@ export default function MSSQLImport() {
                 }
               }}
               disabled={
-                !currentCompany?.id || 
+                !mainCompany?.id || 
                 auditTables.length === 0 ||
                 !!activeMigration ||
                 startFullAuditExportMutation.isPending

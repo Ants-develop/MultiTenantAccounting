@@ -3,6 +3,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Upload, FileText, Trash2, Filter, Search, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClientFilter } from "@/components/filters/ClientFilter";
+import { useClientFilter } from "@/hooks/useClientFilter";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Dialog,
   DialogContent,
@@ -206,15 +209,29 @@ export default function ImportStatement() {
   const [bankAccountFilter, setBankAccountFilter] = useState<string>("all");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const { toast } = useToast();
+  const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading: clientsLoading } = useClientFilter('banking');
 
   // Fetch bank accounts for filter
   const { data: bankAccounts = [] } = useQuery<BankAccount[]>({
-    queryKey: ["/api/bank/accounts"],
+    queryKey: ["/api/bank/accounts", selectedClientIds],
+    queryFn: async () => {
+      const clientIdsParam = selectedClientIds.length > 0 ? `?clientIds=${selectedClientIds.join(',')}` : '';
+      const response = await fetch(`/api/bank/accounts${clientIdsParam}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch accounts');
+      return response.json();
+    },
+    enabled: selectedClientIds.length > 0,
   });
 
   // Fetch transactions with pagination
   const { data: transactionsData, isLoading } = useQuery({
-    queryKey: ["/api/bank/transactions", { page, search, bankAccountId: bankAccountFilter }],
+    queryKey: ["/api/bank/transactions", { page, search, bankAccountId: bankAccountFilter, clientIds: selectedClientIds }],
     queryFn: async ({ queryKey }) => {
       const [url, params] = queryKey as [string, any];
       const queryParams = new URLSearchParams();
@@ -222,6 +239,7 @@ export default function ImportStatement() {
       queryParams.set('limit', '50');
       if (params.search) queryParams.set('search', params.search);
       if (params.bankAccountId && params.bankAccountId !== 'all') queryParams.set('bankAccountId', params.bankAccountId);
+      if (params.clientIds && params.clientIds.length > 0) queryParams.set('clientIds', params.clientIds.join(','));
       
       const response = await fetch(`${url}?${queryParams}`, {
         cache: 'no-store',
@@ -233,6 +251,7 @@ export default function ImportStatement() {
       if (!response.ok) throw new Error('Failed to fetch transactions');
       return response.json();
     },
+    enabled: selectedClientIds.length > 0,
   });
 
   // Import mutation
@@ -428,7 +447,16 @@ export default function ImportStatement() {
           <CardTitle className="text-lg">Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Client</label>
+              <ClientFilter
+                selectedIds={selectedClientIds}
+                onSelectionChange={setSelectedClientIds}
+                clients={accessibleClients}
+                isLoading={clientsLoading}
+              />
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Search</label>
               <div className="relative">

@@ -112,23 +112,22 @@ export default function CompanyProfile() {
   const [activeTab, setActiveTab] = useState("company");
   const [showTaxId, setShowTaxId] = useState(false);
   
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
+  const { mainCompany } = useAuth();
   const { canEditSettings, canViewSettings } = usePermissions();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Queries
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
-    queryKey: ['/api/company/settings', currentCompany?.id],
+    queryKey: ['/api/company/profile'],
     queryFn: async () => {
-      const response = await fetch(`/api/company/settings/${currentCompany?.id}`);
+      const response = await fetch(`/api/company/profile`);
       if (!response.ok) {
-        throw new Error('Failed to fetch company settings');
+        throw new Error('Failed to fetch company profile');
       }
       return response.json();
     },
-    enabled: !!currentCompany && canViewSettings(),
+    enabled: !!mainCompany && canViewSettings(),
   });
 
   // Forms
@@ -211,9 +210,9 @@ export default function CompanyProfile() {
   // Mutations
   const updateCompanyInfoMutation = useMutation({
     mutationFn: (data: CompanyInfoForm) => 
-      apiRequest('PUT', `/api/company/settings/${currentCompany?.id}/info`, data),
+      apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/company/settings', currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
       toast({
         title: "Company information updated",
@@ -231,9 +230,9 @@ export default function CompanyProfile() {
 
   const updateNotificationsMutation = useMutation({
     mutationFn: (data: NotificationSettingsForm) =>
-      apiRequest('PUT', `/api/company/settings/${currentCompany?.id}/notifications`, data),
+      apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/company/settings', currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
       toast({
         title: "Notification settings updated",
         description: "Your notification preferences have been saved.",
@@ -250,9 +249,9 @@ export default function CompanyProfile() {
 
   const updateFinancialMutation = useMutation({
     mutationFn: (data: FinancialSettingsForm) =>
-      apiRequest('PUT', `/api/company/settings/${currentCompany?.id}/financial`, data),
+      apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/company/settings', currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
       toast({
         title: "Financial settings updated",
         description: "Your financial preferences have been saved.",
@@ -269,9 +268,9 @@ export default function CompanyProfile() {
 
   const updateSecurityMutation = useMutation({
     mutationFn: (data: SecuritySettingsForm) =>
-      apiRequest('PUT', `/api/company/settings/${currentCompany?.id}/security`, data),
+      apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/company/settings', currentCompany?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
       toast({
         title: "Security settings updated",
         description: "Your security preferences have been saved.",
@@ -335,7 +334,7 @@ export default function CompanyProfile() {
     updateSecurityMutation.mutate(data);
   };
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
@@ -374,7 +373,7 @@ export default function CompanyProfile() {
         <div className="flex items-center space-x-2">
           <Badge variant="outline" className="flex items-center">
             <Building2 className="w-3 h-3 mr-1" />
-            {currentCompany.code}
+            {mainCompany.code}
           </Badge>
         </div>
       </div>
@@ -1057,7 +1056,7 @@ export default function CompanyProfile() {
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const response = await fetch(`/api/company/${currentCompany?.id}/export`, {
+                          const response = await fetch(`/api/company/profile/export`, {
                             credentials: 'include'
                           });
                           if (!response.ok) {
@@ -1073,7 +1072,7 @@ export default function CompanyProfile() {
                           const url = window.URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;
-                          a.download = `company-${currentCompany?.code}-export-${new Date().toISOString().split('T')[0]}.json`;
+                          a.download = `company-${mainCompany?.code}-export-${new Date().toISOString().split('T')[0]}.json`;
                           document.body.appendChild(a);
                           a.click();
                           
@@ -1113,7 +1112,7 @@ export default function CompanyProfile() {
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to archive this company? This will make it inactive but data will be preserved.')) {
                           try {
-                            const response = await fetch(`/api/company/${currentCompany?.id}/archive`, {
+                            const response = await fetch(`/api/company/profile/archive`, {
                               method: 'PUT',
                             });
                             if (!response.ok) {

@@ -21,12 +21,11 @@ interface PaginatedResponse {
 
 interface AuditGridProps {
   tableConfig: AuditTable;
+  clientIds?: number[];
 }
 
-export default function AuditGrid({ tableConfig }: AuditGridProps) {
-  const { companies } = useAuth();
-  const currentCompany = companies?.[0] || null;
-  const currentCompanyId = currentCompany?.id;
+export default function AuditGrid({ tableConfig, clientIds = [] }: AuditGridProps) {
+  const { mainCompany } = useAuth();
   const queryClient = useQueryClient();
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -39,13 +38,14 @@ export default function AuditGrid({ tableConfig }: AuditGridProps) {
 
   // Fetch audit data
   const { data: auditData, isLoading, isFetching } = useQuery<PaginatedResponse>({
-    queryKey: ['/api/audit', tableConfig.tableName, currentCompanyId, currentPage, itemsPerPage],
+    queryKey: ['/api/audit', tableConfig.tableName, clientIds, currentPage, itemsPerPage],
     queryFn: async () => {
       const limit = itemsPerPage === 0 ? 999999 : itemsPerPage;
-      const response = await apiRequest('GET', `/api/audit/${tableConfig.tableName}?page=${currentPage}&limit=${limit}`);
+      const clientIdsParam = clientIds.length > 0 ? `&clientIds=${clientIds.join(',')}` : '';
+      const response = await apiRequest('GET', `/api/audit/${tableConfig.tableName}?page=${currentPage}&limit=${limit}${clientIdsParam}`);
       return response.json();
     },
-    enabled: !!currentCompany && !!currentCompanyId,
+    enabled: !!mainCompany && clientIds.length > 0,
     staleTime: 0,
     gcTime: 0,
   });
@@ -145,10 +145,10 @@ export default function AuditGrid({ tableConfig }: AuditGridProps) {
     queryClient.invalidateQueries({ queryKey: ['/api/audit', tableConfig.tableName] });
   }, [queryClient, tableConfig.tableName]);
 
-  if (!currentCompany) {
+  if (!mainCompany) {
     return (
       <div className="p-6 text-center text-muted-foreground">
-        Please select a company to view audit data.
+        Company not configured. Please complete the setup wizard first.
       </div>
     );
   }

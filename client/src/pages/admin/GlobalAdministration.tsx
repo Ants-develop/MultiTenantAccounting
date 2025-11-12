@@ -27,15 +27,16 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Role, GlobalRole } from "@shared/permissions";
+import { ClientCompaniesGrid } from "@/components/admin/ClientCompaniesGrid";
 
-interface CompanyUserPreview {
+interface ClientCompanyUserPreview {
   id: number;
   firstName: string;
   lastName: string;
   username: string;
 }
 
-interface Company {
+interface ClientCompany {
   id: number;
   name: string;
   code: string;
@@ -44,7 +45,7 @@ interface Company {
   isActive: boolean;
   createdAt: string;
   userCount: number;
-  users?: CompanyUserPreview[];
+  users?: ClientCompanyUserPreview[];
   lastActivity: string | null;
 }
 
@@ -114,9 +115,9 @@ interface AvailableUser {
   isActive: boolean;
 }
 
-const companySchema = z.object({
-  name: z.string().min(1, "Company name is required"),
-  code: z.string().min(1, "Company code is required").max(11, "Code must be 11 characters or less"),
+const clientCompanySchema = z.object({
+  name: z.string().min(1, "Client company name is required"),
+  code: z.string().min(1, "Client company code is required").max(11, "Code must be 11 characters or less"),
   description: z.string().optional(),
   tenantCode: z.string()
     .optional()
@@ -139,25 +140,23 @@ const globalUserSchema = z.object({
 
 const userAssignmentSchema = z.object({
   userId: z.number().min(1, "User is required"),
-  companyId: z.number().min(1, "Company is required"),
+  companyId: z.number().min(1, "Client company is required"),
   role: z.string().min(1, "Role is required"),
 });
 
-type CompanyForm = z.infer<typeof companySchema>;
+type ClientCompanyForm = z.infer<typeof clientCompanySchema>;
 type GlobalUserForm = z.infer<typeof globalUserSchema>;
 type UserAssignmentForm = z.infer<typeof userAssignmentSchema>;
 
 export default function GlobalAdministration() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [isCompanyDialogOpen, setIsCompanyDialogOpen] = useState(false);
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isCompanyUsersDialogOpen, setIsCompanyUsersDialogOpen] = useState(false);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
   const [isEditRoleDialogOpen, setIsEditRoleDialogOpen] = useState(false);
-  const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const { t } = useTranslation();
   const [editingUser, setEditingUser] = useState<GlobalUser | null>(null);
-  const [managingCompany, setManagingCompany] = useState<Company | null>(null);
+  const [managingCompany, setManagingCompany] = useState<ClientCompany | null>(null);
   const [editingAssignment, setEditingAssignment] = useState<UserAssignment | null>(null);
 
   const { user } = useAuth();
@@ -179,16 +178,19 @@ export default function GlobalAdministration() {
     },
   });
 
-  const { data: companies = [], isLoading: companiesLoading } = useQuery<Company[]>({
-    queryKey: ['/api/global-admin/companies'],
+  const { data: companiesData = [], isLoading: companiesLoading } = useQuery<ClientCompany[]>({
+    queryKey: ['/api/global-admin/clients'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/companies');
+      const response = await fetch('/api/global-admin/clients');
       if (!response.ok) {
         throw new Error('Failed to fetch companies');
       }
       return response.json();
     },
   });
+
+  // Ensure companies is always an array
+  const companies = Array.isArray(companiesData) ? companiesData : [];
 
   const { data: globalUsers = [], isLoading: usersLoading } = useQuery<GlobalUser[]>({
     queryKey: ['/api/global-admin/users'],
@@ -259,7 +261,7 @@ export default function GlobalAdministration() {
     queryKey: ['/api/global-admin/company-users', managingCompany?.id],
     queryFn: async () => {
       if (!managingCompany?.id) return [];
-      const response = await fetch(`/api/global-admin/companies/${managingCompany.id}/users`, {
+      const response = await fetch(`/api/global-admin/clients/${managingCompany.id}/users`, {
         credentials: 'include'
       });
       if (!response.ok) {
@@ -286,16 +288,6 @@ export default function GlobalAdministration() {
   });
 
   // Form handling
-  const companyForm = useForm<CompanyForm>({
-    resolver: zodResolver(companySchema),
-    defaultValues: {
-      name: "",
-      code: "",
-      description: "",
-      tenantCode: "",
-    },
-  });
-
   const userForm = useForm<GlobalUserForm>({
     resolver: zodResolver(globalUserSchema),
     defaultValues: {
@@ -318,81 +310,14 @@ export default function GlobalAdministration() {
   });
 
   // Mutations
-  const createCompanyMutation = useMutation({
-    mutationFn: (data: CompanyForm) => apiRequest('POST', '/api/global-admin/companies', data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
-      setIsCompanyDialogOpen(false);
-      companyForm.reset();
-      toast({
-        title: "Company created",
-        description: "The company has been successfully created.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create company",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateCompanyMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: CompanyForm }) => 
-      apiRequest('PUT', `/api/global-admin/companies/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
-      setEditingCompany(null);
-      setIsCompanyDialogOpen(false);
-      companyForm.reset();
-      toast({
-        title: "Company updated",
-        description: "The company has been successfully updated.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update company",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const deleteCompanyMutation = useMutation({
-    mutationFn: (id: number) => apiRequest('DELETE', `/api/global-admin/companies/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
-      toast({
-        title: "Company deleted",
-        description: "The company has been successfully deleted.",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete company",
-        variant: "destructive",
-      });
-    },
-  });
+  // Note: Company mutations removed - ClientCompaniesGrid handles CRUD independently
 
   const createGlobalUserMutation = useMutation({
     mutationFn: (data: GlobalUserForm) => apiRequest('POST', '/api/global-admin/users', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
       setIsUserDialogOpen(false);
       userForm.reset();
@@ -416,7 +341,7 @@ export default function GlobalAdministration() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
       setEditingUser(null);
       setIsUserDialogOpen(false);
@@ -458,15 +383,15 @@ export default function GlobalAdministration() {
 
   const toggleCompanyStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => 
-      apiRequest('PUT', `/api/global-admin/companies/${id}/status`, { isActive }),
+      apiRequest('PUT', `/api/global-admin/clients/${id}/status`, { isActive }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
       toast({
-        title: "Company status updated",
-        description: "The company status has been successfully changed.",
+        title: "Client Company status updated",
+        description: "The client company status has been successfully changed.",
       });
     },
     onError: (error: any) => {
@@ -483,7 +408,7 @@ export default function GlobalAdministration() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
       toast({
         title: "User deleted",
@@ -503,7 +428,7 @@ export default function GlobalAdministration() {
     mutationFn: (data: UserAssignmentForm) => apiRequest('POST', '/api/global-admin/assign-user', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/company-users', managingCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       setIsAssignUserDialogOpen(false);
       assignmentForm.reset();
       toast({
@@ -545,7 +470,7 @@ export default function GlobalAdministration() {
     mutationFn: (assignmentId: number) => apiRequest('DELETE', `/api/global-admin/user-assignments/${assignmentId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/company-users', managingCompany?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
       toast({
         title: "User removed",
         description: "The user has been successfully removed from the company.",
@@ -561,21 +486,7 @@ export default function GlobalAdministration() {
   });
 
   // Helper functions
-  const handleEditCompany = (company: Company) => {
-    setEditingCompany(company);
-    companyForm.setValue("name", company.name);
-    companyForm.setValue("code", company.code);
-    companyForm.setValue("description", company.address || "");
-    // Convert number to string for the input field, or empty string if null
-    companyForm.setValue("tenantCode", company.tenantCode ? company.tenantCode.toString() : "");
-    setIsCompanyDialogOpen(true);
-  };
-
-  const handleCreateCompany = () => {
-    setEditingCompany(null);
-    companyForm.reset();
-    setIsCompanyDialogOpen(true);
-  };
+  // Note: handleEditCompany and handleCreateCompany removed - ClientCompaniesGrid handles these
 
   const handleEditUser = (user: GlobalUser) => {
     setEditingUser(user);
@@ -594,17 +505,9 @@ export default function GlobalAdministration() {
     setIsUserDialogOpen(true);
   };
 
-  const handleManageCompanyUsers = (company: Company) => {
+  const handleManageCompanyUsers = (company: ClientCompany) => {
     setManagingCompany(company);
     setIsCompanyUsersDialogOpen(true);
-  };
-
-  const onCompanySubmit = (data: CompanyForm) => {
-    if (editingCompany) {
-      updateCompanyMutation.mutate({ id: editingCompany.id, data });
-    } else {
-      createCompanyMutation.mutate(data);
-    }
   };
 
   const onUserSubmit = (data: GlobalUserForm) => {
@@ -778,7 +681,7 @@ export default function GlobalAdministration() {
           <Button 
             variant="outline" 
             onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ['/api/global-admin/companies'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
               queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
               queryClient.invalidateQueries({ queryKey: ['/api/global-admin/stats'] });
               queryClient.invalidateQueries({ queryKey: ['/api/global-admin/activity'] });
@@ -805,7 +708,7 @@ export default function GlobalAdministration() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="companies">Companies</TabsTrigger>
+          <TabsTrigger value="companies">Client Companies</TabsTrigger>
           <TabsTrigger value="users">Global Users</TabsTrigger>
           <TabsTrigger value="activity">Activity Logs</TabsTrigger>
         </TabsList>
@@ -815,7 +718,7 @@ export default function GlobalAdministration() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Companies</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Client Companies</CardTitle>
                 <Building2 className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -869,7 +772,7 @@ export default function GlobalAdministration() {
           <div className="grid gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Companies</CardTitle>
+                <CardTitle>Recent Client Companies</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -921,170 +824,9 @@ export default function GlobalAdministration() {
           </div>
         </TabsContent>
 
-        {/* Companies Tab */}
+        {/* Client Companies Tab */}
         <TabsContent value="companies" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Company Management</h3>
-              <p className="text-muted-foreground">Manage all companies in the system</p>
-            </div>
-            <Button onClick={handleCreateCompany}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Company
-            </Button>
-          </div>
-
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Tenant Code</TableHead>
-                    <TableHead>Users</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Last Activity</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {companies.map((company) => (
-                    <TableRow key={company.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{company.name}</div>
-                          {company.address && (
-                            <div className="text-sm text-muted-foreground">
-                              {company.address}
-                            </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{company.code}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={company.tenantCode ? "secondary" : "outline"}>
-                          {company.tenantCode || "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <TooltipProvider delayDuration={300}>
-                          <div className="flex items-center gap-1">
-                            {company.users && company.users.length > 0 ? (
-                              <>
-                                {company.users.slice(0, 3).map((u) => {
-                                  const initials = `${u.firstName?.[0] || ''}${u.lastName?.[0] || ''}`.toUpperCase() || u.username[0].toUpperCase();
-                                  return (
-                                    <Tooltip key={u.id}>
-                                      <TooltipTrigger asChild>
-                                        <div
-                                          className="w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold flex items-center justify-center text-xs cursor-pointer hover:bg-primary/20 transition-colors"
-                                          title={`${u.firstName} ${u.lastName}`}
-                                        >
-                                          {initials}
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p className="font-medium">{u.firstName} {u.lastName}</p>
-                                        <p className="text-xs text-muted-foreground">{u.username}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
-                                {company.userCount > 3 && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <div className="w-8 h-8 rounded-full bg-muted text-muted-foreground font-semibold flex items-center justify-center text-xs">
-                                        +{company.userCount - 3}
-                                      </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>{company.userCount - 3} more user{company.userCount - 3 !== 1 ? 's' : ''}</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </>
-                            ) : (
-                              <span className="text-muted-foreground text-sm">No users</span>
-                            )}
-                          </div>
-                        </TooltipProvider>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(company.isActive)}>
-                          {company.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{formatDate(company.createdAt)}</TableCell>
-                      <TableCell>
-                        {company.lastActivity ? formatDate(company.lastActivity) : 'Never'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleManageCompanyUsers(company)}
-                            title="Manage Company Users"
-                          >
-                            <Users className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditCompany(company)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => toggleCompanyStatusMutation.mutate({
-                              id: company.id,
-                              isActive: !company.isActive
-                            })}
-                          >
-                            {company.isActive ? (
-                              <XCircle className="w-4 h-4" />
-                            ) : (
-                              <CheckCircle className="w-4 h-4" />
-                            )}
-                          </Button>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="sm" className="text-destructive">
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Company</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete "{company.name}"? This action cannot be undone and will remove all associated data.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteCompanyMutation.mutate(company.id)}
-                                  className="bg-destructive text-destructive-foreground"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          <ClientCompaniesGrid onManageUsers={handleManageCompanyUsers} />
         </TabsContent>
 
         {/* Global Users Tab */}
@@ -1568,90 +1310,6 @@ export default function GlobalAdministration() {
 
 
       </Tabs>
-
-      {/* Company Dialog */}
-      <Dialog open={isCompanyDialogOpen} onOpenChange={setIsCompanyDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingCompany ? `Edit Company: ${editingCompany.name}` : 'Create New Company'}
-            </DialogTitle>
-          </DialogHeader>
-          
-          <form onSubmit={companyForm.handleSubmit(onCompanySubmit)} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Company Name</Label>
-              <Input
-                id="name"
-                {...companyForm.register("name")}
-                placeholder="Enter company name"
-              />
-              {companyForm.formState.errors.name && (
-                <p className="text-sm text-destructive">
-                  {companyForm.formState.errors.name.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="code">Company Code</Label>
-              <Input
-                id="code"
-                {...companyForm.register("code")}
-                placeholder="e.g., ACME"
-                className="uppercase"
-              />
-              {companyForm.formState.errors.code && (
-                <p className="text-sm text-destructive">
-                  {companyForm.formState.errors.code.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="description">Description (Optional)</Label>
-              <Textarea
-                id="description"
-                {...companyForm.register("description")}
-                placeholder="Enter company description"
-                rows={3}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="tenantCode">Tenant Code (for data filtering)</Label>
-              <Input
-                id="tenantCode"
-                {...companyForm.register("tenantCode")}
-                placeholder="e.g., 1924, 2368"
-              />
-              <p className="text-xs text-muted-foreground">
-                Tenant code from MSSQL/legacy system for filtering journal entries
-              </p>
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => setIsCompanyDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button 
-                type="submit" 
-                disabled={createCompanyMutation.isPending || updateCompanyMutation.isPending}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {(createCompanyMutation.isPending || updateCompanyMutation.isPending) 
-                  ? 'Saving...' 
-                  : editingCompany ? 'Update Company' : 'Create Company'
-                }
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Global User Dialog */}
       <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>

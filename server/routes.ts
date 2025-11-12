@@ -94,8 +94,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log('User authenticated:', { userId: user.id, username: user.username });
-      
+
       req.session.userId = user.id;
+
+      // Fetch user with companies data for response
+      const userWithCompanies = await getUserWithCompanies(user.id);
 
       console.log('Session before save:', {
         userId: req.session.userId,
@@ -125,7 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           },
           { 
             username: user.username,
-            companiesCount: userWithCompanies?.companies.length || 0
+            mainCompanyConfigured: userWithCompanies?.mainCompany ? true : false
           }
         ).catch(err => console.error('Error logging auth:', err));
 
@@ -174,17 +177,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       req.session.userId = user.id;
+
+      // Fetch user with companies data for response (will check main company setup)
+      const userWithCompanies = await getUserWithCompanies(user.id);
       
-      res.json({
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-        },
-        companies: [],
-      });
+      res.json(userWithCompanies);
     } catch (error) {
       console.error('Register error:', error);
       res.status(500).json({ message: 'Internal server error' });

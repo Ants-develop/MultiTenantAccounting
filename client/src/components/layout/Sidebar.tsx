@@ -3,9 +3,10 @@ import { Calculator, BarChart3, List, Book, File, Receipt,
          University, Edit, FileText, DollarSign, ChartBar, 
          Scale, PieChart, Users, Settings, Shield, Globe, 
          ChevronLeft, ChevronRight, Database, FileSearch, MessageSquare, 
-         CheckSquare, User, Plus, KeyRound, Beaker, Table } from "lucide-react";
+         CheckSquare, User, Plus, KeyRound, Beaker, Table, Building2 } from "lucide-react";
 // CompanySwitcher removed - no longer needed in single-company mode
 import { usePermissions } from "@/hooks/usePermissions";
+import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "@/hooks/useSidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -192,10 +193,16 @@ const adminSection: NavigationItem[] = [
     permission: "USER_VIEW",
   },
   {
-    name: "navigation.roleManagement",
-    href: "/role-management",
+    name: "Clients",
+    href: "/clients",
+    icon: Building2,
+    permission: "SYSTEM_VIEW_ALL_COMPANIES",
+  },
+  {
+    name: "Permissions",
+    href: "/permissions-management",
     icon: Shield,
-    permission: "USER_VIEW",
+    permission: "SYSTEM_VIEW_ALL_COMPANIES",
   },
   {
     name: "MSSQL Import",
@@ -250,6 +257,7 @@ export default function Sidebar() {
   const { can, isGlobalAdministrator } = usePermissions();
   const { isCollapsed, toggleSidebar } = useSidebar();
   const { t } = useTranslation();
+  const { mainCompany } = useAuth();
 
   const isActive = (href: string) => {
     return location === href || (href !== "/dashboard" && location.startsWith(href));
@@ -319,13 +327,15 @@ export default function Sidebar() {
                 </div>
               </TooltipTrigger>
               <TooltipContent side="right">
-                <p>AccountFlow Pro</p>
+                <p>{mainCompany?.name || 'AccountFlow Pro'}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
           {!isCollapsed && (
             <>
-              <h1 className="text-lg font-semibold text-foreground ml-3">AccountFlow Pro</h1>
+              <h1 className="text-lg font-semibold text-foreground ml-3 truncate">
+                {mainCompany?.name || 'AccountFlow Pro'}
+              </h1>
             </>
           )}
         </div>

@@ -3,6 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Building2, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClientFilter } from "@/components/filters/ClientFilter";
+import { useClientFilter } from "@/hooks/useClientFilter";
 import {
   Dialog,
   DialogContent,
@@ -55,12 +57,18 @@ export default function BankAccounts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const { toast } = useToast();
-  const { companies } = useAuth();
-  const currentCompanyId = companies?.[0]?.id;
+  const { mainCompany } = useAuth();
+  const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading: clientsLoading } = useClientFilter('banking');
 
   // Fetch bank accounts
   const { data: accounts = [], isLoading } = useQuery<BankAccount[]>({
-    queryKey: ["/api/bank/accounts"],
+    queryKey: ["/api/bank/accounts", selectedClientIds],
+    queryFn: async () => {
+      const clientIdsParam = selectedClientIds.length > 0 ? `?clientIds=${selectedClientIds.join(',')}` : '';
+      const response = await apiRequest('GET', `/api/bank/accounts${clientIdsParam}`);
+      return response.json();
+    },
+    enabled: selectedClientIds.length > 0,
   });
 
   // Form setup
@@ -196,17 +204,31 @@ export default function BankAccounts() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Bank Accounts</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your company's bank accounts
-          </p>
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Bank Accounts</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your company's bank accounts
+            </p>
+          </div>
+          <Button onClick={() => handleOpenDialog()} data-testid="button-add-account">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Bank Account
+          </Button>
         </div>
-        <Button onClick={() => handleOpenDialog()} data-testid="button-add-account">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Bank Account
-        </Button>
+        {/* Client Filter */}
+        <div className="w-48">
+          <label className="text-sm font-medium text-gray-700 mb-1 block">
+            Select Client
+          </label>
+          <ClientFilter
+            selectedIds={selectedClientIds}
+            onSelectionChange={setSelectedClientIds}
+            clients={accessibleClients}
+            isLoading={clientsLoading}
+          />
+        </div>
       </div>
 
       {isLoading ? (

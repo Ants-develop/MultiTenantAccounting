@@ -27,9 +27,10 @@ export function useAuth() {
       login(username, password),
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/auth/me'], data);
+      const companyName = data?.mainCompany?.name || 'AccountFlow Pro';
       toast({
         title: "Login successful",
-        description: "Welcome back!",
+        description: `Welcome back to ${companyName}!`,
       });
     },
     onError: (error: any) => {
@@ -51,9 +52,10 @@ export function useAuth() {
     }) => register(userData),
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/auth/me'], data);
+      const companyName = data?.mainCompany?.name || 'AccountFlow Pro';
       toast({
         title: "Registration successful",
-        description: "Welcome to AccountFlow Pro!",
+        description: `Welcome to ${companyName}!`,
       });
     },
     onError: (error: any) => {
@@ -79,7 +81,7 @@ export function useAuth() {
 
   return {
     user: data?.user || null,
-    companies: data?.companies || [],
+    mainCompany: data?.mainCompany || null,
     needsSetup: data?.needsSetup || false,
     isLoading,
     error,

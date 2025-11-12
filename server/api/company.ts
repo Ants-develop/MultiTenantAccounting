@@ -8,7 +8,8 @@ import {
   insertCompanySchema, 
   insertUserCompanySchema,
   companies as companiesTable,
-  companySettings
+  companySettings,
+  mainCompanySettings
 } from "@shared/schema";
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
@@ -509,72 +510,120 @@ router.put('/:id/restore', async (req, res) => {
   }
 });
 
-// Complete company setup (initial configuration on first login)
-router.post('/company/setup', async (req, res) => {
+// Get main company profile
+// GET /profile - Fetch the main company settings
+router.get('/profile', async (req, res) => {
+  try {
+    const [mainCompany] = await db.select().from(mainCompanySettings).limit(1);
+    
+    if (!mainCompany) {
+      return res.status(404).json({ message: 'Main company not configured' });
+    }
+
+    res.json(mainCompany);
+  } catch (error) {
+    console.error('Get main company profile error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Update main company profile
+// PUT /profile - Update the main company settings
+router.put('/profile', async (req, res) => {
+  try {
+    const userId = req.session.userId!;
+    const updates = req.body;
+
+    // Get existing main company
+    const [existingMainCompany] = await db.select().from(mainCompanySettings).limit(1);
+    
+    if (!existingMainCompany) {
+      return res.status(404).json({ message: 'Main company not configured' });
+    }
+
+    // Update main company
+    const [updated] = await db
+      .update(mainCompanySettings)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(mainCompanySettings.id, 1))
+      .returning();
+
+    // Log activity
+    await activityLogger.logCRUD(
+      'UPDATE',
+      'main_company',
+      { userId, ipAddress: req.ip, userAgent: req.get('user-agent') },
+      1,
+      undefined,
+      updates
+    );
+
+    res.json(updated);
+  } catch (error) {
+    console.error('Update main company profile error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Complete main company setup (initial configuration on first login)
+// POST /setup - Creates or updates the main company settings (system-wide, single instance)
+router.post('/setup', async (req, res) => {
   try {
     const userId = req.session.userId!;
     const { company, financial } = req.body;
 
-    // Get user's first company (should exist from initial setup)
-    const userCompanies = await storage.getCompaniesByUser(userId);
-    if (!userCompanies || userCompanies.length === 0) {
-      return res.status(400).json({ message: 'No company found for user' });
+    // Check if main company already exists
+    const [existingMainCompany] = await db.select().from(mainCompanySettings).limit(1);
+    
+    if (existingMainCompany && existingMainCompany.name) {
+      return res.status(409).json({ message: 'Main company is already configured' });
     }
 
-    const companyId = userCompanies[0].id;
+    let mainCompany;
 
-    // Update company with provided information
-    const updatedCompany = await storage.updateCompany(companyId, {
-      name: company.name,
-      code: company.code,
-      address: company.address,
-      phone: company.phone,
-      email: company.email,
-      taxId: company.taxId,
-    });
-
-    // Update or create company settings
-    let settings = await getCompanySettings(companyId);
-    
-    if (!settings) {
-      await createCompanySettings({
-        companyId,
-        fiscalYearStart: financial.fiscalYearStart,
-        currency: financial.currency,
-        dateFormat: financial.dateFormat,
-        decimalPlaces: financial.decimalPlaces,
-        // Set reasonable defaults for other settings
-        emailNotifications: true,
-        invoiceReminders: true,
-        paymentAlerts: true,
-        reportReminders: false,
-        systemUpdates: true,
-        autoNumbering: true,
-        invoicePrefix: "INV",
-        billPrefix: "BILL",
-        journalPrefix: "JE",
-        negativeFormat: "minus",
-        requirePasswordChange: false,
-        passwordExpireDays: 90,
-        sessionTimeout: 30,
-        enableTwoFactor: false,
-        allowMultipleSessions: true,
-        bankConnection: false,
-        paymentGateway: false,
-        taxService: false,
-        reportingTools: false,
-        autoBackup: false,
-        backupFrequency: "weekly",
-        retentionDays: 30,
-        backupLocation: "cloud",
-      });
+    if (existingMainCompany) {
+      // Update existing (empty) main company settings
+      const [updated] = await db
+        .update(mainCompanySettings)
+        .set({
+          name: company.name,
+          code: company.code,
+          address: company.address || null,
+          phone: company.phone || null,
+          email: company.email || null,
+          taxId: company.taxId || null,
+          fiscalYearStart: financial.fiscalYearStart,
+          currency: financial.currency,
+          dateFormat: financial.dateFormat,
+          decimalPlaces: financial.decimalPlaces,
+          updatedAt: new Date(),
+        })
+        .where(eq(mainCompanySettings.id, 1))
+        .returning();
+      mainCompany = updated;
     } else {
-      await updateCompanySettings(companyId, {
-        fiscalYearStart: financial.fiscalYearStart,
-        currency: financial.currency,
-        dateFormat: financial.dateFormat,
-        decimalPlaces: financial.decimalPlaces,
-      });
+      // Create new main company settings with id = 1
+      const [created] = await db
+        .insert(mainCompanySettings)
+        .values({
+          id: 1,
+          name: company.name,
+          code: company.code,
+          address: company.address || null,
+          phone: company.phone || null,
+          email: company.email || null,
+          taxId: company.taxId || null,
+          fiscalYearStart: financial.fiscalYearStart,
+          currency: financial.currency,
+          dateFormat: financial.dateFormat,
+          decimalPlaces: financial.decimalPlaces,
+          // All other settings use defaults from table
+        })
+        .returning();
+      mainCompany = created;
     }
 
     // Log activity
@@ -585,15 +634,15 @@ router.post('/company/setup', async (req, res) => {
     }, {
       action: ACTIVITY_ACTIONS.COMPANY_CREATE,
       resource: RESOURCE_TYPES.COMPANY,
-      resourceId: companyId,
+      resourceId: 1,
     });
 
     res.json({ 
-      message: 'Company setup completed successfully',
-      company: updatedCompany 
+      message: 'Main company setup completed successfully',
+      mainCompany 
     });
   } catch (error) {
-    console.error('Company setup error:', error);
+    console.error('Main company setup error:', error);
     res.status(500).json({ message: error instanceof Error ? error.message : 'Internal server error' });
   }
 });
