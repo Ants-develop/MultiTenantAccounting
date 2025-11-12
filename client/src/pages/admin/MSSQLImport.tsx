@@ -199,7 +199,7 @@ export default function MSSQLImport() {
       console.log('Making API request to start migration...');
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         tenantCode: selectedTenant.tenantCode,
-        companyId: mainCompany.id,
+        clientId: mainCompany.id,
         batchSize: data.batchSize,
         postingsPeriodFrom: postingsPeriodFrom || undefined,
         postingsPeriodTo: postingsPeriodTo || undefined,
@@ -248,7 +248,7 @@ export default function MSSQLImport() {
       console.log('Making API request to start update...');
       const response = await apiRequest('POST', '/api/mssql/start-update', {
         tenantCode: selectedTenant.tenantCode,
-        companyId: mainCompany.id,
+        clientId: mainCompany.id,
         postingsPeriodFrom: postingsPeriodFrom || undefined,
         postingsPeriodTo: postingsPeriodTo || undefined,
       });

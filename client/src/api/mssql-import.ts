@@ -13,7 +13,7 @@ export const mssqlImportApi = {
   /**
    * Start data migration from MSSQL to PostgreSQL
    */
-  startMigration: async (data: { tenantCode: number; companyId: number; batchSize?: number }) => {
+  startMigration: async (data: { tenantCode: number; clientId: number; batchSize?: number }) => {
     const response = await apiRequest('POST', '/api/mssql/start-migration', data);
     return response.json();
   },
@@ -21,7 +21,7 @@ export const mssqlImportApi = {
   /**
    * Start data update (incremental sync)
    */
-  startUpdate: async (data: { tenantCode: number; companyId: number }) => {
+  startUpdate: async (data: { tenantCode: number; clientId: number }) => {
     const response = await apiRequest('POST', '/api/mssql/start-update', data);
     return response.json();
   },
