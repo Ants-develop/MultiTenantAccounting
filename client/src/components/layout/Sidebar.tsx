@@ -51,6 +51,12 @@ const accountingSection: NavigationItem[] = [
     permission: "JOURNAL_VIEW",
   },
   {
+    name: "გატარებების ჟურნალი Syncfusion",
+    href: "/accounting/journal-entries-syncfusion",
+    icon: Book,
+    permission: "JOURNAL_VIEW",
+  },
+  {
     name: "navigation.accountsReceivable",
     href: "/accounting/accounts-receivable",
     icon: File,

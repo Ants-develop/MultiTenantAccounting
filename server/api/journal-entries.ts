@@ -8,7 +8,7 @@ import {
   insertJournalEntryLineSchema,
   journalEntries, 
   journalEntryLines,
-  clients as companiesTable 
+  clients as clientsTable 
 } from "@shared/schema";
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
@@ -58,20 +58,20 @@ router.get('/', async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 1000;
     const offset = (page - 1) * limit;
 
-    // Get companies to access tenant codes
-    const companies = await db
+    // Get clients to access tenant codes
+    const clients = await db
       .select()
-      .from(companiesTable)
-      .where(inArray(companiesTable.id, clientIds));
+      .from(clientsTable)
+      .where(inArray(clientsTable.id, clientIds));
     
-    if (companies.length === 0) {
-      return res.status(404).json({ message: 'Companies not found' });
+    if (clients.length === 0) {
+      return res.status(404).json({ message: 'Clients not found' });
     }
     
     console.log(`[JournalEntries API] Fetching entries for clientIds: ${clientIds.join(',')}, page: ${page}, limit: ${limit}`);
     
-    // Get tenant codes for all requested companies
-    const tenantCodes = companies
+    // Get tenant codes for all requested clients
+    const tenantCodes = clients
       .filter(c => c.tenantCode)
       .map(c => c.tenantCode!);
     
@@ -226,6 +226,28 @@ router.get('/', async (req, res) => {
 router.get('/:id/lines', async (req, res) => {
   try {
     const entryId = parseInt(req.params.id);
+    if (isNaN(entryId)) {
+      return res.status(400).json({ message: 'Invalid entry ID' });
+    }
+    
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    // Get the entry to check permissions
+    const entry = await storage.getJournalEntry(entryId);
+    if (!entry) {
+      return res.status(404).json({ message: 'Journal entry not found' });
+    }
+    
+    // Check user has permission for this entry's client
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    if (!allowedClientIds.includes(entry.clientId)) {
+      return res.status(403).json({ message: 'Access denied to this journal entry' });
+    }
+    
     const lines = await storage.getJournalEntryLinesByEntry(entryId);
     res.json(lines);
   } catch (error) {
@@ -236,25 +258,40 @@ router.get('/:id/lines', async (req, res) => {
 
 // Create new journal entry
 router.post('/', async (req, res) => {
+  const raw = req.body || {} as any;
+  const userId = (req.session as any)?.userId;
+  
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     // Coerce date from string/number to Date to satisfy schema and DB timestamp column
-    const raw = req.body || {} as any;
     const lines = raw.lines || [];
+    
+    // Get clientId from request body or use DEFAULT_CLIENT_ID
+    const requestedClientId = raw.clientId ? parseInt(raw.clientId) : DEFAULT_CLIENT_ID;
+    if (!requestedClientId || isNaN(requestedClientId)) {
+      return res.status(400).json({ message: 'Invalid or missing client ID' });
+    }
+    
+    // Validate user has permission for this client
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    if (!allowedClientIds.includes(requestedClientId)) {
+      return res.status(403).json({ message: 'Access denied to this client' });
+    }
     
     // Use a coercing schema to accept strings like "YYYY-MM-DD"
     const coerceEntrySchema = insertJournalEntrySchema.extend({
       date: zod.coerce.date(),
     });
 
-    const { lines: _, ...rawWithoutLines } = raw;
+    const { lines: _lines, ...rawWithoutLines } = raw;
     const entryData = coerceEntrySchema.parse({
       ...rawWithoutLines,
-      clientId: DEFAULT_CLIENT_ID,
-      userId: req.session.userId,
+      clientId: requestedClientId,
+      userId: userId,
     });
     
     // Create the entry and insert lines
@@ -284,19 +321,21 @@ router.post('/', async (req, res) => {
     console.error('Create journal entry error:', error);
     
     // Log journal entry creation error
-    await activityLogger.logError(
-      ACTIVITY_ACTIONS.JOURNAL_CREATE,
-      RESOURCE_TYPES.JOURNAL_ENTRY,
-      {
-        userId: req.session.userId!,
-        companyId: DEFAULT_CLIENT_ID,
-        ipAddress: req.ip,
-        userAgent: req.get("User-Agent")
-      },
-      error as Error,
-      undefined,
-      { entryData: req.body }
-    );
+    if (userId) {
+      await activityLogger.logError(
+        ACTIVITY_ACTIONS.JOURNAL_CREATE,
+        RESOURCE_TYPES.JOURNAL_ENTRY,
+        {
+          userId: userId,
+          companyId: raw.clientId || DEFAULT_CLIENT_ID,
+          ipAddress: req.ip,
+          userAgent: req.get("User-Agent")
+        },
+        error as Error,
+        undefined,
+        { entryData: req.body }
+      );
+    }
     
     res.status(500).json({ message: 'Internal server error' });
   }
@@ -305,14 +344,33 @@ router.post('/', async (req, res) => {
 // Update journal entry
 router.put('/:id', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
     const entryId = parseInt(req.params.id);
+    if (isNaN(entryId)) {
+      return res.status(400).json({ message: 'Invalid entry ID' });
+    }
+    
+    // Get the entry to check permissions
+    const existingEntry = await storage.getJournalEntry(entryId);
+    if (!existingEntry) {
+      return res.status(404).json({ message: 'Journal entry not found' });
+    }
+    
+    // Check user has permission for this entry's client
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    if (!allowedClientIds.includes(existingEntry.clientId)) {
+      return res.status(403).json({ message: 'Access denied to this journal entry' });
+    }
+    
+    // Prevent changing clientId via update
     const updateData = req.body;
     const lines = updateData.lines || [];
-    const { lines: _, ...updateDataWithoutLines } = updateData;
+    const { lines: _lines, clientId: _clientId, ...updateDataWithoutLines } = updateData;
 
     const updatedEntry = await storage.updateJournalEntry(entryId, updateDataWithoutLines);
     if (!updatedEntry) {
@@ -352,20 +410,27 @@ router.put('/:id', async (req, res) => {
 // Delete journal entry
 router.delete('/:id', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
     }
 
-    const entryIdRaw = req.params.id;
-    const entryId = Number(entryIdRaw);
-    if (!Number.isInteger(entryId)) {
-      return res.status(400).json({ message: 'Invalid journal entry id' });
+    const entryId = parseInt(req.params.id);
+    if (isNaN(entryId)) {
+      return res.status(400).json({ message: 'Invalid journal entry ID' });
     }
 
     // Check if entry is posted - posted entries shouldn't be deleted
     const entry = await storage.getJournalEntry(entryId);
     if (!entry) {
       return res.status(404).json({ message: 'Journal entry not found' });
+    }
+    
+    // Check user has permission for this entry's client
+    const userClients = await getUserClientsByModule(userId, 'accounting');
+    const allowedClientIds = userClients.map(c => c.clientId);
+    if (!allowedClientIds.includes(entry.clientId)) {
+      return res.status(403).json({ message: 'Access denied to this journal entry' });
     }
 
     if (entry.isPosted) {

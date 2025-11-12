@@ -16,6 +16,7 @@ import AccountsReceivable from "@/pages/accounting/AccountsReceivable";
 import AccountsPayable from "@/pages/accounting/AccountsPayable";
 import BankReconciliation from "@/pages/accounting/BankReconciliation";
 import JournalEntries from "@/pages/accounting/JournalEntriesPage";
+import JournalEntriesSyncfusion from "@/pages/accounting/JournalEntriesSyncfusionPage";
 import AccountingOperations from "@/pages/accounting/AccountingOperations";
 import Sales from "@/pages/accounting/Sales";
 import Purchases from "@/pages/accounting/Purchases";
@@ -30,6 +31,7 @@ import CompanyProfile from "@/pages/CompanyProfile";
 import NotFound from "@/pages/not-found";
 import RoleManagement from "@/pages/admin/RoleManagement";
 import PermissionsManagement from "@/pages/admin/PermissionsManagement";
+import Clients from "@/pages/admin/Clients";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import AccountingHome from "@/pages/accounting/AccountingHome";
@@ -92,6 +94,7 @@ function Router() {
       <Route path="/accounting/accounts-payable" component={() => <ProtectedRoute component={AccountsPayable} />} />
       <Route path="/accounting/bank-reconciliation" component={() => <ProtectedRoute component={BankReconciliation} />} />
         <Route path="/accounting/journal-entries" component={() => <ProtectedRoute component={JournalEntries} />} />
+      <Route path="/accounting/journal-entries-syncfusion" component={() => <ProtectedRoute component={JournalEntriesSyncfusion} />} />
       <Route path="/accounting/accounting-operations" component={() => <ProtectedRoute component={AccountingOperations} />} />
       <Route path="/accounting/sales" component={() => <ProtectedRoute component={Sales} />} />
       <Route path="/accounting/purchases" component={() => <ProtectedRoute component={Purchases} />} />
@@ -101,6 +104,7 @@ function Router() {
       <Route path="/user-management" component={() => <ProtectedRoute component={UserManagement} />} />
       <Route path="/role-management" component={() => <ProtectedRoute component={RoleManagement} />} />
       <Route path="/permissions-management" component={() => <ProtectedRoute component={PermissionsManagement} />} />
+      <Route path="/clients" component={() => <ProtectedRoute component={Clients} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/company-profile" component={() => <ProtectedRoute component={CompanyProfile} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={CompanyProfile} />} />

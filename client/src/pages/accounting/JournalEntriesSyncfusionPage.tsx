@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { FileSpreadsheet, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { ClientFilter } from "@/components/filters/ClientFilter";
 import { apiRequest } from "@/lib/queryClient";
-import { JournalEntriesGrid } from "@/components/accounting/JournalEntriesGrid";
+import { JournalEntriesSyncfusionGrid } from "@/components/accounting/JournalEntriesSyncfusionGrid";
 
 interface JournalEntry {
   id: number;
@@ -82,13 +82,14 @@ interface PaginatedResponse {
   };
 }
 
-export default function JournalEntriesPage() {
+export default function JournalEntriesSyncfusionPage() {
   const { mainCompany } = useAuth();
   const queryClient = useQueryClient();
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(500);
   const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
+  const hasInitialized = useRef(false);
 
   // Fetch all available clients directly (like MSSQLImport.tsx)
   const { data: availableClients = [], isLoading: clientsLoading } = useQuery({
@@ -110,12 +111,23 @@ export default function JournalEntriesPage() {
 
   // Load from localStorage on mount and set default selection
   useEffect(() => {
-    const stored = localStorage.getItem('clientFilter_accounting');
+    // Only initialize once
+    if (hasInitialized.current) {
+      return;
+    }
+    
+    // Only proceed if we have clients and no selection yet
+    if (availableClients.length === 0 || selectedClientIds.length > 0) {
+      return;
+    }
+    
+    const stored = localStorage.getItem('clientFilter_accounting_syncfusion');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
           setSelectedClientIds(parsed);
+          hasInitialized.current = true;
           return;
         }
       } catch {
@@ -126,13 +138,14 @@ export default function JournalEntriesPage() {
     // Default to first client if available
     if (availableClients.length > 0) {
       setSelectedClientIds([availableClients[0].id]);
+      hasInitialized.current = true;
     }
-  }, [availableClients]);
+  }, [availableClients.length]); // Only depend on length, not the array itself
 
   // Save to localStorage on change
   const handleClientSelectionChange = (ids: number[]) => {
     setSelectedClientIds(ids);
-    localStorage.setItem('clientFilter_accounting', JSON.stringify(ids));
+    localStorage.setItem('clientFilter_accounting_syncfusion', JSON.stringify(ids));
   };
 
   // Get company name
@@ -209,33 +222,39 @@ export default function JournalEntriesPage() {
   return (
     <div className="flex flex-col h-full">
       <Card className="flex flex-col h-full flex-1 min-h-0">
-        <CardHeader className="pb-2 pt-2 px-3 flex-shrink-0 space-y-1.5">
-          {/* Title Section */}
-          <div className="flex items-center gap-1.5">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center flex-shrink-0">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm font-semibold leading-tight">Journal Entries - Advanced Grid</CardTitle>
-              <p className="text-[10px] text-muted-foreground leading-tight truncate">
-                {companyName} • {pagination ? `${pagination.total.toLocaleString()} total (${journalEntries.length} shown)` : `${journalEntries.length} entries`} • Page {currentPage}{pagination ? `/${pagination.totalPages}` : ''}
-              </p>
+        <CardHeader className="pb-3 pt-4 px-4 flex-shrink-0 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                <FileSpreadsheet className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold">გატარებების ჟურნალი Syncfusion</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {companyName} • {pagination ? `${pagination.total.toLocaleString()} total entries (showing ${journalEntries.length})` : `${journalEntries.length} entries`} • Page {currentPage}{pagination ? ` of ${pagination.totalPages}` : ''}
+                </p>
+              </div>
             </div>
           </div>
-          {/* Client Filter - Below title, left side */}
-          <div className="flex items-start">
-            <ClientFilter
-              selectedIds={selectedClientIds}
-              onSelectionChange={handleClientSelectionChange}
-              clients={accessibleClients}
-              isLoading={clientsLoading}
-            />
+          {/* Client Filter */}
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="text-sm font-medium text-gray-700 mb-1 block">
+                Select Clients
+              </label>
+              <ClientFilter
+                selectedIds={selectedClientIds}
+                onSelectionChange={handleClientSelectionChange}
+                clients={accessibleClients}
+                isLoading={clientsLoading}
+              />
+            </div>
           </div>
         </CardHeader>
         
-        <CardContent className="flex-1 flex flex-col min-h-0 p-0 overflow-hidden">
-          <div className="flex-1 min-h-0 overflow-hidden">
-            <JournalEntriesGrid
+        <CardContent className="p-6 pt-0 flex-1 flex flex-col min-h-0" style={{ padding: 0 }}>
+          <div className="flex-1 min-h-0" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <JournalEntriesSyncfusionGrid
               journalEntries={journalEntries}
               isLoading={entriesLoading}
               isFetching={isFetching}
@@ -243,36 +262,38 @@ export default function JournalEntriesPage() {
             />
           </div>
 
-          {/* Pagination Controls - Compact */}
+          {/* Pagination Controls */}
           {pagination && !entriesLoading && (
-            <div className="flex items-center justify-end gap-1.5 px-3 py-1.5 border-t flex-shrink-0 bg-background/50">
-              <div className="flex items-center gap-1.5 text-[11px]">
-                <span className="text-muted-foreground">Rows:</span>
-                <Select
-                  value={itemsPerPage.toString()}
-                  onValueChange={handleItemsPerPageChange}
-                >
-                  <SelectTrigger className="h-6 w-[70px] text-[11px] px-1.5">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="500">500</SelectItem>
-                    <SelectItem value="1000">1,000</SelectItem>
-                    <SelectItem value="2000">2,000</SelectItem>
-                    <SelectItem value="0">All</SelectItem>
-                  </SelectContent>
-                </Select>
-                <span className="text-muted-foreground">
-                  {itemsPerPage === 0 ? `1-${pagination.total}` : `${((currentPage - 1) * itemsPerPage) + 1}-${Math.min(currentPage * itemsPerPage, pagination.total)}`} / {pagination.total.toLocaleString()}
+            <div className="flex items-center justify-end mt-2 pt-2 pb-2 px-4 border-t flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Rows per page:</span>
+                  <Select
+                    value={itemsPerPage.toString()}
+                    onValueChange={handleItemsPerPageChange}
+                  >
+                    <SelectTrigger className="h-7 w-[90px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="500">500</SelectItem>
+                      <SelectItem value="1000">1,000</SelectItem>
+                      <SelectItem value="2000">2,000</SelectItem>
+                      <SelectItem value="0">All ({pagination.total.toLocaleString()})</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {itemsPerPage === 0 ? `1-${pagination.total}` : `${((currentPage - 1) * itemsPerPage) + 1}-${Math.min(currentPage * itemsPerPage, pagination.total)}`} of {pagination.total.toLocaleString()}
                   {isFetching && (
-                    <Loader2 className="w-2.5 h-2.5 animate-spin inline ml-1" />
+                    <Loader2 className="w-3 h-3 animate-spin inline ml-1.5" />
                   )}
-                </span>
+                </div>
                 <div className="flex items-center gap-0.5">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 px-1.5 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={handleFirstPage}
                     disabled={currentPage === 1 || isFetching || itemsPerPage === 0}
                   >
@@ -281,19 +302,19 @@ export default function JournalEntriesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 px-1.5 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={handlePrevPage}
                     disabled={currentPage === 1 || isFetching || itemsPerPage === 0}
                   >
                     Prev
                   </Button>
-                  <div className="px-1.5 py-0.5 text-[11px] font-medium border rounded bg-background">
-                    {itemsPerPage === 0 ? 'All' : `${currentPage}/${pagination.totalPages}`}
+                  <div className="px-2 py-0.5 text-xs font-medium border rounded bg-background">
+                    {itemsPerPage === 0 ? 'All' : `Page ${currentPage} of ${pagination.totalPages}`}
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 px-1.5 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={handleNextPage}
                     disabled={!pagination.hasMore || isFetching || itemsPerPage === 0}
                   >
@@ -302,7 +323,7 @@ export default function JournalEntriesPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 px-1.5 text-[11px]"
+                    className="h-7 px-2 text-xs"
                     onClick={handleLastPage}
                     disabled={currentPage === pagination.totalPages || isFetching || itemsPerPage === 0}
                   >
