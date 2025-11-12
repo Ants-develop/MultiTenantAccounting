@@ -8,7 +8,7 @@
 -- Chat Channels Table
 CREATE TABLE IF NOT EXISTS chat_channels (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
   description TEXT,
   is_private BOOLEAN DEFAULT false,

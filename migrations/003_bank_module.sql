@@ -8,7 +8,7 @@
 -- Bank Accounts Table
 CREATE TABLE IF NOT EXISTS bank_accounts (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   account_name VARCHAR(255) NOT NULL,
   account_number VARCHAR(100),
   iban VARCHAR(50),
@@ -29,7 +29,7 @@ CREATE INDEX idx_bank_accounts_is_active ON bank_accounts(is_active);
 -- Raw Bank Transactions Table
 CREATE TABLE IF NOT EXISTS raw_bank_transactions (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   bank_account_id INTEGER REFERENCES bank_accounts(id) ON DELETE CASCADE,
   
   -- Transaction identification
@@ -88,7 +88,7 @@ CREATE INDEX idx_raw_bank_transactions_movement_id ON raw_bank_transactions(move
 -- Normalized Bank Transactions Table - Validated transactions with sequence and balance checks
 CREATE TABLE IF NOT EXISTS normalized_bank_transactions (
   id SERIAL PRIMARY KEY,
-  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
   bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id) ON DELETE CASCADE,
   raw_transaction_id INTEGER NOT NULL REFERENCES raw_bank_transactions(id) ON DELETE CASCADE,
   

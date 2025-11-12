@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS audit."1690_stock" (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS audit.accounts_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, doc_date, account_dr, account_cr)
 );
 
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS audit.accrued_interest (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic, account_number)
 );
 
@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS audit.analytics (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month)
 );
 
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS audit.analytics_balance_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic)
 );
 
@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS audit.capital_accounts (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, doc_date, account_dr, account_cr)
 );
 
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS audit.capital_accounts_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS audit.creditors_avans (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic)
 );
 
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS audit.debitors_avans (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic)
 );
 
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS audit.dublicate_creditors (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, account, analytic)
 );
 
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS audit.dublicate_debitors (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, account, analytic)
 );
 
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS audit.high_amount_per_quantity_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, doc_date, account_cr, account_dr, analytic_cr)
 );
 
@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS audit.negativ_creditor (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS audit.negativ_debitor (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -333,7 +333,7 @@ CREATE TABLE IF NOT EXISTS audit.negative_balance_141_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -354,7 +354,7 @@ CREATE TABLE IF NOT EXISTS audit.negative_balance_311_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -375,7 +375,7 @@ CREATE TABLE IF NOT EXISTS audit.negative_balance_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -396,7 +396,7 @@ CREATE TABLE IF NOT EXISTS audit.negative_loans (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic, account_number)
 );
 
@@ -417,7 +417,7 @@ CREATE TABLE IF NOT EXISTS audit.negative_stock (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -439,7 +439,7 @@ CREATE TABLE IF NOT EXISTS audit.negativ_interest (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -461,7 +461,7 @@ CREATE TABLE IF NOT EXISTS audit.negativ_salary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 
@@ -483,7 +483,7 @@ CREATE TABLE IF NOT EXISTS audit.positive_balance_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, analytic, account_number)
 );
 
@@ -503,7 +503,7 @@ CREATE TABLE IF NOT EXISTS audit.revaluation_status_summary (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month)
 );
 
@@ -526,7 +526,7 @@ CREATE TABLE IF NOT EXISTS audit.salary_expense (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, doc_date, account_dr, account_cr)
 );
 
@@ -547,7 +547,7 @@ CREATE TABLE IF NOT EXISTS audit.writeoff_stock (
     company_id VARCHAR(50),
     manager VARCHAR(50),
     accountant VARCHAR(50),
-    company_code INTEGER REFERENCES companies(id) ON DELETE CASCADE,
+    company_code INTEGER REFERENCES clients(id) ON DELETE CASCADE,
     PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 

@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS rs.users (
 -- Add foreign key constraints
 ALTER TABLE rs.users
   ADD CONSTRAINT rs_users_company_id_fkey
-  FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE SET NULL;
+  FOREIGN KEY (company_id) REFERENCES public.clients(id) ON DELETE SET NULL;
 
 ALTER TABLE rs.users
   ADD CONSTRAINT rs_users_created_by_user_id_fkey
