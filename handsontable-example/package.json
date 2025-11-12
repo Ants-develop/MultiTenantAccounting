@@ -1,0 +1,20 @@
+{
+    "name": "vepfzcou--run",
+    "version": "0.0.0",
+    "private": true,
+    "dependencies": {
+      "react": "19.1.0",
+      "react-dom": "19.1.0",
+      "@handsontable/react-wrapper": "16.1.1",
+      "handsontable": "16.1.1"
+    },
+    "scripts": {
+      "start": "react-scripts start",
+      "build": "react-scripts build",
+      "test": "react-scripts test --env=jsdom",
+      "eject": "react-scripts eject"
+    },
+    "devDependencies": {
+      "react-scripts": "latest"
+    }
+  }

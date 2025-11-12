@@ -7,7 +7,6 @@ pnpm-debug.log*
 lerna-debug.log*
 
 # Package files (local changes)
-package.json
 package.json.linux
 package-lock.json
 
