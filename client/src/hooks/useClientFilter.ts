@@ -13,13 +13,22 @@ export function useClientFilter(module: string) {
   const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
   
   // Fetch user's accessible clients for this module
-  const { data: accessibleClients, isLoading } = useQuery({
+  const { data: accessibleClients, isLoading, error } = useQuery({
     queryKey: ['/api/permissions/my-clients', module],
     queryFn: async () => {
-      const res = await fetch(`/api/permissions/my-clients?module=${module}`);
-      if (!res.ok) throw new Error('Failed to fetch accessible clients');
-      return res.json() as Promise<ClientOption[]>;
+      const res = await fetch(`/api/permissions/my-clients?module=${module}`, {
+        credentials: 'include', // Important: include cookies for session
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error(`[useClientFilter] Failed to fetch clients for module ${module}:`, res.status, errorText);
+        throw new Error(`Failed to fetch accessible clients: ${res.status} ${errorText}`);
+      }
+      const data = await res.json();
+      console.log(`[useClientFilter] Fetched ${data.length} clients for module ${module}:`, data);
+      return data as ClientOption[];
     },
+    retry: false, // Don't retry on error
   });
 
   // Load from localStorage on mount

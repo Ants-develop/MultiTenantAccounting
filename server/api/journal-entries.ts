@@ -1,7 +1,7 @@
 // Journal Entries API Routes
 import express from "express";
 import { db } from "../db";
-import { sql, eq, desc, inArray } from "drizzle-orm";
+import { sql, eq, desc, inArray, and, or, isNull } from "drizzle-orm";
 import { z as zod } from "zod";
 import { 
   insertJournalEntrySchema, 
@@ -26,6 +26,10 @@ router.use(requireAuth);
 router.get('/', async (req, res) => {
   try {
     const userId = (req.session as any)?.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
     
     // Parse clientIds from query parameter (comma-separated)
     const clientIdsParam = req.query.clientIds as string;
@@ -71,16 +75,9 @@ router.get('/', async (req, res) => {
       .filter(c => c.tenantCode)
       .map(c => c.tenantCode!);
     
-    if (tenantCodes.length === 0) {
-      console.error(`[JournalEntries API] No companies with tenant codes found for clientIds: ${clientIds.join(',')}`);
-      return res.status(400).json({ 
-        message: 'No companies with tenant codes configured. Please set tenant codes for companies to access journal entries.',
-        clientIds: clientIds
-      });
-    }
-    
-    // Build query - filter by tenantCodes
-    // This ensures we only get transactions that belong to the requested companies' tenants
+    // Build query - filter by clientId AND tenantCode (if available)
+    // This ensures we only get transactions that belong to the requested companies
+    // We filter by clientId directly, and optionally by tenantCode for MSSQL-imported data
     const query = db
       .select({
         // Core fields
@@ -153,16 +150,35 @@ router.get('/', async (req, res) => {
       })
       .from(journalEntries);
     
-    // Apply tenant code filter - only get entries with matching tenant codes
-    const { sql: sqlFn } = require('drizzle-orm');
-    const filteredQuery = query.where(inArray(journalEntries.tenantCode, tenantCodes));
-    console.log(`[JournalEntries API] Filtering by tenantCodes: ${tenantCodes.join(',')}`);
+    // Apply filters: by clientId (primary) and optionally by tenantCode (for MSSQL data)
+    // Build where conditions: must match clientId, and optionally match tenantCode if configured
+    let whereConditions;
+    if (tenantCodes.length > 0) {
+      // Filter by clientId AND (tenantCode matches OR tenantCode is null)
+      // This handles:
+      // 1. Manually created entries: clientId matches, tenantCode is null
+      // 2. MSSQL imported entries: clientId matches AND tenantCode matches
+      whereConditions = and(
+        inArray(journalEntries.clientId, clientIds),
+        or(
+          inArray(journalEntries.tenantCode, tenantCodes),
+          isNull(journalEntries.tenantCode)
+        )
+      );
+      console.log(`[JournalEntries API] Filtering by clientIds: ${clientIds.join(',')} and tenantCodes: ${tenantCodes.join(',')}`);
+    } else {
+      // No tenant codes configured - filter only by clientId
+      whereConditions = inArray(journalEntries.clientId, clientIds);
+      console.log(`[JournalEntries API] Filtering by clientIds: ${clientIds.join(',')} (no tenant codes configured)`);
+    }
+    
+    const filteredQuery = query.where(whereConditions);
     
     // Get total count for pagination
     const [{ count: totalCount }] = await db
       .select({ count: sql<number>`count(*)` })
       .from(journalEntries)
-      .where(inArray(journalEntries.tenantCode, tenantCodes));
+      .where(whereConditions);
     
     // Order by date descending with pagination
     const entries = await filteredQuery
@@ -177,9 +193,13 @@ router.get('/', async (req, res) => {
     const transformedEntries = entries.map(entry => ({
       ...entry,
       totalAmount: entry.totalAmount || '0.00',
-      date: entry.date.toISOString(),
-      createdAt: entry.createdAt?.toISOString() || null,
-      docDate: entry.docDate?.toISOString() || null,
+      date: entry.date ? entry.date.toISOString() : new Date().toISOString(),
+      createdAt: entry.createdAt ? entry.createdAt.toISOString() : null,
+      docDate: entry.docDate ? entry.docDate.toISOString() : null,
+      postingsPeriod: entry.postingsPeriod ? entry.postingsPeriod.toISOString() : null,
+      taxInvoiceDate: entry.taxInvoiceDate ? entry.taxInvoiceDate.toISOString() : null,
+      documentCreationDate: entry.documentCreationDate ? entry.documentCreationDate.toISOString() : null,
+      documentModifyDate: entry.documentModifyDate ? entry.documentModifyDate.toISOString() : null,
     }));
     
     res.json({
@@ -194,7 +214,11 @@ router.get('/', async (req, res) => {
     });
   } catch (error) {
     console.error('Get journal entries error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    res.status(500).json({ 
+      message: 'Internal server error',
+      error: error instanceof Error ? error.message : String(error)
+    });
   }
 });
 
@@ -265,7 +289,7 @@ router.post('/', async (req, res) => {
       RESOURCE_TYPES.JOURNAL_ENTRY,
       {
         userId: req.session.userId!,
-        clientId: DEFAULT_CLIENT_ID,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },

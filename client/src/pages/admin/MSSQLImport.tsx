@@ -36,9 +36,10 @@ interface AuditTable {
 }
 
 interface MigrationStatus {
-  id: string;
+  id?: string;
+  migrationId?: string; // Backend uses migrationId
   tenantCode: number;
-  companyId: number;
+  companyId?: number;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   totalRecords: number;
@@ -630,11 +631,13 @@ export default function MSSQLImport() {
             <CardTitle className="flex items-center">
               {getStatusIcon((activeMigration || migrationStatus)!.status)}
               <span className="ml-2">
-                {(activeMigration || migrationStatus)?.id?.startsWith('update_') 
-                  ? 'Update Status' 
-                  : (activeMigration || migrationStatus)?.id?.startsWith('export_')
-                    ? 'Export Status'
-                    : 'Migration Status'}
+                {(() => {
+                  const migration = activeMigration || migrationStatus;
+                  const migrationId = migration?.id || migration?.migrationId;
+                  if (migrationId?.startsWith('update_')) return 'Update Status';
+                  if (migrationId?.startsWith('export_') || migrationId?.startsWith('audit_')) return 'Export Status';
+                  return 'Migration Status';
+                })()}
               </span>
             </CardTitle>
           </CardHeader>
@@ -657,7 +660,11 @@ export default function MSSQLImport() {
                     disabled={stopMigrationMutation.isPending}
                   >
                     <Square className="w-4 h-4 mr-2" />
-                    Stop {(activeMigration || migrationStatus)!.id.startsWith('update_') ? 'Update' : 'Migration'}
+                    Stop {(() => {
+                      const migration = activeMigration || migrationStatus;
+                      const migrationId = migration?.id || migration?.migrationId;
+                      return migrationId?.startsWith('update_') ? 'Update' : 'Migration';
+                    })()}
                   </Button>
                 )}
               </div>

@@ -5,6 +5,7 @@ import {
   userClientModules,
   userClientFeatures,
   clients,
+  users,
   insertUserClientModuleSchema,
   insertUserClientFeatureSchema,
 } from "@shared/schema";
@@ -18,8 +19,8 @@ router.use(requireAuth);
 
 // Check if user is global admin
 async function isGlobalAdmin(userId: number): Promise<boolean> {
-  // TODO: Implement query to check user's globalRole from database
-  return false;
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return user?.globalRole === 'global_administrator';
 }
 
 // GET /api/permissions/user/:userId/client/:clientId - Get all permissions for user+client
@@ -254,17 +255,32 @@ router.get("/my-clients", async (req, res) => {
     const userId = (req.session as any)?.userId;
     const module = req.query.module as string;
 
+    console.log(`[Permissions API] /my-clients called - userId: ${userId}, module: ${module}`);
+
     if (!userId) {
+      console.log(`[Permissions API] No userId in session`);
       return res.status(401).json({ message: "Authentication required" });
     }
 
-    // Build where conditions
-    let whereConditions = [eq(userClientModules.userId, userId)];
-    if (module) {
-      whereConditions.push(eq(userClientModules.module, module));
+    // Check if user is global admin - if so, return all clients
+    const isAdmin = await isGlobalAdmin(userId);
+    console.log(`[Permissions API] User ${userId} is global admin: ${isAdmin}`);
+    
+    if (isAdmin) {
+      const allClients = await db
+        .select({
+          id: clients.id,
+          name: clients.name,
+          code: clients.code,
+        })
+        .from(clients)
+        .limit(1000); // Reasonable limit for global admins
+      
+      console.log(`[Permissions API] Returning ${allClients.length} clients for global admin`);
+      return res.json(allClients);
     }
 
-    // Get clients with read permission for this user in the specified module
+    // Regular users - get clients with read permission for this user in the specified module
     const clientsWithAccess = await db
       .select({
         id: clients.id,
@@ -280,6 +296,7 @@ router.get("/my-clients", async (req, res) => {
       ))
       .limit(100); // Reasonable limit
 
+    console.log(`[Permissions API] Returning ${clientsWithAccess.length} clients for regular user ${userId} in module ${module}`);
     res.json(clientsWithAccess);
   } catch (error) {
     console.error("Error fetching accessible clients:", error);

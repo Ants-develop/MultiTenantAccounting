@@ -13,6 +13,12 @@ import { auditSections, getAuditTableById } from "@/config/auditTables";
 export default function AuditDashboard() {
   const { mainCompany } = useAuth();
   const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading } = useClientFilter('audit');
+  
+  // Log for debugging
+  useEffect(() => {
+    console.log('[AuditDashboard] Accessible clients:', accessibleClients);
+    console.log('[AuditDashboard] Loading:', isLoading);
+  }, [accessibleClients, isLoading]);
   const { t, i18n } = useTranslation();
   const [location, setLocation] = useLocation();
 
@@ -75,6 +81,9 @@ export default function AuditDashboard() {
         <CardContent className="p-6">
           <p className="text-center text-muted-foreground">
             You don't have access to any clients for the audit module.
+          </p>
+          <p className="text-center text-sm text-muted-foreground mt-2">
+            Please check the browser console for more details or contact your administrator.
           </p>
         </CardContent>
       </Card>

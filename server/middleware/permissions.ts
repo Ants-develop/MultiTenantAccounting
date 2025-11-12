@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "../db";
-import { userClientModules, userClientFeatures } from "@shared/schema";
+import { userClientModules, userClientFeatures, users, clients } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 // Helper function to check if user is global admin
@@ -8,8 +8,24 @@ function isGlobalAdmin(req: Request): boolean {
   return (req.session as any)?.globalRole === "global_administrator";
 }
 
+// Check if user is global admin from database
+async function isUserGlobalAdmin(userId: number): Promise<boolean> {
+  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return user?.globalRole === 'global_administrator';
+}
+
 // Get all clients for a user in a specific module (with read permission)
 export async function getUserClientsByModule(userId: number, module: string) {
+  // Global admins have access to all clients
+  if (await isUserGlobalAdmin(userId)) {
+    const allClients = await db
+      .select({ clientId: clients.id })
+      .from(clients)
+      .limit(1000);
+    return allClients;
+  }
+
+  // Regular users - return only clients with explicit permissions
   return await db
     .select({ clientId: userClientModules.clientId })
     .from(userClientModules)
@@ -108,11 +124,7 @@ export async function checkFeaturePermission(
   }
 }
 
-// Check if user is global admin (helper)
-async function isUserGlobalAdmin(userId: number): Promise<boolean> {
-  // TODO: Implement query to check user's globalRole
-  return false;
-}
+// Check if user is global admin (helper) - already defined above
 
 // Middleware: Require module access
 export function requireModuleAccess(
