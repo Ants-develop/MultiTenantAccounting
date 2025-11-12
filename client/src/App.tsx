@@ -21,6 +21,8 @@ import Sales from "@/pages/accounting/Sales";
 import Purchases from "@/pages/accounting/Purchases";
 import BankStatementUpload from "@/pages/accounting/BankStatementUpload";
 import Invoices from "@/pages/accounting/Invoices";
+import BankAccounts from "@/pages/bank/BankAccounts";
+import ImportStatement from "@/pages/bank/ImportStatement";
 import FinancialStatements from "@/pages/reports/FinancialStatements";
 import UserManagement from "@/pages/admin/UserManagement";
 import Profile from "@/pages/Profile";
@@ -97,6 +99,8 @@ function Router() {
       <Route path="/audit" component={() => <ProtectedRoute component={AuditDashboard} />} />
       <Route path="/rs-integration" component={() => <ProtectedRoute component={RSIntegrationDashboard} />} />
       <Route path="/rs-admin" component={() => <ProtectedRoute component={RSAdmin} />} />
+      <Route path="/bank/accounts" component={() => <ProtectedRoute component={BankAccounts} />} />
+      <Route path="/bank/import" component={() => <ProtectedRoute component={ImportStatement} />} />
       <Route path="/testing" component={() => <ProtectedRoute component={TestingDashboard} />} />
       <Route path="/testing/handsontable" component={() => <ProtectedRoute component={HandsontableDemo} hideSidebar={true} />} />
       <Route path="/testing/tanstack" component={() => <ProtectedRoute component={TanStackTableDemo} hideSidebar={true} />} />
