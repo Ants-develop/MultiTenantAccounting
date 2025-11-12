@@ -30,9 +30,6 @@ CREATE TABLE IF NOT EXISTS clients (
   created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Backwards compatibility alias for legacy code
-CREATE VIEW companies AS SELECT * FROM clients;
-
 -- User-Company relationships with roles
 CREATE TABLE IF NOT EXISTS user_companies (
   id SERIAL PRIMARY KEY,
@@ -481,6 +478,5 @@ DROP TABLE IF EXISTS journal_entries;
 DROP TABLE IF EXISTS general_ledger;
 DROP TABLE IF EXISTS accounts;
 DROP TABLE IF EXISTS user_companies;
-DROP VIEW IF EXISTS companies;
 DROP TABLE IF EXISTS clients;
 DROP TABLE IF EXISTS users; 
