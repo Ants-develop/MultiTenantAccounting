@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS general_ledger (
 -- Journal Entries
 CREATE TABLE IF NOT EXISTS journal_entries (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER REFERENCES companies(id) NOT NULL,
+  client_id INTEGER REFERENCES clients(id) NOT NULL,
   entry_number TEXT NOT NULL,
   date TIMESTAMP NOT NULL,
   description TEXT NOT NULL,
@@ -212,7 +212,7 @@ CREATE TABLE IF NOT EXISTS journal_entry_lines (
 -- Customers
 CREATE TABLE IF NOT EXISTS customers (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER REFERENCES companies(id) NOT NULL,
+  client_id INTEGER REFERENCES clients(id) NOT NULL,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -224,7 +224,7 @@ CREATE TABLE IF NOT EXISTS customers (
 -- Vendors
 CREATE TABLE IF NOT EXISTS vendors (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER REFERENCES companies(id) NOT NULL,
+  client_id INTEGER REFERENCES clients(id) NOT NULL,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -236,7 +236,7 @@ CREATE TABLE IF NOT EXISTS vendors (
 -- Invoices
 CREATE TABLE IF NOT EXISTS invoices (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER REFERENCES companies(id) NOT NULL,
+  client_id INTEGER REFERENCES clients(id) NOT NULL,
   customer_id INTEGER REFERENCES customers(id) NOT NULL,
   invoice_number TEXT NOT NULL,
   date TIMESTAMP NOT NULL,
@@ -253,7 +253,7 @@ CREATE TABLE IF NOT EXISTS invoices (
 -- Bills
 CREATE TABLE IF NOT EXISTS bills (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER REFERENCES companies(id) NOT NULL,
+  client_id INTEGER REFERENCES clients(id) NOT NULL,
   vendor_id INTEGER REFERENCES vendors(id) NOT NULL,
   bill_number TEXT NOT NULL,
   date TIMESTAMP NOT NULL,
@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS bills (
 CREATE TABLE IF NOT EXISTS activity_logs (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id),
-  client_id INTEGER REFERENCES companies(id),
+  client_id INTEGER REFERENCES clients(id),
   action TEXT NOT NULL,
   resource TEXT NOT NULL,
   resource_id INTEGER,
@@ -284,7 +284,7 @@ CREATE TABLE IF NOT EXISTS activity_logs (
 -- Company Settings
 CREATE TABLE IF NOT EXISTS company_settings (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER NOT NULL UNIQUE REFERENCES companies(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
   -- Notification settings
   email_notifications BOOLEAN DEFAULT TRUE,
   invoice_reminders BOOLEAN DEFAULT TRUE,
