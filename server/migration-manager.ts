@@ -33,8 +33,15 @@ export class MigrationManager {
    */
   static async initialize(): Promise<void> {
     try {
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS ${sql.identifier(this.MIGRATIONS_TABLE)} (
+      // First, test basic connection
+      console.log('Testing database connection...');
+      await db.execute(sql`SELECT 1`);
+      console.log('✅ Database connection successful');
+      
+      // Create table using sql.identifier() for proper escaping
+      console.log(`Creating migrations table: ${this.MIGRATIONS_TABLE}...`);
+      await db.execute(sql.raw(`
+        CREATE TABLE IF NOT EXISTS "${this.MIGRATIONS_TABLE}" (
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           version INTEGER NOT NULL,
@@ -43,9 +50,45 @@ export class MigrationManager {
           execution_time_ms INTEGER,
           UNIQUE(version)
         )
-      `);
-    } catch (error) {
-      throw new Error(`Failed to initialize migrations table: ${error}`);
+      `));
+      console.log('✅ Migrations table initialized');
+    } catch (error: any) {
+      // Comprehensive error extraction
+      console.error('❌ Error caught in initialize():', error);
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error?.constructor?.name);
+      console.error('Error keys:', error ? Object.keys(error) : 'N/A');
+      
+      let errorMessage = 'Unknown error';
+      let errorDetails = '';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        errorDetails = error.stack || '';
+      } else if (error && typeof error === 'object') {
+        // Try to extract message from various possible properties
+        errorMessage = error.message || error.msg || error.error || error.toString?.() || 'Error object';
+        if (error.code) errorDetails += `Code: ${error.code}\n`;
+        if (error.detail) errorDetails += `Detail: ${error.detail}\n`;
+        if (error.hint) errorDetails += `Hint: ${error.hint}\n`;
+        if (error.stack) errorDetails += `Stack: ${error.stack}\n`;
+        if (error.cause) errorDetails += `Cause: ${error.cause}\n`;
+        
+        // Try JSON.stringify as last resort (but be careful with circular refs)
+        try {
+          const errorJson = JSON.stringify(error, null, 2);
+          if (errorJson && errorJson !== '{}' && !errorDetails) {
+            errorDetails = `Error object: ${errorJson}`;
+          }
+        } catch (e) {
+          // Ignore JSON.stringify errors (circular refs)
+        }
+      } else {
+        errorMessage = String(error);
+      }
+      
+      const fullError = `Failed to initialize migrations table: ${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`;
+      throw new Error(fullError);
     }
   }
 
@@ -220,8 +263,9 @@ export class MigrationManager {
           result.migrationsApplied.push(migration.id);
           console.log(`✓ Applied migration: ${migration.name}`);
         } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`✗ Failed to apply migration ${migration.name}:`, error);
-          result.errors.push(`${migration.name}: ${error}`);
+          result.errors.push(`${migration.name}: ${errorMessage}`);
           result.success = false;
           
           // Attempt rollback
@@ -230,8 +274,9 @@ export class MigrationManager {
             result.rollbacksPerformed.push(migration.id);
             console.log(`✓ Rolled back migration: ${migration.name}`);
           } catch (rollbackError) {
+            const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
             console.error(`✗ Failed to rollback ${migration.name}:`, rollbackError);
-            result.errors.push(`Rollback failed for ${migration.name}: ${rollbackError}`);
+            result.errors.push(`Rollback failed for ${migration.name}: ${rollbackMessage}`);
           }
           
           break; // Stop on first failure
@@ -239,8 +284,10 @@ export class MigrationManager {
       }
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       result.success = false;
-      result.errors.push(`Migration process failed: ${error}`);
+      result.errors.push(`Migration process failed: ${errorMessage}${errorStack ? `\n${errorStack}` : ''}`);
     }
 
     return result;
@@ -266,7 +313,8 @@ export class MigrationManager {
         `);
         
       } catch (error) {
-        throw new Error(`Migration execution failed: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Migration execution failed: ${errorMessage}`);
       }
     });
   }
@@ -287,7 +335,8 @@ export class MigrationManager {
         `);
         
       } catch (error) {
-        throw new Error(`Migration rollback failed: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        throw new Error(`Migration rollback failed: ${errorMessage}`);
       }
     });
   }

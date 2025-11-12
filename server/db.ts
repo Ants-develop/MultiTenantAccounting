@@ -1,9 +1,8 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import pg from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
 
-neonConfig.webSocketConstructor = ws;
+const { Pool } = pg;
 
 /**
  * Get database connection string
@@ -28,5 +27,18 @@ if (process.env.NODE_ENV !== 'production') {
   console.log(`📊 Database: Using ${process.env.NODE_ENV || 'development'} database (${dbInfo})`);
 }
 
-export const pool = new Pool({ connectionString: databaseUrl });
+// Create connection pool with proper Supabase configuration
+export const pool = new Pool({ 
+  connectionString: databaseUrl,
+  // Add some sensible defaults for connection pooling
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+});
+
+// Handle pool errors
+pool.on('error', (err) => {
+  console.error('Unexpected error on idle client', err);
+});
+
 export const db = drizzle({ client: pool, schema });

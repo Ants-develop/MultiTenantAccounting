@@ -547,6 +547,178 @@ export const journalEntryWithLinesSchema = z.object({
   path: ["lines"]
 });
 
+// ============ BANK MODULE ============
+
+// Bank Accounts Table
+export const bankAccounts = pgTable("bank_accounts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  accountName: text("account_name").notNull(),
+  accountNumber: text("account_number"),
+  iban: text("iban"),
+  bankName: text("bank_name"),
+  currency: text("currency").default("USD").notNull(),
+  openingBalance: decimal("opening_balance", { precision: 15, scale: 2 }).default("0"),
+  currentBalance: decimal("current_balance", { precision: 15, scale: 2 }).default("0"),
+  isDefault: boolean("is_default").default(false),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Raw Bank Transactions Table
+export const rawBankTransactions = pgTable("raw_bank_transactions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }),
+  
+  // Transaction identification
+  movementId: text("movement_id").notNull(),
+  uniqueTransactionId: text("unique_transaction_id").notNull(),
+  
+  // Transaction details
+  debitCredit: text("debit_credit").notNull(), // "DEBIT" or "CREDIT"
+  description: text("description"),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  endBalance: decimal("end_balance", { precision: 15, scale: 2 }),
+  currency: text("currency").notNull(),
+  
+  // Account information
+  accountNumber: text("account_number").notNull(),
+  accountName: text("account_name"),
+  additionalInformation: text("additional_information"),
+  
+  // Document details
+  documentDate: timestamp("document_date"),
+  documentNumber: text("document_number"),
+  
+  // Partner information
+  partnerAccountNumber: text("partner_account_number"),
+  partnerName: text("partner_name"),
+  partnerTaxCode: text("partner_tax_code"),
+  partnerBankCode: text("partner_bank_code"),
+  partnerBank: text("partner_bank"),
+  
+  // Intermediary bank
+  intermediaryBankCode: text("intermediary_bank_code"),
+  intermediaryBank: text("intermediary_bank"),
+  
+  // Additional transaction details
+  chargeDetail: text("charge_detail"),
+  operationCode: text("operation_code"),
+  additionalDescription: text("additional_description"),
+  exchangeRate: decimal("exchange_rate", { precision: 15, scale: 6 }),
+  transactionType: text("transaction_type"),
+  
+  // Audit fields
+  importedAt: timestamp("imported_at").defaultNow(),
+  importedBy: integer("imported_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint on unique_transaction_id per company to prevent duplicates
+  uniqueTransactionIdx: {
+    name: "unique_transaction_company_idx",
+    columns: [table.companyId, table.uniqueTransactionId],
+    unique: true,
+  },
+}));
+
+// Normalized Bank Transactions Table - Validated transactions with sequence and balance checks
+export const normalizedBankTransactions = pgTable("normalized_bank_transactions", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }).notNull(),
+  rawTransactionId: integer("raw_transaction_id").references(() => rawBankTransactions.id, { onDelete: 'cascade' }).notNull(),
+  
+  // Sequence information
+  sequenceNumber: integer("sequence_number").notNull(), // Position within bank account's transaction sequence
+  
+  // Transaction details (denormalized for faster queries)
+  movementId: text("movement_id").notNull(),
+  documentDate: timestamp("document_date"),
+  debitCredit: text("debit_credit").notNull(),
+  amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
+  description: text("description"),
+  
+  // Balance validation
+  previousBalance: decimal("previous_balance", { precision: 15, scale: 2 }),
+  expectedBalance: decimal("expected_balance", { precision: 15, scale: 2 }), // Calculated: previous + credit - debit
+  actualBalance: decimal("actual_balance", { precision: 15, scale: 2 }), // From transaction record
+  balanceValid: boolean("balance_valid").default(true).notNull(),
+  
+  // Sequence validation
+  sequenceValid: boolean("sequence_valid").default(true).notNull(),
+  
+  // Validation errors
+  validationErrors: text("validation_errors").array(), // Array of error messages
+  
+  // Audit fields
+  normalizedAt: timestamp("normalized_at").defaultNow(),
+  normalizedBy: integer("normalized_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint: one normalized record per raw transaction
+  uniqueRawTransactionIdx: {
+    name: "unique_raw_transaction_idx",
+    columns: [table.rawTransactionId],
+    unique: true,
+  },
+  // Index for querying by bank account and sequence
+  bankAccountSequenceIdx: {
+    name: "bank_account_sequence_idx",
+    columns: [table.bankAccountId, table.sequenceNumber],
+  },
+}));
+
+// Bank Accounts Insert Schema
+export const insertBankAccountSchema = createInsertSchema(bankAccounts, {
+  accountName: z.string().min(1, "Account name is required"),
+  currency: z.string().min(1, "Currency is required"),
+  openingBalance: z.string().optional(),
+  currentBalance: z.string().optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+// Raw Bank Transactions Insert Schema
+export const insertRawBankTransactionSchema = createInsertSchema(rawBankTransactions, {
+  movementId: z.string().min(1, "Movement ID is required"),
+  debitCredit: z.enum(["DEBIT", "CREDIT"], { errorMap: () => ({ message: "Must be DEBIT or CREDIT" }) }),
+  amount: z.string().refine((val) => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num > 0;
+  }, "Amount must be a positive number"),
+  currency: z.string().min(1, "Currency is required"),
+  accountNumber: z.string().min(1, "Account number is required"),
+  uniqueTransactionId: z.string().min(1, "Unique transaction ID is required"),
+  // Optional date field - accept string or Date object from CSV
+  documentDate: z.union([z.string(), z.date()]).optional().transform((val) => {
+    if (!val) return undefined;
+    if (val instanceof Date) return val;
+    const date = new Date(val);
+    return isNaN(date.getTime()) ? undefined : date;
+  }),
+}).omit({
+  id: true,
+  companyId: true,
+  importedBy: true,
+  createdAt: true,
+  updatedAt: true,
+  importedAt: true,
+});
+
+// Normalized Bank Transactions Insert Schema
+export const insertNormalizedBankTransactionSchema = createInsertSchema(normalizedBankTransactions).omit({
+  id: true,
+  normalizedAt: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -576,6 +748,12 @@ export type GeneralLedger = typeof generalLedger.$inferSelect;
 export type InsertGeneralLedger = z.infer<typeof insertGeneralLedgerSchema>;
 export type CompanySettings = typeof companySettings.$inferSelect;
 export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
+export type BankAccount = typeof bankAccounts.$inferSelect;
+export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
+export type RawBankTransaction = typeof rawBankTransactions.$inferSelect;
+export type InsertRawBankTransaction = z.infer<typeof insertRawBankTransactionSchema>;
+export type NormalizedBankTransaction = typeof normalizedBankTransactions.$inferSelect;
+export type InsertNormalizedBankTransaction = z.infer<typeof insertNormalizedBankTransactionSchema>;
 
 // Enhanced types with validation
 export type InsertUserEnhanced = z.infer<typeof insertUserSchemaEnhanced>;
