@@ -213,10 +213,9 @@ router.put('/settings/:id/info', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company and permission to edit
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     const updateData = {
