@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Calendar, Filter, Download } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Account {
   id: number;
@@ -30,7 +30,8 @@ export default function GeneralLedger() {
   const [selectedAccount, setSelectedAccount] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
 
   const { data: accounts, isLoading: accountsLoading } = useQuery<Account[]>({
     queryKey: ['/api/accounts'],

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Banknote, CheckCircle, AlertCircle, DollarSign, Calendar } from "lucide-react";
 
@@ -39,7 +39,8 @@ export default function BankReconciliation() {
   const [selectedBankTransactions, setSelectedBankTransactions] = useState<Set<number>>(new Set());
   const [selectedJournalEntries, setSelectedJournalEntries] = useState<Set<number>>(new Set());
   
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
 
   // Mock data - in a real app, this would come from the API
   const bankTransactions: BankTransaction[] = [

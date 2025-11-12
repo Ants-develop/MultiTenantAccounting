@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCurrentUser, login, logout, register, switchCompany } from "@/lib/auth";
+import { getCurrentUser, login, logout, register } from "@/lib/auth";
 import type { AuthResponse } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -77,56 +77,17 @@ export function useAuth() {
     },
   });
 
-  const switchCompanyMutation = useMutation({
-    mutationFn: switchCompany,
-    onSuccess: (data) => {
-      // Update localStorage before reload
-      const companyId = data?.companyId || localStorage.getItem('currentCompanyId');
-      if (companyId) {
-        localStorage.setItem('currentCompanyId', companyId.toString());
-      }
-      
-      // Just reload the page - simplest solution
-      window.location.reload();
-    },
-    onError: (error: any) => {
-      console.error('Company switch error:', error);
-      
-      // Handle specific error cases
-      if (error.message?.includes('NO_COMPANY_SELECTED')) {
-        toast({
-          title: "Company Selection Required",
-          description: "Please select a company to continue",
-          variant: "destructive",
-        });
-      } else if (error.message?.includes('Access denied')) {
-        toast({
-          title: "Access Denied",
-          description: "You don't have access to this company",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Switch failed",
-          description: error.message || "Failed to switch company",
-          variant: "destructive",
-        });
-      }
-    },
-  });
-
   return {
     user: data?.user || null,
     companies: data?.companies || [],
+    needsSetup: data?.needsSetup || false,
     isLoading,
     error,
     login: loginMutation.mutate,
     register: registerMutation.mutate,
     logout: logoutMutation.mutate,
-    switchCompany: switchCompanyMutation.mutate,
     isLoginPending: loginMutation.isPending,
     isRegisterPending: registerMutation.isPending,
     isLogoutPending: logoutMutation.isPending,
-    isSwitchPending: switchCompanyMutation.isPending,
   };
 }

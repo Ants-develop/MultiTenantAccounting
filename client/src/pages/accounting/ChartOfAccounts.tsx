@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Plus, Edit, Trash2, Check, ChevronDown, ChevronRight } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm, Controller } from "react-hook-form";
@@ -89,7 +89,8 @@ export default function ChartOfAccounts() {
   const [selectedType, setSelectedType] = useState<string>("");
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();

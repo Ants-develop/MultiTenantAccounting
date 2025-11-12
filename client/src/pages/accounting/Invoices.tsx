@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Eye, Send, Trash2 } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -54,7 +54,8 @@ type InvoiceForm = z.infer<typeof invoiceSchema>;
 export default function Invoices() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();

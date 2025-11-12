@@ -18,7 +18,7 @@ import {
   Download, Info, Play, Pause, Square, Clock, BarChart3, ArrowUpCircle, Search
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -92,8 +92,8 @@ export default function MSSQLImport() {
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
   const [selectedAuditTables, setSelectedAuditTables] = useState<Set<string>>(new Set());
 
-  const { user } = useAuth();
-  const { currentCompany } = useCompany();
+  const { user, companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

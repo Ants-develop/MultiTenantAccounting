@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DollarSign, File, University, Receipt, Plus, Edit, TrendingUp, Clock, ChevronRight } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useTranslation } from "react-i18next";
 import { formatCurrency } from "@/lib/currency";
 
@@ -25,7 +25,8 @@ interface Transaction {
 }
 
 export default function Dashboard() {
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { t } = useTranslation();
 
   const { data: metrics, isLoading: metricsLoading } = useQuery<DashboardMetrics>({

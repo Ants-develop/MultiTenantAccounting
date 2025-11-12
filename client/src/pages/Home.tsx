@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useTranslation } from "react-i18next";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { getQueryFn } from "@/lib/queryClient";
 
 interface KpisResponse {
@@ -16,7 +16,8 @@ interface KpisResponse {
 interface TopItem { name: string; value: number; }
 
 export default function Home() {
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { t } = useTranslation();
   const [range, setRange] = useState<string>("thisYear");
 

@@ -297,7 +297,7 @@ const handleError = async (
     RESOURCE_TYPES.SETTINGS,
     {
       userId: req.session?.userId ?? 0,
-      clientId: req.session?.currentCompanyId,
+      clientId: undefined,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent") || undefined,
     },

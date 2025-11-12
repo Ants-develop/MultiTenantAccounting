@@ -1,5 +1,4 @@
 import { useAuth } from './useAuth';
-import { useCompany } from './useCompany';
 import { 
   hasPermission, 
   hasEffectivePermission,
@@ -14,7 +13,7 @@ import {
 
 export function usePermissions() {
   const { companies, user } = useAuth();
-  const { currentCompany } = useCompany();
+  const currentCompany = companies?.[0] || null;
 
   // Get current user's global role
   const globalRole: GlobalRole = (user as any)?.globalRole || 'user';

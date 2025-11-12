@@ -28,6 +28,12 @@ const navigation: NavigationItem[] = [
     permission: "SYSTEM_VIEW_ALL_COMPANIES",
   },
   {
+    name: "Company Profile",
+    href: "/company-profile",
+    icon: Building2,
+    permission: "SETTINGS_VIEW",
+  },
+  {
     name: "navigation.dashboard",
     href: "/home",
     icon: BarChart3,
@@ -196,12 +202,6 @@ const adminSection: NavigationItem[] = [
     href: "/mssql-import",
     icon: Database,
     permission: "JOURNAL_VIEW",
-  },
-  {
-    name: "Company Settings",
-    href: "/settings",
-    icon: Settings,
-    permission: "SETTINGS_VIEW",
   },
 ];
 

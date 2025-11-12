@@ -15,7 +15,7 @@ import {
   Calendar, Globe, Save, RotateCcw, AlertTriangle, CheckCircle,
   FileText, Archive, Database, Lock, Eye, EyeOff, BarChart3
 } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -112,7 +112,8 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState("company");
   const [showTaxId, setShowTaxId] = useState(false);
   
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { canEditSettings, canViewSettings } = usePermissions();
   const { toast } = useToast();
   const queryClient = useQueryClient();

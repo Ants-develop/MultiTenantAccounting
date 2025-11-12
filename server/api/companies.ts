@@ -59,51 +59,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get current company
-router.get('/current', async (req, res) => {
-  try {
-    const currentCompanyId = req.session.currentCompanyId;
-    
-    if (!currentCompanyId) {
-      return res.json({
-        hasCompany: false,
-        message: 'No company selected'
-      });
-    }
-    
-    // Verify the company exists and user has access
-    const userCompany = await storage.getUserCompany(req.session.userId!, currentCompanyId);
-
-    if (!userCompany) {
-      return res.json({
-        hasCompany: false,
-        message: 'Selected company not accessible',
-        companyId: currentCompanyId
-      });
-    }
-
-    // Get company details for the response
-    const company = await storage.getCompany(currentCompanyId);
-    if (!company) {
-      return res.json({
-        hasCompany: false,
-        message: 'Company not found',
-        companyId: currentCompanyId
-      });
-    }
-
-    res.json({
-      hasCompany: true,
-      companyId: currentCompanyId,
-      companyName: company.name,
-      userId: req.session.userId
-    });
-  } catch (error) {
-    console.error('Get current company error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
 // Create new company
 router.post('/', async (req, res) => {
   try {
@@ -120,51 +75,6 @@ router.post('/', async (req, res) => {
     res.json(company);
   } catch (error) {
     console.error('Create company error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Switch to different company
-router.post('/:id/switch', async (req, res) => {
-  try {
-    const companyId = parseInt(req.params.id);
-    
-    // Debug logging
-    console.log(`Switching to company ${companyId} for user ${req.session.userId}`);
-    console.log(`Current session companyId: ${req.session.currentCompanyId}`);
-    
-    // Verify user has access to this company
-    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-    if (!userCompany) {
-      console.log(`User ${req.session.userId} does not have access to company ${companyId}`);
-      return res.status(403).json({ message: 'Access denied to this company' });
-    }
-
-    // Get company details for the response
-    const company = await storage.getCompany(companyId);
-    if (!company) {
-      return res.status(404).json({ message: 'Company not found' });
-    }
-
-    // Update session
-    req.session.currentCompanyId = companyId;
-
-    // Force session save to ensure persistence
-    req.session.save((err) => {
-      if (err) {
-        console.error('Session save error:', err);
-        return res.status(500).json({ message: 'Failed to save session' });
-      }
-
-      console.log(`Successfully switched to company ${companyId}`);
-      res.json({
-        message: 'Company switched successfully',
-        companyId: companyId,
-        companyName: company.name
-      });
-    });
-  } catch (error) {
-    console.error('Switch company error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });
@@ -192,11 +102,9 @@ router.get('/settings/:id', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Get company basic information
@@ -303,7 +211,6 @@ router.put('/settings/:id/info', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company and permission to edit
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
       const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
       if (!userCompany) {
         return res.status(403).json({ message: 'Access denied to this company' });
@@ -339,11 +246,9 @@ router.put('/settings/:id/notifications', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Update notification settings in database
@@ -389,11 +294,9 @@ router.put('/settings/:id/financial', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Update financial settings in database
@@ -442,11 +345,9 @@ router.put('/settings/:id/security', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Update security settings in database
@@ -492,11 +393,9 @@ router.get('/:id/export', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Export all company data including accounts, transactions, etc.
@@ -552,11 +451,9 @@ router.put('/:id/archive', async (req, res) => {
     const companyId = parseInt(req.params.id);
     
     // Verify user has access to this company
-    if (!req.session.currentCompanyId || req.session.currentCompanyId !== companyId) {
-      const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
-      if (!userCompany) {
-        return res.status(403).json({ message: 'Access denied to this company' });
-      }
+    const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
+    if (!userCompany) {
+      return res.status(403).json({ message: 'Access denied to this company' });
     }
 
     // Archive company by setting isActive to false

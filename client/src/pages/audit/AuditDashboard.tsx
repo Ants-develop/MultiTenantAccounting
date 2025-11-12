@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { FileSearch } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "wouter";
@@ -9,7 +9,9 @@ import AuditGrid from "@/components/audit/AuditGrid";
 import { auditSections, getAuditTableById } from "@/config/auditTables";
 
 export default function AuditDashboard() {
-  const { currentCompany, currentCompanyId, companies } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
+  const currentCompanyId = currentCompany?.id;
   const { t, i18n } = useTranslation();
   const [location, setLocation] = useLocation();
 

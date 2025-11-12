@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Edit, Trash2, Save, X, Calendar, Clock, Search, Calculator, Users, FileText, Upload } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm, useFieldArray } from "react-hook-form";
@@ -414,7 +414,8 @@ export default function Purchases() {
   const [activeTab, setActiveTab] = useState("nomenclature");
   const [purchaseType, setPurchaseType] = useState<'regular' | 'accountable_person'>('regular');
   
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { registerTrigger } = usePageActions();

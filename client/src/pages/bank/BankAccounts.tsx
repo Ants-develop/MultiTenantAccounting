@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -55,7 +55,8 @@ export default function BankAccounts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const { toast } = useToast();
-  const { currentCompanyId } = useCompany();
+  const { companies } = useAuth();
+  const currentCompanyId = companies?.[0]?.id;
 
   // Fetch bank accounts
   const { data: accounts = [], isLoading } = useQuery<BankAccount[]>({

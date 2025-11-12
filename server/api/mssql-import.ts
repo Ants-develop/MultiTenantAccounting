@@ -57,7 +57,6 @@ router.get("/tenant-codes", async (req, res) => {
   console.log("\n" + "=".repeat(60));
   console.log("📍 GET /api/mssql/tenant-codes - Request received");
   console.log("   Session User ID:", req.session?.userId);
-  console.log("   Current Company ID:", req.session?.currentCompanyId);
   console.log("=".repeat(60));
 
   try {

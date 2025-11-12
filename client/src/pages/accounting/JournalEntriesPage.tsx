@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { JournalEntriesGrid } from "@/components/accounting/JournalEntriesGrid";
 
@@ -82,14 +82,16 @@ interface PaginatedResponse {
 }
 
 export default function JournalEntriesPage() {
-  const { currentCompany, currentCompanyId, companies } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
+  const currentCompanyId = currentCompany?.id;
   const queryClient = useQueryClient();
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(500);
 
   // Get company name
-  const companyName = companies.find(c => c.id === currentCompanyId)?.name || currentCompany?.name || 'Loading...';
+  const companyName = currentCompany?.name || 'Loading...';
 
   // Reset page when company changes
   useEffect(() => {

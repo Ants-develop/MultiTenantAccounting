@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Receipt, DollarSign, Clock, CreditCard } from "lucide-react";
 
 interface Bill {
@@ -20,7 +20,8 @@ interface Bill {
 }
 
 export default function AccountsPayable() {
-  const { currentCompany } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
 
   // Fetch bills
   const { data: bills, isLoading: billsLoading } = useQuery<Bill[]>({

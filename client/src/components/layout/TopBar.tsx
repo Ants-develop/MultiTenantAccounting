@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { useCompany } from "@/hooks/useCompany";
 import { useLocation } from "wouter";
 import { triggerPageAction } from "@/hooks/usePageActions";
 import { useToast } from "@/hooks/use-toast";
@@ -12,8 +11,8 @@ import { useTranslation } from "react-i18next";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 export default function TopBar() {
-  const { user, logout } = useAuth();
-  const { currentCompany } = useCompany();
+  const { user, logout, companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const { t } = useTranslation();

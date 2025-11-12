@@ -46,6 +46,9 @@ export async function getUserWithCompanies(userId: number) {
   const companies = await storage.getCompaniesByUser(userId);
   const userCompanies = await storage.getUserCompanies(userId);
 
+  // Check if setup is needed (if there's a company but it has no name, it needs setup)
+  const needsSetup = companies.length > 0 && !companies[0].name;
+
   return {
     user: {
       id: user.id,
@@ -68,5 +71,6 @@ export async function getUserWithCompanies(userId: number) {
         role: role,
       };
     }),
+    needsSetup,
   };
 }

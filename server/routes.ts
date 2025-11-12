@@ -34,7 +34,6 @@ import rsAdminRouter from "./api/rs-admin";
 declare module "express-session" {
   interface SessionData {
     userId?: number;
-    currentCompanyId?: number;
   }
 }
 
@@ -96,15 +95,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log('User authenticated:', { userId: user.id, username: user.username });
       
       req.session.userId = user.id;
-      
-      const userWithCompanies = await getUserWithCompanies(user.id);
-      if (userWithCompanies && userWithCompanies.companies.length > 0) {
-        req.session.currentCompanyId = userWithCompanies.companies[0].id;
-      }
 
       console.log('Session before save:', {
         userId: req.session.userId,
-        currentCompanyId: req.session.currentCompanyId,
         sessionId: req.sessionID
       });
 
@@ -263,7 +256,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log profile update activity
       await activityLogger.logActivity({
         userId,
-        companyId: req.session.currentCompanyId || undefined,
         ipAddress: req.ip,
         userAgent: req.get('user-agent') || undefined,
       }, {
@@ -320,7 +312,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log password change activity
       await activityLogger.logActivity({
         userId,
-        companyId: req.session.currentCompanyId || undefined,
         ipAddress: req.ip,
         userAgent: req.get('user-agent') || undefined,
       }, {
@@ -360,12 +351,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           createdAt: usersTable.createdAt,
         }).from(usersTable);
       } else {
-        // For non-global admins, show users in current company only
-        if (!req.session.currentCompanyId) {
-          return res.status(400).json({ message: 'No company selected' });
-        }
-
-        const companyUsers = await db
+        // For non-global admins in single-company model, show all users
+        users = await db
           .select({
             id: usersTable.id,
             username: usersTable.username,
@@ -376,11 +363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             isActive: usersTable.isActive,
             createdAt: usersTable.createdAt,
           })
-          .from(usersTable)
-          .innerJoin(userCompaniesTable, eq(usersTable.id, userCompaniesTable.userId))
-          .where(eq(userCompaniesTable.companyId, req.session.currentCompanyId));
-        
-        users = companyUsers;
+          .from(usersTable);
       }
 
       res.json(users);
@@ -463,11 +446,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
           .innerJoin(sql`companies`, sql`user_companies.company_id = companies.id`);
       } else {
-        // For non-global admins, show assignments for current company only
-        if (!req.session.currentCompanyId) {
-          return res.status(400).json({ message: 'No company selected' });
-        }
-
+        // For non-global admins in single-company model, show all assignments
         userCompanyAssignments = await db
           .select({
             id: userCompaniesTable.id,
@@ -490,8 +469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .from(userCompaniesTable)
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(sql`companies`, sql`user_companies.company_id = companies.id`)
-          .where(eq(userCompaniesTable.companyId, req.session.currentCompanyId));
+          .innerJoin(sql`companies`, sql`user_companies.company_id = companies.id`);
       }
 
       res.json(userCompanyAssignments);

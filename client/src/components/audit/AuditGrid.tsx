@@ -2,7 +2,7 @@ import React, { useMemo, useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
-import { useCompany } from "@/hooks/useCompany";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest } from "@/lib/queryClient";
 import { BaseHandsontableGrid } from "@/components/grid";
 import dayjs from 'dayjs';
@@ -24,7 +24,9 @@ interface AuditGridProps {
 }
 
 export default function AuditGrid({ tableConfig }: AuditGridProps) {
-  const { currentCompany, currentCompanyId } = useCompany();
+  const { companies } = useAuth();
+  const currentCompany = companies?.[0] || null;
+  const currentCompanyId = currentCompany?.id;
   const queryClient = useQueryClient();
 
   const [currentPage, setCurrentPage] = useState(1);
