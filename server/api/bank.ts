@@ -10,19 +10,21 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-router.use(requireCompany);
+// Note: In single-company mode, we use a default clientId of 1
+// If needed, you can configure this via environment variable
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // ===== BANK ACCOUNTS CRUD =====
 
 // GET /api/bank/accounts - Get all bank accounts for the current company
 router.get('/accounts', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     
     const accounts = await db
       .select()
       .from(bankAccounts)
-      .where(eq(bankAccounts.companyId, companyId))
+      .where(eq(bankAccounts.clientId, companyId))
       .orderBy(desc(bankAccounts.createdAt));
 
     res.json(accounts);
@@ -35,7 +37,7 @@ router.get('/accounts', async (req, res) => {
 // POST /api/bank/accounts - Create a new bank account
 router.post('/accounts', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     // Validate request body
@@ -54,7 +56,7 @@ router.post('/accounts', async (req, res) => {
       await db
         .update(bankAccounts)
         .set({ isDefault: false })
-        .where(eq(bankAccounts.companyId, companyId));
+        .where(eq(bankAccounts.clientId, companyId));
     }
 
     const [account] = await db
@@ -91,7 +93,7 @@ router.post('/accounts', async (req, res) => {
 // PUT /api/bank/accounts/:id - Update a bank account
 router.put('/accounts/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     
@@ -112,7 +114,7 @@ router.put('/accounts/:id', async (req, res) => {
         .update(bankAccounts)
         .set({ isDefault: false })
         .where(and(
-          eq(bankAccounts.companyId, companyId),
+          eq(bankAccounts.clientId, companyId),
           sql`${bankAccounts.id} != ${id}`
         ));
     }
@@ -125,7 +127,7 @@ router.put('/accounts/:id', async (req, res) => {
       })
       .where(and(
         eq(bankAccounts.id, parseInt(id)),
-        eq(bankAccounts.companyId, companyId)
+        eq(bankAccounts.clientId, companyId)
       ))
       .returning();
 
@@ -158,7 +160,7 @@ router.put('/accounts/:id', async (req, res) => {
 // DELETE /api/bank/accounts/:id - Delete a bank account
 router.delete('/accounts/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     
@@ -166,7 +168,7 @@ router.delete('/accounts/:id', async (req, res) => {
       .delete(bankAccounts)
       .where(and(
         eq(bankAccounts.id, parseInt(id)),
-        eq(bankAccounts.companyId, companyId)
+        eq(bankAccounts.clientId, companyId)
       ))
       .returning();
 
@@ -201,7 +203,7 @@ router.delete('/accounts/:id', async (req, res) => {
 // GET /api/bank/transactions - Get all raw bank transactions with pagination
 router.get('/transactions', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = (page - 1) * limit;
@@ -210,7 +212,7 @@ router.get('/transactions', async (req, res) => {
     const bankAccountId = req.query.bankAccountId as string;
     const search = req.query.search as string;
 
-    let whereConditions = [eq(rawBankTransactions.companyId, companyId)];
+    let whereConditions = [eq(rawBankTransactions.clientId, companyId)];
     
     if (bankAccountId) {
       whereConditions.push(eq(rawBankTransactions.bankAccountId, parseInt(bankAccountId)));
@@ -258,7 +260,7 @@ router.get('/transactions', async (req, res) => {
 // POST /api/bank/transactions - Create a single raw bank transaction
 router.post('/transactions', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     // Validate request body
@@ -277,7 +279,7 @@ router.post('/transactions', async (req, res) => {
       .select()
       .from(rawBankTransactions)
       .where(and(
-        eq(rawBankTransactions.companyId, companyId),
+        eq(rawBankTransactions.clientId, companyId),
         eq(rawBankTransactions.uniqueTransactionId, data.uniqueTransactionId)
       ))
       .limit(1);
@@ -330,7 +332,7 @@ router.post('/transactions', async (req, res) => {
 // POST /api/bank/transactions/import - Bulk import raw bank transactions from CSV
 router.post('/transactions/import', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { transactions: transactionsData, bankAccountId } = req.body;
     
@@ -371,7 +373,7 @@ router.post('/transactions/import', async (req, res) => {
           .select()
           .from(rawBankTransactions)
           .where(and(
-            eq(rawBankTransactions.companyId, companyId),
+            eq(rawBankTransactions.clientId, companyId),
             eq(rawBankTransactions.uniqueTransactionId, data.uniqueTransactionId)
           ))
           .limit(1);
@@ -432,7 +434,7 @@ router.post('/transactions/import', async (req, res) => {
 // PUT /api/bank/transactions/:id - Update a raw bank transaction
 router.put('/transactions/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     
@@ -455,7 +457,7 @@ router.put('/transactions/:id', async (req, res) => {
       })
       .where(and(
         eq(rawBankTransactions.id, parseInt(id)),
-        eq(rawBankTransactions.companyId, companyId)
+        eq(rawBankTransactions.clientId, companyId)
       ))
       .returning();
 
@@ -488,7 +490,7 @@ router.put('/transactions/:id', async (req, res) => {
 // DELETE /api/bank/transactions/:id - Delete a raw bank transaction
 router.delete('/transactions/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     
@@ -496,7 +498,7 @@ router.delete('/transactions/:id', async (req, res) => {
       .delete(rawBankTransactions)
       .where(and(
         eq(rawBankTransactions.id, parseInt(id)),
-        eq(rawBankTransactions.companyId, companyId)
+        eq(rawBankTransactions.clientId, companyId)
       ))
       .returning();
 
@@ -529,7 +531,7 @@ router.delete('/transactions/:id', async (req, res) => {
 // POST /api/bank/transactions/normalize - Normalize raw transactions with balance and sequence validation
 router.post('/transactions/normalize', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { bankAccountId } = req.body; // Optional: normalize specific account or all
 
@@ -540,14 +542,14 @@ router.post('/transactions/normalize', async (req, res) => {
         .select()
         .from(bankAccounts)
         .where(and(
-          eq(bankAccounts.companyId, companyId),
+          eq(bankAccounts.clientId, companyId),
           eq(bankAccounts.id, parseInt(bankAccountId))
         ));
     } else {
       accountsToNormalize = await db
         .select()
         .from(bankAccounts)
-        .where(eq(bankAccounts.companyId, companyId));
+        .where(eq(bankAccounts.clientId, companyId));
     }
 
     if (accountsToNormalize.length === 0) {
@@ -564,7 +566,7 @@ router.post('/transactions/normalize', async (req, res) => {
           .select()
           .from(rawBankTransactions)
           .where(and(
-            eq(rawBankTransactions.companyId, companyId),
+            eq(rawBankTransactions.clientId, companyId),
             eq(rawBankTransactions.bankAccountId, account.id)
           ))
           .orderBy(rawBankTransactions.documentDate, rawBankTransactions.movementId);
@@ -575,7 +577,7 @@ router.post('/transactions/normalize', async (req, res) => {
         await db
           .delete(normalizedBankTransactions)
           .where(and(
-            eq(normalizedBankTransactions.companyId, companyId),
+            eq(normalizedBankTransactions.clientId, companyId),
             eq(normalizedBankTransactions.bankAccountId, account.id)
           ));
 
@@ -693,13 +695,13 @@ router.post('/transactions/normalize', async (req, res) => {
 // GET /api/bank/transactions/normalized - Get normalized transactions with pagination
 router.get('/transactions/normalized', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const companyId = DEFAULT_CLIENT_ID!;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = (page - 1) * limit;
     const bankAccountId = req.query.bankAccountId as string;
 
-    let whereConditions = [eq(normalizedBankTransactions.companyId, companyId)];
+    let whereConditions = [eq(normalizedBankTransactions.clientId, companyId)];
     
     if (bankAccountId && bankAccountId !== 'all') {
       whereConditions.push(eq(normalizedBankTransactions.bankAccountId, parseInt(bankAccountId)));

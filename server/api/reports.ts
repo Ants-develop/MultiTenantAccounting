@@ -8,15 +8,17 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Trial Balance route
 router.get('/trial-balance', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     const { date } = req.query;
     
     let dateFilter = '';
@@ -45,7 +47,7 @@ router.get('/trial-balance', async (req, res) => {
       FROM accounts a
       LEFT JOIN journal_entry_lines jel ON a.id = jel.account_id
       LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId} 
+      WHERE a.company_id = ${clientId} 
       AND a.is_active = true
       AND (je.is_posted = true OR je.id IS NULL)
       ${dateFilter}
@@ -82,11 +84,11 @@ router.get('/trial-balance', async (req, res) => {
 // Financial statements route
 router.get('/financial-statements', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     const { type, startDate, endDate } = req.query;
     
     if (type === 'profit-loss') {
@@ -104,7 +106,7 @@ router.get('/financial-statements', async (req, res) => {
         FROM accounts a
         LEFT JOIN journal_entry_lines jel ON a.id = jel.account_id
         LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id
-        WHERE a.company_id = ${companyId} 
+        WHERE a.company_id = ${clientId} 
         AND a.type IN ('revenue', 'expense')
         AND je.is_posted = true
         ${startDate ? `AND je.date >= '${startDate}'` : ''}
@@ -138,7 +140,7 @@ router.get('/financial-statements', async (req, res) => {
         FROM accounts a
         LEFT JOIN journal_entry_lines jel ON a.id = jel.account_id
         LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id
-        WHERE a.company_id = ${companyId} 
+        WHERE a.company_id = ${clientId} 
         AND a.type IN ('asset', 'liability', 'equity')
         AND (je.is_posted = true OR je.id IS NULL)
         ${endDate ? `AND je.date <= '${endDate}'` : ''}

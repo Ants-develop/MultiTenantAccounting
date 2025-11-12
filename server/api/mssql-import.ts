@@ -20,6 +20,8 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Shared state for active migration/update
 let activeMigration: MigrationProgress | null = null;
@@ -59,7 +61,7 @@ router.get("/tenant-codes", async (req, res) => {
   console.log("=".repeat(60));
 
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
@@ -67,7 +69,7 @@ router.get("/tenant-codes", async (req, res) => {
     const [company] = await db
       .select()
       .from(companies)
-      .where(eq(companies.id, req.session.currentCompanyId))
+      .where(eq(companies.id, DEFAULT_CLIENT_ID))
       .limit(1);
 
     if (!company) {
@@ -128,13 +130,13 @@ router.get("/tenant-codes", async (req, res) => {
 // Start journal entries update (incremental sync)
 router.post("/start-update", async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, companyId, batchSize } = req.body;
+    const { tenantCode, clientId, batchSize } = req.body;
 
-    if (!tenantCode || !companyId) {
+    if (!tenantCode || !clientId) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
 
@@ -172,7 +174,7 @@ router.post("/start-update", async (req, res) => {
         await updateJournalEntries(
           pool,
           tenantCode,
-          companyId,
+          clientId,
           batchSize || 1000
         );
         console.log(
@@ -203,13 +205,13 @@ router.post("/start-update", async (req, res) => {
 // Start general ledger migration
 router.post("/start-migration", async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, companyId, batchSize } = req.body;
+    const { tenantCode, clientId, batchSize } = req.body;
 
-    if (!tenantCode || !companyId) {
+    if (!tenantCode || !clientId) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
 
@@ -247,7 +249,7 @@ router.post("/start-migration", async (req, res) => {
         await migrateGeneralLedger(
           pool,
           tenantCode,
-          companyId,
+          clientId,
           batchSize || 1000
         );
         console.log(
@@ -278,13 +280,13 @@ router.post("/start-migration", async (req, res) => {
 // Start audit export
 router.post("/start-audit-export", async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, companyId, batchSize } = req.body;
+    const { tenantCode, clientId, batchSize } = req.body;
 
-    if (!tenantCode || !companyId) {
+    if (!tenantCode || !clientId) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
 
@@ -316,7 +318,7 @@ router.post("/start-audit-export", async (req, res) => {
           );
         });
 
-        await exportToAudit(pool, tenantCode, companyId, batchSize || 1000);
+        await exportToAudit(pool, tenantCode, clientId, batchSize || 1000);
         console.log(
           `✅ Audit export ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
         );
@@ -379,13 +381,13 @@ router.post("/stop-migration", async (req, res) => {
 // Start RS table migration
 router.post("/start-rs-migration", async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tableName, companyId, companyTin, batchSize } = req.body;
+    const { tableName, clientId, companyTin, batchSize } = req.body;
 
-    if (!tableName || !companyId || !companyTin) {
+    if (!tableName || !clientId || !companyTin) {
       return res.status(400).json({ message: "Missing required parameters" });
     }
 
@@ -417,7 +419,7 @@ router.post("/start-rs-migration", async (req, res) => {
           );
         });
 
-        await migrateRSTables(pool, tableName, companyId, companyTin, batchSize || 1000);
+        await migrateRSTables(pool, tableName, clientId, companyTin, batchSize || 1000);
         console.log(
           `✅ RS migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
         );
@@ -445,7 +447,7 @@ router.post("/start-rs-migration", async (req, res) => {
 // Start audit table migration
 router.post("/start-audit-table-migration", async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 

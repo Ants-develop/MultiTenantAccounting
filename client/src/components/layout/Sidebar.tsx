@@ -4,7 +4,7 @@ import { Calculator, BarChart3, List, Book, File, Receipt,
          Scale, PieChart, Users, Settings, Shield, Globe, 
          ChevronLeft, ChevronRight, Database, FileSearch, MessageSquare, 
          CheckSquare, User, Plus, KeyRound, Beaker, Table } from "lucide-react";
-import CompanySwitcher from "../CompanySwitcher";
+// CompanySwitcher removed - no longer needed in single-company mode
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSidebar } from "@/hooks/useSidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -145,8 +145,8 @@ const bankSection: NavigationItem[] = [
   },
 ];
 
-// Chat Module
-const chatSection: NavigationItem[] = [
+// Messenger Module
+const messengerSection: NavigationItem[] = [
   {
     name: "Messages",
     href: "/chat",
@@ -329,8 +329,6 @@ export default function Sidebar() {
             </>
           )}
         </div>
-        
-        {!isCollapsed && <CompanySwitcher />}
       </div>
 
       {/* Scrollable Navigation Menu */}
@@ -391,11 +389,11 @@ export default function Sidebar() {
               </div>
             )}
 
-            {/* Chat Module */}
-            {getVisibleItems(chatSection).length > 0 && (
+            {/* Messenger Module */}
+            {getVisibleItems(messengerSection).length > 0 && (
               <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Chat</p>}
-                {getVisibleItems(chatSection).map((item) => (
+                {!isCollapsed && <p className="accounting-nav-section">Messenger</p>}
+                {getVisibleItems(messengerSection).map((item) => (
                   <NavItem key={item.name} item={item} />
                 ))}
               </div>

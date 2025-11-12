@@ -9,12 +9,14 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 router.use(requireCompany);
 
 // GET /api/rs-integration/:tableName - Fetch RS.ge data with pagination
 router.get('/:tableName', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { tableName } = req.params;
     
     const page = parseInt(req.query.page as string) || 1;
@@ -22,13 +24,13 @@ router.get('/:tableName', async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get company code (TIN)
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, clientId));
     
     if (!company) {
       return res.status(404).json({ message: 'Company not found' });
     }
 
-    console.log(`[RS Integration] Fetching ${tableName} for companyId: ${companyId}, code: ${company.code || 'none'}, page: ${page}, limit: ${limit}`);
+    console.log(`[RS Integration] Fetching ${tableName} for clientId: ${clientId}, code: ${company.code || 'none'}, page: ${page}, limit: ${limit}`);
 
     // Whitelist allowed tables
     const allowedTables = [

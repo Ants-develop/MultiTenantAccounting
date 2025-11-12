@@ -18,8 +18,8 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Companies table
-export const companies = pgTable("companies", {
+// Clients table (renamed from companies - now represents client companies)
+export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
@@ -34,6 +34,9 @@ export const companies = pgTable("companies", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Keep companies as an alias for backwards compatibility during transition
+export const companies = clients;
+
 export const rsUsers = rs.table("users", {
   id: serial("id").primaryKey(),
   companyName: text("company_name").notNull(),
@@ -45,7 +48,7 @@ export const rsUsers = rs.table("users", {
   mainPasswordHash: text("main_password_hash"),
   userId: text("user_id"),
   unId: text("un_id"),
-  companyId: integer("company_id").references(() => companies.id),
+  clientId: integer("client_id").references(() => clients.id),
   companyTin: text("company_tin"),
   createdByUserId: integer("created_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow(),
@@ -56,7 +59,7 @@ export const rsUsers = rs.table("users", {
 export const userCompanies = pgTable("user_companies", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   role: text("role").notNull(), // "administrator", "manager", "accountant", "assistant"
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -65,7 +68,7 @@ export const userCompanies = pgTable("user_companies", {
 // Chart of Accounts
 export const accounts = pgTable("accounts", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   code: text("code").notNull(),
   name: text("name").notNull(),
   type: text("type").notNull(), // "asset", "liability", "equity", "revenue", "expense"
@@ -85,7 +88,7 @@ export const accounts = pgTable("accounts", {
 // mssql_record_id links back to general_ledger.id for tracking individual records
 export const journalEntries = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   entryNumber: text("entry_number").notNull(),
   date: timestamp("date").notNull(),
   description: text("description").notNull(),
@@ -212,7 +215,7 @@ export const journalEntryLines = pgTable("journal_entry_lines", {
 // Customers
 export const customers = pgTable("customers", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -224,7 +227,7 @@ export const customers = pgTable("customers", {
 // Vendors
 export const vendors = pgTable("vendors", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -236,7 +239,7 @@ export const vendors = pgTable("vendors", {
 // Invoices
 export const invoices = pgTable("invoices", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   customerId: integer("customer_id").references(() => customers.id).notNull(),
   invoiceNumber: text("invoice_number").notNull(),
   date: timestamp("date").notNull(),
@@ -252,7 +255,7 @@ export const invoices = pgTable("invoices", {
 // Bills
 export const bills = pgTable("bills", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
   billNumber: text("bill_number").notNull(),
   date: timestamp("date").notNull(),
@@ -269,7 +272,7 @@ export const bills = pgTable("bills", {
 export const activityLogs = pgTable("activity_logs", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
-  companyId: integer("company_id").references(() => companies.id),
+  clientId: integer("client_id").references(() => clients.id),
   action: text("action").notNull(), // CREATE, UPDATE, DELETE, LOGIN, etc.
   resource: text("resource").notNull(), // COMPANY, USER, TRANSACTION, etc.
   resourceId: integer("resource_id"), // ID of the affected resource
@@ -285,7 +288,7 @@ export const activityLogs = pgTable("activity_logs", {
 // journal_entries is a copy of general_ledger after tenantCode identification
 export const generalLedger = pgTable("general_ledger", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
   // MSSQL parity fields (all from MSSQL GeneralLedger table)
   // Tenant information
   tenantCode: decimal("tenant_code", { precision: 18, scale: 0 }),
@@ -349,7 +352,7 @@ export const generalLedger = pgTable("general_ledger", {
 
 export const companySettings = pgTable("company_settings", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id).notNull().unique(),
+  clientId: integer("client_id").references(() => clients.id).notNull().unique(),
   // Notification settings
   emailNotifications: boolean("email_notifications").default(true),
   invoiceReminders: boolean("invoice_reminders").default(true),
@@ -408,18 +411,18 @@ export const companiesRelations = relations(companies, ({ many, one }) => ({
 
 export const userCompaniesRelations = relations(userCompanies, ({ one }) => ({
   user: one(users, { fields: [userCompanies.userId], references: [users.id] }),
-  company: one(companies, { fields: [userCompanies.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [userCompanies.clientId], references: [companies.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one, many }) => ({
-  company: one(companies, { fields: [accounts.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [accounts.clientId], references: [companies.id] }),
   parent: one(accounts, { fields: [accounts.parentId], references: [accounts.id] }),
   children: many(accounts, { relationName: "account_children" }),
   journalEntryLines: many(journalEntryLines),
 }));
 
 export const journalEntriesRelations = relations(journalEntries, ({ one, many }) => ({
-  company: one(companies, { fields: [journalEntries.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [journalEntries.clientId], references: [companies.id] }),
   user: one(users, { fields: [journalEntries.userId], references: [users.id] }),
   lines: many(journalEntryLines),
 }));
@@ -430,41 +433,43 @@ export const journalEntryLinesRelations = relations(journalEntryLines, ({ one })
 }));
 
 export const customersRelations = relations(customers, ({ one, many }) => ({
-  company: one(companies, { fields: [customers.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [customers.clientId], references: [companies.id] }),
   invoices: many(invoices),
 }));
 
 export const vendorsRelations = relations(vendors, ({ one, many }) => ({
-  company: one(companies, { fields: [vendors.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [vendors.clientId], references: [companies.id] }),
   bills: many(bills),
 }));
 
 export const invoicesRelations = relations(invoices, ({ one }) => ({
-  company: one(companies, { fields: [invoices.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [invoices.clientId], references: [companies.id] }),
   customer: one(customers, { fields: [invoices.customerId], references: [customers.id] }),
 }));
 
 export const billsRelations = relations(bills, ({ one }) => ({
-  company: one(companies, { fields: [bills.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [bills.clientId], references: [companies.id] }),
   vendor: one(vendors, { fields: [bills.vendorId], references: [vendors.id] }),
 }));
 
 export const generalLedgerRelations = relations(generalLedger, ({ one }) => ({
-  company: one(companies, { fields: [generalLedger.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [generalLedger.clientId], references: [companies.id] }),
 }));
 
 export const companySettingsRelations = relations(companySettings, ({ one }) => ({
-  company: one(companies, { fields: [companySettings.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [companySettings.clientId], references: [companies.id] }),
 }));
 
 export const rsUsersRelations = relations(rsUsers, ({ one }) => ({
-  company: one(companies, { fields: [rsUsers.companyId], references: [companies.id] }),
+  company: one(companies, { fields: [rsUsers.clientId], references: [companies.id] }),
   createdBy: one(users, { fields: [rsUsers.createdByUserId], references: [users.id] }),
 }));
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
-export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
+export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
+// Backwards compatibility alias
+export const insertCompanySchema = insertClientSchema;
 export const insertUserCompanySchema = createInsertSchema(userCompanies).omit({ id: true, createdAt: true });
 export const insertRsUserSchema = createInsertSchema(rsUsers).omit({ id: true, createdAt: true, updatedAt: true, createdByUserId: true });
 export const insertAccountSchema = createInsertSchema(accounts).omit({ id: true, createdAt: true });
@@ -474,7 +479,7 @@ export const insertCustomerSchema = createInsertSchema(customers).omit({ id: tru
 export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true, createdAt: true });
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, userId: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, userId: true });
-export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, timestamp: true, companyId: true });
+export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, timestamp: true, clientId: true });
 export const insertGeneralLedgerSchema = createInsertSchema(generalLedger).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({ id: true, createdAt: true, updatedAt: true });
 
@@ -488,14 +493,16 @@ export const insertUserSchemaEnhanced = insertUserSchema.extend({
   globalRole: z.enum(["user", "global_administrator"]).default("user")
 });
 
-export const insertCompanySchemaEnhanced = insertCompanySchema.extend({
-  name: z.string().min(1, "Company name is required").max(100, "Company name too long"),
-  code: z.string().min(2, "Company code must be at least 2 characters").max(10, "Company code too long").regex(/^[A-Z0-9]+$/, "Company code must contain only uppercase letters and numbers"),
+export const insertClientSchemaEnhanced = insertClientSchema.extend({
+  name: z.string().min(1, "Client name is required").max(100, "Client name too long"),
+  code: z.string().min(2, "Client code must be at least 2 characters").max(10, "Client code too long").regex(/^[A-Z0-9]+$/, "Client code must contain only uppercase letters and numbers"),
   email: z.string().email("Invalid email format").optional(),
   tenantCode: z.string().max(50, "Tenant code too long").optional(),
   currency: z.string().length(3, "Currency must be 3 characters (ISO 4217)").default("GEL"),
   fiscalYearStart: z.number().min(1).max(12, "Fiscal year start must be between 1-12")
 });
+// Backwards compatibility alias
+export const insertCompanySchemaEnhanced = insertClientSchemaEnhanced;
 
 export const insertAccountSchemaEnhanced = insertAccountSchema.extend({
   code: z.string().min(1, "Account code is required").max(20, "Account code too long"),
@@ -552,7 +559,7 @@ export const journalEntryWithLinesSchema = z.object({
 // Bank Accounts Table
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   accountName: text("account_name").notNull(),
   accountNumber: text("account_number"),
   iban: text("iban"),
@@ -569,7 +576,7 @@ export const bankAccounts = pgTable("bank_accounts", {
 // Raw Bank Transactions Table
 export const rawBankTransactions = pgTable("raw_bank_transactions", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }),
   
   // Transaction identification
@@ -618,8 +625,8 @@ export const rawBankTransactions = pgTable("raw_bank_transactions", {
 }, (table) => ({
   // Unique constraint on unique_transaction_id per company to prevent duplicates
   uniqueTransactionIdx: {
-    name: "unique_transaction_company_idx",
-    columns: [table.companyId, table.uniqueTransactionId],
+    name: "unique_transaction_client_idx",
+    columns: [table.clientId, table.uniqueTransactionId],
     unique: true,
   },
 }));
@@ -627,7 +634,7 @@ export const rawBankTransactions = pgTable("raw_bank_transactions", {
 // Normalized Bank Transactions Table - Validated transactions with sequence and balance checks
 export const normalizedBankTransactions = pgTable("normalized_bank_transactions", {
   id: serial("id").primaryKey(),
-  companyId: integer("company_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }).notNull(),
   rawTransactionId: integer("raw_transaction_id").references(() => rawBankTransactions.id, { onDelete: 'cascade' }).notNull(),
   
@@ -704,7 +711,7 @@ export const insertRawBankTransactionSchema = createInsertSchema(rawBankTransact
   }),
 }).omit({
   id: true,
-  companyId: true,
+  clientId: true,
   importedBy: true,
   createdAt: true,
   updatedAt: true,
@@ -722,8 +729,11 @@ export const insertNormalizedBankTransactionSchema = createInsertSchema(normaliz
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type Company = typeof companies.$inferSelect;
-export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
+// Backwards compatibility aliases
+export type Company = Client;
+export type InsertCompany = InsertClient;
 export type UserCompany = typeof userCompanies.$inferSelect;
 export type InsertUserCompany = z.infer<typeof insertUserCompanySchema>;
 export type RsUser = typeof rsUsers.$inferSelect;
@@ -757,7 +767,9 @@ export type InsertNormalizedBankTransaction = z.infer<typeof insertNormalizedBan
 
 // Enhanced types with validation
 export type InsertUserEnhanced = z.infer<typeof insertUserSchemaEnhanced>;
-export type InsertCompanyEnhanced = z.infer<typeof insertCompanySchemaEnhanced>;
+export type InsertClientEnhanced = z.infer<typeof insertClientSchemaEnhanced>;
+// Backwards compatibility alias
+export type InsertCompanyEnhanced = InsertClientEnhanced;
 export type InsertAccountEnhanced = z.infer<typeof insertAccountSchemaEnhanced>;
 export type InsertJournalEntryEnhanced = z.infer<typeof insertJournalEntrySchemaEnhanced>;
 export type InsertJournalEntryLineEnhanced = z.infer<typeof insertJournalEntryLineSchemaEnhanced>;

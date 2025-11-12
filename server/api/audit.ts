@@ -9,12 +9,13 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-router.use(requireCompany);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Get audit table data with pagination and tenant filtering
 router.get('/:tableName', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { tableName } = req.params;
     
     // Parse pagination parameters
@@ -23,13 +24,13 @@ router.get('/:tableName', async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get company to access tenant code
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, clientId));
     
     if (!company) {
       return res.status(404).json({ message: 'Company not found' });
     }
 
-    console.log(`[Audit API] Fetching ${tableName} for companyId: ${companyId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
+    console.log(`[Audit API] Fetching ${tableName} for clientId: ${clientId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
 
     // Validate table name to prevent SQL injection
     const allowedTables = [

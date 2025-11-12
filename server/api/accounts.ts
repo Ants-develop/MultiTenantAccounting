@@ -11,11 +11,13 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
-// Get all accounts for current company
-router.get('/', requireCompany, async (req, res) => {
+// Get all accounts for current client
+router.get('/', async (req, res) => {
   try {
-    const accountsList = await storage.getAccountsByCompany(req.session.currentCompanyId!);
+    const accountsList = await storage.getAccountsByClient(DEFAULT_CLIENT_ID);
     res.json(accountsList);
   } catch (error) {
     console.error('Get accounts error:', error);
@@ -26,11 +28,11 @@ router.get('/', requireCompany, async (req, res) => {
 // Get account balances
 router.get('/balances', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
-    const companyId = req.session.currentCompanyId;
+    const companyId = DEFAULT_CLIENT_ID;
     
     // Get account balances using SQL
     const balancesResult = await db.execute(sql`
@@ -79,13 +81,13 @@ router.get('/balances', async (req, res) => {
 // Create new account
 router.post('/', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     const accountData = insertAccountSchema.parse({
       ...req.body,
-      companyId: req.session.currentCompanyId,
+      companyId: DEFAULT_CLIENT_ID,
     });
     
     const account = await storage.createAccount(accountData);
@@ -96,7 +98,7 @@ router.post('/', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -115,7 +117,7 @@ router.post('/', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -131,7 +133,7 @@ router.post('/', async (req, res) => {
 // Update account
 router.put('/:id', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
@@ -146,7 +148,7 @@ router.put('/:id', async (req, res) => {
     const originalAccount = await db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.id, accountId), eq(accounts.companyId, req.session.currentCompanyId)))
+      .where(and(eq(accounts.id, accountId), eq(accounts.clientId, DEFAULT_CLIENT_ID)))
       .limit(1);
 
     if (!originalAccount || originalAccount.length === 0) {
@@ -160,7 +162,7 @@ router.put('/:id', async (req, res) => {
         ...updateData,
         updatedAt: new Date().toISOString()
       })
-      .where(and(eq(accounts.id, accountId), eq(accounts.companyId, req.session.currentCompanyId)))
+      .where(and(eq(accounts.id, accountId), eq(accounts.clientId, DEFAULT_CLIENT_ID)))
       .returning();
 
     if (!updatedAccount) {
@@ -173,7 +175,7 @@ router.put('/:id', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -192,7 +194,7 @@ router.put('/:id', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -208,7 +210,7 @@ router.put('/:id', async (req, res) => {
 // Delete account
 router.delete('/:id', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
@@ -218,7 +220,7 @@ router.delete('/:id', async (req, res) => {
     const [accountToDelete] = await db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.id, accountId), eq(accounts.companyId, req.session.currentCompanyId)))
+      .where(and(eq(accounts.id, accountId), eq(accounts.clientId, DEFAULT_CLIENT_ID)))
       .limit(1);
 
     if (!accountToDelete) {
@@ -237,12 +239,12 @@ router.delete('/:id', async (req, res) => {
       WHERE NOT EXISTS (
         SELECT 1 FROM journal_entry_lines jel WHERE jel.journal_entry_id = je.id
       )
-      AND je.company_id = ${req.session.currentCompanyId}
+      AND je.company_id = ${DEFAULT_CLIENT_ID}
     `);
 
     const deletedResult = await db
       .delete(accounts)
-      .where(and(eq(accounts.id, accountId), eq(accounts.companyId, req.session.currentCompanyId)))
+      .where(and(eq(accounts.id, accountId), eq(accounts.clientId, DEFAULT_CLIENT_ID)))
       .returning();
 
     const deletedAccount = Array.isArray(deletedResult) ? deletedResult[0] : (deletedResult as any)?.rows?.[0];
@@ -257,7 +259,7 @@ router.delete('/:id', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -276,7 +278,7 @@ router.delete('/:id', async (req, res) => {
       RESOURCE_TYPES.ACCOUNT,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        companyId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },

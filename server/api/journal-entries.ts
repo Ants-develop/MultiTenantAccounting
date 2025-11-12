@@ -18,11 +18,13 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Get all journal entries with pagination and tenant filtering
-router.get('/', requireCompany, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID;
     
     // Parse pagination parameters
     const page = parseInt(req.query.page as string) || 1;
@@ -30,21 +32,21 @@ router.get('/', requireCompany, async (req, res) => {
     const offset = (page - 1) * limit;
 
     // Get company to access tenant code
-    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, companyId));
+    const [company] = await db.select().from(companiesTable).where(eq(companiesTable.id, clientId));
     
     if (!company) {
       return res.status(404).json({ message: 'Company not found' });
     }
     
-    console.log(`[JournalEntries API] Fetching entries for companyId: ${companyId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
+    console.log(`[JournalEntries API] Fetching entries for clientId: ${clientId}, tenantCode: ${company.tenantCode || 'none'}, page: ${page}, limit: ${limit}`);
     
     // CRITICAL: Require tenant code for data isolation
     if (!company.tenantCode) {
-      console.error(`[JournalEntries API] Company ${companyId} (${company.name}) has no tenant_code configured`);
+      console.error(`[JournalEntries API] Company ${clientId} (${company.name}) has no tenant_code configured`);
       return res.status(400).json({ 
         message: 'Company has no tenant code configured. Please set a tenant code for this company to access journal entries.',
         companyName: company.name,
-        companyId: companyId
+        clientId: clientId
       });
     }
     
@@ -54,7 +56,7 @@ router.get('/', requireCompany, async (req, res) => {
       .select({
         // Core fields
         id: journalEntries.id,
-        companyId: journalEntries.companyId,
+        clientId: journalEntries.clientId,
         entryNumber: journalEntries.entryNumber,
         date: journalEntries.date,
         description: journalEntries.description,
@@ -181,7 +183,7 @@ router.get('/:id/lines', async (req, res) => {
 // Create new journal entry
 router.post('/', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
@@ -197,7 +199,7 @@ router.post('/', async (req, res) => {
     const { lines: _, ...rawWithoutLines } = raw;
     const entryData = coerceEntrySchema.parse({
       ...rawWithoutLines,
-      companyId: req.session.currentCompanyId,
+      clientId: DEFAULT_CLIENT_ID,
       userId: req.session.userId,
     });
     
@@ -233,7 +235,7 @@ router.post('/', async (req, res) => {
       RESOURCE_TYPES.JOURNAL_ENTRY,
       {
         userId: req.session.userId!,
-        companyId: req.session.currentCompanyId,
+        clientId: DEFAULT_CLIENT_ID,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -249,7 +251,7 @@ router.post('/', async (req, res) => {
 // Update journal entry
 router.put('/:id', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
@@ -296,7 +298,7 @@ router.put('/:id', async (req, res) => {
 // Delete journal entry
 router.delete('/:id', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 

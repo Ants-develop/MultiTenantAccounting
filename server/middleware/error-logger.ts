@@ -19,7 +19,7 @@ export const errorLogger = (err: Error, req: AuthenticatedRequest, res: Response
     resourceType,
     {
       userId: req.session?.userId || null,
-      companyId: req.session?.currentCompanyId,
+      clientId: req.session?.currentCompanyId,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
     },
@@ -108,7 +108,7 @@ export const logSuccess = async (
       resourceType,
       {
         userId: req.session?.userId || null,
-        companyId: req.session?.currentCompanyId,
+        clientId: req.session?.currentCompanyId,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
       },
@@ -135,7 +135,7 @@ export const logValidationError = async (
       resourceType,
       {
         userId: req.session?.userId || null,
-        companyId: req.session?.currentCompanyId,
+        clientId: req.session?.currentCompanyId,
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
       },

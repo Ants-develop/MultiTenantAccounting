@@ -8,15 +8,17 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 router.use(requireCompany);
 
 // GET /api/tasks - Get all tasks for the current company
 router.get('/', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { status, priority, assignedTo } = req.query;
     
-    let filters = [`t.company_id = ${companyId}`];
+    let filters = [`t.company_id = ${clientId}`];
     
     if (status) {
       filters.push(`t.status = '${status}'`);
@@ -64,7 +66,7 @@ router.get('/', async (req, res) => {
 // GET /api/tasks/assigned-to-me - Get tasks assigned to current user
 router.get('/assigned-to-me', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     const result = await db.execute(sql.raw(`
@@ -76,7 +78,7 @@ router.get('/assigned-to-me', async (req, res) => {
         (SELECT COUNT(*) FROM task_attachments WHERE task_id = t.id) as attachment_count
       FROM tasks t
       LEFT JOIN users creator ON t.created_by = creator.id
-      WHERE t.company_id = ${companyId}
+      WHERE t.company_id = ${clientId}
         AND t.assigned_to = ${userId}
         AND t.status != 'completed'
       ORDER BY 
@@ -99,7 +101,7 @@ router.get('/assigned-to-me', async (req, res) => {
 // GET /api/tasks/created-by-me - Get tasks created by current user
 router.get('/created-by-me', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     const result = await db.execute(sql.raw(`
@@ -111,7 +113,7 @@ router.get('/created-by-me', async (req, res) => {
         (SELECT COUNT(*) FROM task_attachments WHERE task_id = t.id) as attachment_count
       FROM tasks t
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
-      WHERE t.company_id = ${companyId}
+      WHERE t.company_id = ${clientId}
         AND t.created_by = ${userId}
       ORDER BY t.created_at DESC
     `));
@@ -126,7 +128,7 @@ router.get('/created-by-me', async (req, res) => {
 // GET /api/tasks/:id - Get a specific task
 router.get('/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { id } = req.params;
     
     const result = await db.execute(sql.raw(`
@@ -139,7 +141,7 @@ router.get('/:id', async (req, res) => {
       FROM tasks t
       LEFT JOIN users creator ON t.created_by = creator.id
       LEFT JOIN users assignee ON t.assigned_to = assignee.id
-      WHERE t.id = ${id} AND t.company_id = ${companyId}
+      WHERE t.id = ${id} AND t.company_id = ${clientId}
     `));
 
     if (result.rows.length === 0) {
@@ -185,7 +187,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/tasks - Create a new task
 router.post('/', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { title, description, status, priority, dueDate, assignedTo } = req.body;
     
@@ -202,7 +204,7 @@ router.post('/', async (req, res) => {
         company_id, title, description, status, priority, due_date, created_by, assigned_to
       )
       VALUES (
-        ${companyId}, 
+        ${clientId}, 
         '${escapedTitle}', 
         '${escapedDescription}',
         '${status || 'pending'}',
@@ -224,7 +226,7 @@ router.post('/', async (req, res) => {
 // PUT /api/tasks/:id - Update a task
 router.put('/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { id } = req.params;
     const { title, description, status, priority, dueDate, assignedTo } = req.body;
     
@@ -257,7 +259,7 @@ router.put('/:id', async (req, res) => {
     const result = await db.execute(sql.raw(`
       UPDATE tasks
       SET ${updates.join(', ')}
-      WHERE id = ${id} AND company_id = ${companyId}
+      WHERE id = ${id} AND company_id = ${clientId}
       RETURNING *
     `));
 
@@ -275,7 +277,7 @@ router.put('/:id', async (req, res) => {
 // PUT /api/tasks/:id/assign - Assign a task to a user
 router.put('/:id/assign', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { id } = req.params;
     const { userId } = req.body;
     
@@ -286,7 +288,7 @@ router.put('/:id/assign', async (req, res) => {
     const result = await db.execute(sql.raw(`
       UPDATE tasks
       SET assigned_to = ${userId}, updated_at = NOW()
-      WHERE id = ${id} AND company_id = ${companyId}
+      WHERE id = ${id} AND company_id = ${clientId}
       RETURNING *
     `));
 
@@ -304,7 +306,7 @@ router.put('/:id/assign', async (req, res) => {
 // PUT /api/tasks/:id/status - Update task status
 router.put('/:id/status', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { id } = req.params;
     const { status } = req.body;
     
@@ -320,7 +322,7 @@ router.put('/:id/status', async (req, res) => {
     const result = await db.execute(sql.raw(`
       UPDATE tasks
       SET ${updates.join(', ')}
-      WHERE id = ${id} AND company_id = ${companyId}
+      WHERE id = ${id} AND company_id = ${clientId}
       RETURNING *
     `));
 
@@ -338,7 +340,7 @@ router.put('/:id/status', async (req, res) => {
 // DELETE /api/tasks/:id - Delete a task
 router.delete('/:id', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const { id } = req.params;
     
     // Delete comments and attachments first
@@ -347,7 +349,7 @@ router.delete('/:id', async (req, res) => {
     
     const result = await db.execute(sql.raw(`
       DELETE FROM tasks
-      WHERE id = ${id} AND company_id = ${companyId}
+      WHERE id = ${id} AND company_id = ${clientId}
       RETURNING *
     `));
 
@@ -365,7 +367,7 @@ router.delete('/:id', async (req, res) => {
 // POST /api/tasks/:id/comments - Add a comment to a task
 router.post('/:id/comments', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     const { comment } = req.body;
@@ -376,7 +378,7 @@ router.post('/:id/comments', async (req, res) => {
     
     // Verify task exists and belongs to company
     const taskCheck = await db.execute(sql.raw(`
-      SELECT id FROM tasks WHERE id = ${id} AND company_id = ${companyId}
+      SELECT id FROM tasks WHERE id = ${id} AND company_id = ${clientId}
     `));
     
     if (taskCheck.rows.length === 0) {

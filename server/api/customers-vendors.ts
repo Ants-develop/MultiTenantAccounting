@@ -7,15 +7,17 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Customer routes
 router.get('/customers', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
     
-    const customers = await storage.getCustomersByCompany(req.session.currentCompanyId);
+    const customers = await storage.getCustomersByCompany(DEFAULT_CLIENT_ID);
     res.json(customers);
   } catch (error) {
     console.error('Get customers error:', error);
@@ -25,13 +27,13 @@ router.get('/customers', async (req, res) => {
 
 router.post('/customers', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     const customerData = {
       ...req.body,
-      companyId: req.session.currentCompanyId,
+      clientId: DEFAULT_CLIENT_ID,
     };
     
     const customer = await storage.createCustomer(customerData);
@@ -45,11 +47,11 @@ router.post('/customers', async (req, res) => {
 // Vendor routes
 router.get('/vendors', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
     
-    const vendors = await storage.getVendorsByCompany(req.session.currentCompanyId);
+    const vendors = await storage.getVendorsByCompany(DEFAULT_CLIENT_ID);
     res.json(vendors);
   } catch (error) {
     console.error('Get vendors error:', error);
@@ -59,13 +61,13 @@ router.get('/vendors', async (req, res) => {
 
 router.post('/vendors', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     const vendorData = {
       ...req.body,
-      companyId: req.session.currentCompanyId,
+      clientId: DEFAULT_CLIENT_ID,
     };
     
     const vendor = await storage.createVendor(vendorData);
@@ -79,11 +81,11 @@ router.post('/vendors', async (req, res) => {
 // Invoice routes
 router.get('/invoices', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
     
-    const invoices = await storage.getInvoicesByCompany(req.session.currentCompanyId);
+    const invoices = await storage.getInvoicesByCompany(DEFAULT_CLIENT_ID);
     res.json(invoices);
   } catch (error) {
     console.error('Get invoices error:', error);
@@ -93,13 +95,13 @@ router.get('/invoices', async (req, res) => {
 
 router.post('/invoices', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     const invoiceData = {
       ...req.body,
-      companyId: req.session.currentCompanyId,
+      clientId: DEFAULT_CLIENT_ID,
     };
     
     const invoice = await storage.createInvoice(invoiceData);
@@ -113,11 +115,11 @@ router.post('/invoices', async (req, res) => {
 // Bills routes
 router.get('/bills', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
     
-    const bills = await storage.getBillsByCompany(req.session.currentCompanyId);
+    const bills = await storage.getBillsByCompany(DEFAULT_CLIENT_ID);
     res.json(bills);
   } catch (error) {
     console.error('Get bills error:', error);
@@ -127,13 +129,13 @@ router.get('/bills', async (req, res) => {
 
 router.post('/bills', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     const billData = {
       ...req.body,
-      companyId: req.session.currentCompanyId,
+      clientId: DEFAULT_CLIENT_ID,
     };
     
     const bill = await storage.createBill(billData);

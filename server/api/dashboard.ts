@@ -9,16 +9,18 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Dashboard metrics
 router.get('/metrics', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
     // Calculate real metrics from database
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     
     // Total Revenue - sum of all revenue accounts' credit balances
     const revenueResult = await db.execute(sql`
@@ -26,7 +28,7 @@ router.get('/metrics', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId} 
+      WHERE a.company_id = ${clientId} 
       AND a.type = 'revenue'
       AND je.is_posted = true
     `);
@@ -35,7 +37,7 @@ router.get('/metrics', async (req, res) => {
     const invoicesResult = await db.execute(sql`
       SELECT COALESCE(SUM(total_amount::numeric), 0) as outstanding_invoices
       FROM invoices 
-      WHERE company_id = ${companyId} 
+      WHERE company_id = ${clientId} 
       AND status IN ('sent', 'overdue')
     `);
     
@@ -45,7 +47,7 @@ router.get('/metrics', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId} 
+      WHERE a.company_id = ${clientId} 
       AND a.type = 'asset' 
       AND a.sub_type = 'current_asset'
       AND (a.name ILIKE '%cash%' OR a.name ILIKE '%bank%')
@@ -58,7 +60,7 @@ router.get('/metrics', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId} 
+      WHERE a.company_id = ${clientId} 
       AND a.type = 'expense'
       AND je.is_posted = true
       AND je.date >= DATE_TRUNC('month', CURRENT_DATE)
@@ -81,11 +83,11 @@ router.get('/metrics', async (req, res) => {
 // Recent transactions
 router.get('/recent-transactions', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
-    const entries = await storage.getJournalEntriesByCompany(req.session.currentCompanyId);
+    const entries = await storage.getJournalEntriesByCompany(DEFAULT_CLIENT_ID);
     const recentEntries = entries.slice(0, 10);
 
     res.json(recentEntries);

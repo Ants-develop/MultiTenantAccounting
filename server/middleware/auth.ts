@@ -20,15 +20,21 @@ export const requireAuth = (req: any, res: any, next: any) => {
 };
 
 // Middleware to ensure company is selected for company-specific routes
+// DEPRECATED: No longer needed in single-company system with multiple clients
+// export const requireCompany = (req: any, res: any, next: any) => {
+//   if (!req.session.currentCompanyId) {
+//     console.log(`No company selected for user ${req.session.userId}`);
+//     return res.status(400).json({ 
+//       message: 'No company selected',
+//       code: 'NO_COMPANY_SELECTED',
+//       requiresCompanySwitch: true
+//     });
+//   }
+//   next();
+// };
+// 
+// Replaced with no-op for backwards compatibility
 export const requireCompany = (req: any, res: any, next: any) => {
-  if (!req.session.currentCompanyId) {
-    console.log(`No company selected for user ${req.session.userId}`);
-    return res.status(400).json({ 
-      message: 'No company selected',
-      code: 'NO_COMPANY_SELECTED',
-      requiresCompanySwitch: true
-    });
-  }
   next();
 };
 

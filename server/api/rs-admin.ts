@@ -110,7 +110,7 @@ const callSoap = async (options: {
 
 const sanitizeCredential = (record: CredentialRow) => ({
   id: record.id,
-  companyId: record.companyId,
+  clientId: record.clientId,
   companyName: record.companyDisplayName ?? record.companyName ?? null,
   companyTin: record.companyTin ?? null,
   mainUser: record.mainUser ?? null,
@@ -297,7 +297,7 @@ const handleError = async (
     RESOURCE_TYPES.SETTINGS,
     {
       userId: req.session?.userId ?? 0,
-      companyId: req.session?.currentCompanyId,
+      clientId: req.session?.currentCompanyId,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent") || undefined,
     },
@@ -348,7 +348,7 @@ router.get("/credentials", async (req: Request, res: Response) => {
       records = await db
         .select({
           id: rsUsers.id,
-          companyId: rsUsers.companyId,
+          clientId: rsUsers.clientId,
           companyName: rsUsers.companyName,
           companyTin: rsUsers.companyTin,
           mainUser: rsUsers.mainUser,
@@ -361,13 +361,13 @@ router.get("/credentials", async (req: Request, res: Response) => {
           companyDisplayName: companies.name,
         })
         .from(rsUsers)
-        .leftJoin(companies, eq(rsUsers.companyId, companies.id));
+        .leftJoin(companies, eq(rsUsers.clientId, companies.id));
     } else {
-      const companyId = req.session.currentCompanyId as number;
+      const clientId = DEFAULT_CLIENT_ID as number;
       records = await db
         .select({
           id: rsUsers.id,
-          companyId: rsUsers.companyId,
+          clientId: rsUsers.clientId,
           companyName: rsUsers.companyName,
           companyTin: rsUsers.companyTin,
           mainUser: rsUsers.mainUser,
@@ -380,8 +380,8 @@ router.get("/credentials", async (req: Request, res: Response) => {
           companyDisplayName: companies.name,
         })
         .from(rsUsers)
-        .leftJoin(companies, eq(rsUsers.companyId, companies.id))
-        .where(eq(rsUsers.companyId, companyId));
+        .leftJoin(companies, eq(rsUsers.clientId, companies.id))
+        .where(eq(rsUsers.clientId, clientId));
     }
 
     res.json({ data: records.map(sanitizeCredential) });
@@ -395,13 +395,13 @@ router.get("/credentials", async (req: Request, res: Response) => {
 router.post("/credentials", async (req: Request, res: Response) => {
   try {
     const payload = createCredentialsSchema.parse(req.body);
-    const companyId = req.session.currentCompanyId as number;
+    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
 
     const [existing] = await db
       .select({ id: rsUsers.id })
       .from(rsUsers)
-      .where(eq(rsUsers.companyId, companyId))
+      .where(eq(rsUsers.clientId, clientId))
       .limit(1);
 
     if (existing) {
@@ -415,7 +415,7 @@ router.post("/credentials", async (req: Request, res: Response) => {
     const [company] = await db
       .select({ code: companies.code })
       .from(companies)
-      .where(eq(companies.id, companyId))
+      .where(eq(companies.id, clientId))
       .limit(1);
     
     if (company && company.code !== trimmedTin) {
@@ -430,7 +430,7 @@ router.post("/credentials", async (req: Request, res: Response) => {
     const [inserted] = await db
       .insert(rsUsers)
       .values({
-        companyId,
+        clientId,
         companyName: trimmedCompanyName,
         companyTin: trimmedTin,
         mainUser: payload.mainUser.trim(),
@@ -450,7 +450,7 @@ router.post("/credentials", async (req: Request, res: Response) => {
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        companyId,
+        clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -484,13 +484,13 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
 
   try {
     const payload = updateCredentialsSchema.parse(req.body);
-    const companyId = req.session.currentCompanyId as number;
+    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
 
     const [existing] = await db
       .select()
       .from(rsUsers)
-      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.companyId, companyId)))
+      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.clientId, clientId)))
       .limit(1);
 
     if (!existing) {
@@ -503,7 +503,7 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
     const [company] = await db
       .select({ code: companies.code })
       .from(companies)
-      .where(eq(companies.id, companyId))
+      .where(eq(companies.id, clientId))
       .limit(1);
     
     if (company && company.code !== trimmedTin) {
@@ -543,7 +543,7 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        companyId,
+        clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -571,13 +571,13 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const companyId = req.session.currentCompanyId as number;
+    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
 
     const [existing] = await db
       .select()
       .from(rsUsers)
-      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.companyId, companyId)))
+      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.clientId, clientId)))
       .limit(1);
 
     if (!existing) {
@@ -591,7 +591,7 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        companyId,
+        clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },

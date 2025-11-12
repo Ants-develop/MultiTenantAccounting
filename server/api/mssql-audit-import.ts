@@ -16,6 +16,8 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Shared state for active migration/update
 let activeMigration: MigrationProgress | null = null;
@@ -57,7 +59,7 @@ router.get("/audit-tables", async (req, res) => {
   console.log("=".repeat(60));
 
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
@@ -65,7 +67,7 @@ router.get("/audit-tables", async (req, res) => {
     const [company] = await db
       .select()
       .from(companies)
-      .where(eq(companies.id, req.session.currentCompanyId))
+      .where(eq(companies.id, DEFAULT_CLIENT_ID))
       .limit(1);
 
     if (!company) {
@@ -121,7 +123,7 @@ router.post("/start-audit-table-migration", async (req, res) => {
   console.log("=".repeat(60));
 
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
@@ -168,7 +170,7 @@ router.post("/start-audit-table-migration", async (req, res) => {
         await migrateAuditSchemaTable(
           pool,
           tableName,
-          req.session.currentCompanyId,
+          DEFAULT_CLIENT_ID,
           batchSize || 1000
         );
         
@@ -206,7 +208,7 @@ router.post("/start-full-audit-export", async (req, res) => {
   console.log("=".repeat(60));
 
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
@@ -262,7 +264,7 @@ router.post("/start-full-audit-export", async (req, res) => {
             await migrateAuditSchemaTable(
               pool,
               table.tableName,
-              req.session.currentCompanyId!,
+              DEFAULT_CLIENT_ID!,
               batchSize || 1000
             );
 

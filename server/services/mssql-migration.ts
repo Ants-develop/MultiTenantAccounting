@@ -227,7 +227,7 @@ function emitProgress(progress: MigrationProgress): void {
 export async function migrateGeneralLedger(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
-  companyId: number,
+  clientId: number,
   batchSize: number = 1000
 ): Promise<MigrationProgress> {
   const migrationId = `migration_${Date.now()}`;
@@ -291,7 +291,7 @@ export async function migrateGeneralLedger(
         request.pause();
         try {
           const values = batch.map((r, idx) => [
-            companyId,
+            clientId,
             `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
             r.PostingsPeriod || new Date(),
             r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
@@ -407,7 +407,7 @@ export async function migrateGeneralLedger(
       // Process remaining batch
       if (batch.length > 0) {
         const values = batch.map((r, idx) => [
-          companyId,
+          clientId,
           `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
           r.PostingsPeriod || new Date(),
           r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
@@ -533,7 +533,7 @@ export async function migrateGeneralLedger(
 export async function exportToAudit(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
-  companyId: number,
+  clientId: number,
   batchSize: number = 1000
 ): Promise<MigrationProgress> {
   const migrationId = `audit_${Date.now()}`;
@@ -581,7 +581,7 @@ export async function exportToAudit(
         request.pause();
         try {
           const values = batch.map((r) => [
-            companyId,
+            clientId,
             r.TenantCode,
             r.TenantName,
             r.Abonent,
@@ -718,7 +718,7 @@ export async function exportToAudit(
 export async function migrateRSTables(
   mssqlPool: sql.ConnectionPool,
   tableName: string,
-  companyId: number,
+  clientId: number,
   companyTin: string,
   batchSize: number = 1000
 ): Promise<MigrationProgress> {
@@ -769,7 +769,7 @@ export async function migrateRSTables(
           const placeholders = columns.map((_, idx) => `$${idx + 3}`).join(', ');
           
           const values = batch.map((r) => {
-            const vals: any[] = [companyId, companyTin];
+            const vals: any[] = [clientId, companyTin];
             for (const col of columns) {
               let value = r[col];
               if (value && (typeof value === 'object' && Buffer.isBuffer(value))) {
@@ -978,7 +978,7 @@ export async function migrateAuditTables(
 export async function updateJournalEntries(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
-  companyId: number,
+  clientId: number,
   batchSize: number = 1000
 ): Promise<MigrationProgress> {
   const migrationId = `update_${Date.now()}`;
@@ -1088,7 +1088,7 @@ export async function updateJournalEntries(
                 document_modify_date = ${r.DocumentModifyDate}, 
                 document_comments = ${r.DocumentComments}, 
                 posting_number = ${r.PostingNumber}
-              WHERE company_id = ${companyId} AND entry_number = ${entryNumber}`);
+              WHERE company_id = ${clientId} AND entry_number = ${entryNumber}`);
               progress.successCount++;
             } catch (error) {
               console.error('❌ Update error:', error);

@@ -8,15 +8,17 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Home page KPIs
 router.get('/kpis', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
 
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     const { range } = req.query as { range?: string };
 
     // Determine date range
@@ -27,13 +29,13 @@ router.get('/kpis', async (req, res) => {
     const invoicesCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
       FROM invoices
-      WHERE company_id = ${companyId}
+      WHERE company_id = ${clientId}
     `);
 
     const billsCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
       FROM bills
-      WHERE company_id = ${companyId}
+      WHERE company_id = ${clientId}
     `);
 
     const cashflowResult = await db.execute(sql`
@@ -45,7 +47,7 @@ router.get('/kpis', async (req, res) => {
       FROM journal_entry_lines jel
       JOIN accounts a ON jel.account_id = a.id
       JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id = ${companyId}
+      WHERE a.company_id = ${clientId}
         AND je.is_posted = true
         ${range === 'lastYear' ? sql`AND je.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND je.date < DATE_TRUNC('year', CURRENT_DATE)` : sql``}
     `);
@@ -64,10 +66,10 @@ router.get('/kpis', async (req, res) => {
 // Top customers
 router.get('/top-customers', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     const { range } = req.query as { range?: string };
 
     const dateFilter = range === 'lastYear'
@@ -78,7 +80,7 @@ router.get('/top-customers', async (req, res) => {
       SELECT c.name, COALESCE(SUM(i.total_amount::numeric), 0) AS amount
       FROM invoices i
       JOIN customers c ON i.customer_id = c.id
-      WHERE i.company_id = ${companyId}
+      WHERE i.company_id = ${clientId}
         ${dateFilter}
       GROUP BY c.name
       ORDER BY amount DESC
@@ -95,10 +97,10 @@ router.get('/top-customers', async (req, res) => {
 // Top vendors
 router.get('/top-vendors', async (req, res) => {
   try {
-    if (!req.session.currentCompanyId) {
+    if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: 'No company selected' });
     }
-    const companyId = req.session.currentCompanyId;
+    const clientId = DEFAULT_CLIENT_ID;
     const { range } = req.query as { range?: string };
 
     const dateFilter = range === 'lastYear'
@@ -109,7 +111,7 @@ router.get('/top-vendors', async (req, res) => {
       SELECT v.name, COALESCE(SUM(b.total_amount::numeric), 0) AS amount
       FROM bills b
       JOIN vendors v ON b.vendor_id = v.id
-      WHERE b.company_id = ${companyId}
+      WHERE b.company_id = ${clientId}
         ${dateFilter}
       GROUP BY v.name
       ORDER BY amount DESC

@@ -8,12 +8,14 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
+// Note: In single-company mode, we use a default clientId of 1
+const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 router.use(requireCompany);
 
 // GET /api/chat/channels - Get all channels for the current company
 router.get('/channels', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     const result = await db.execute(sql.raw(`
@@ -29,7 +31,7 @@ router.get('/channels', async (req, res) => {
       FROM chat_channels c
       LEFT JOIN users u ON c.created_by = u.id
       LEFT JOIN chat_channel_members cm ON c.id = cm.channel_id AND cm.user_id = ${userId}
-      WHERE c.company_id = ${companyId}
+      WHERE c.company_id = ${clientId}
         AND (c.is_private = false OR cm.user_id IS NOT NULL)
       ORDER BY c.created_at DESC
     `));
@@ -44,7 +46,7 @@ router.get('/channels', async (req, res) => {
 // POST /api/chat/channels - Create a new channel
 router.post('/channels', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { name, description, isPrivate, memberIds } = req.body;
     
@@ -55,7 +57,7 @@ router.post('/channels', async (req, res) => {
     // Create channel
     const channelResult = await db.execute(sql.raw(`
       INSERT INTO chat_channels (company_id, name, description, is_private, created_by)
-      VALUES (${companyId}, '${name}', '${description || ''}', ${isPrivate || false}, ${userId})
+      VALUES (${clientId}, '${name}', '${description || ''}', ${isPrivate || false}, ${userId})
       RETURNING *
     `));
     
@@ -87,7 +89,7 @@ router.post('/channels', async (req, res) => {
 // GET /api/chat/channels/:id/messages - Get messages for a specific channel
 router.get('/channels/:id/messages', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     const { limit = 50, offset = 0 } = req.query;
@@ -98,7 +100,7 @@ router.get('/channels/:id/messages', async (req, res) => {
       FROM chat_channels c
       LEFT JOIN chat_channel_members cm ON c.id = cm.channel_id
       WHERE c.id = ${id} 
-        AND c.company_id = ${companyId}
+        AND c.company_id = ${clientId}
         AND (c.is_private = false OR cm.user_id = ${userId})
     `));
     
@@ -145,7 +147,7 @@ router.get('/channels/:id/messages', async (req, res) => {
 // POST /api/chat/channels/:id/messages - Send a message to a channel
 router.post('/channels/:id/messages', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     const { id } = req.params;
     const { message } = req.body;
@@ -160,7 +162,7 @@ router.post('/channels/:id/messages', async (req, res) => {
       FROM chat_channels c
       LEFT JOIN chat_channel_members cm ON c.id = cm.channel_id
       WHERE c.id = ${id} 
-        AND c.company_id = ${companyId}
+        AND c.company_id = ${clientId}
         AND (c.is_private = false OR cm.user_id = ${userId})
     `));
     
@@ -243,7 +245,7 @@ router.delete('/messages/:id', async (req, res) => {
 // GET /api/chat/unread-count - Get unread message count for user
 router.get('/unread-count', async (req, res) => {
   try {
-    const companyId = req.session.currentCompanyId!;
+    const clientId = DEFAULT_CLIENT_ID!;
     const userId = req.session.userId!;
     
     const result = await db.execute(sql.raw(`
@@ -258,7 +260,7 @@ router.get('/unread-count', async (req, res) => {
         AND m.user_id != ${userId}
         AND m.is_deleted = false
       WHERE cm.user_id = ${userId}
-        AND c.company_id = ${companyId}
+        AND c.company_id = ${clientId}
       GROUP BY cm.channel_id, c.name
       HAVING COUNT(m.id) > 0
       ORDER BY c.name
