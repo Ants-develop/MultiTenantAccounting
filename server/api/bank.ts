@@ -2,17 +2,15 @@
 import express from "express";
 import { db } from "../db";
 import { eq, and, desc, sql, count } from "drizzle-orm";
-import { requireAuth, requireCompany } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { bankAccounts, rawBankTransactions, normalizedBankTransactions, insertBankAccountSchema, insertRawBankTransactionSchema } from "@shared/schema";
 import { activityLogger } from "../services/activity-logger";
+import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-// Note: In single-company mode, we use a default clientId of 1
-// If needed, you can configure this via environment variable
-const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // ===== BANK ACCOUNTS CRUD =====
 

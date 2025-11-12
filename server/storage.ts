@@ -436,11 +436,6 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Global admin methods
-  async getAllCompaniesWithStats(): Promise<Company[]> {
-    // This would be enhanced with actual statistics
-    return this.getAllCompanies();
-  }
-
   async getAllUsers(): Promise<User[]> {
     return await db.select().from(users).orderBy(asc(users.username));
   }
@@ -472,16 +467,6 @@ export class DatabaseStorage implements IStorage {
 
   async getTransactionCount(): Promise<number> {
     const [result] = await db.select({ count: sql<number>`count(*)` }).from(journalEntries);
-    return result?.count || 0;
-  }
-
-  async getUserCount(): Promise<number> {
-    const [result] = await db.select({ count: sql<number>`count(*)` }).from(users);
-    return result?.count || 0;
-  }
-
-  async getCompanyCount(): Promise<number> {
-    const [result] = await db.select({ count: sql<number>`count(*)` }).from(companies);
     return result?.count || 0;
   }
 
@@ -533,7 +518,7 @@ export class DatabaseStorage implements IStorage {
 
   // Company Settings methods
   async getCompanySettings(companyId: number): Promise<CompanySettings | undefined> {
-    const [settings] = await db.select().from(companySettings).where(eq(companySettings.companyId, companyId));
+    const [settings] = await db.select().from(companySettings).where(eq(companySettings.clientId, companyId));
     return settings || undefined;
   }
 
@@ -543,7 +528,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateCompanySettings(companyId: number, settings: Partial<InsertCompanySettings>): Promise<CompanySettings | undefined> {
-    const [updatedSettings] = await db.update(companySettings).set(settings).where(eq(companySettings.companyId, companyId)).returning();
+    const [updatedSettings] = await db.update(companySettings).set(settings).where(eq(companySettings.clientId, companyId)).returning();
     return updatedSettings || undefined;
   }
 

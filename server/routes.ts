@@ -9,7 +9,7 @@ import { db } from "./db";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "./services/activity-logger";
 
 // Import middleware
-import { requireAuth, requireCompany, requireGlobalAdmin } from "./middleware/auth";
+import { requireAuth, requireGlobalAdmin } from "./middleware/auth";
 
 // Import modular API routers
 import globalAdminRouter from "./api/global-admin";
@@ -18,7 +18,8 @@ import auditRouter from "./api/audit";
 import rsIntegrationRouter from "./api/rs-integration";
 import accountsRouter from "./api/accounts";
 import journalEntriesRouter from "./api/journal-entries";
-import companiesRouter from "./api/companies";
+import companyRouter from "./api/company";
+import clientsRouter from "./api/clients";
 import reportsRouter from "./api/reports";
 import reportingRouter from "./api/reporting";
 import bankRouter from "./api/bank";
@@ -522,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // RS Integration Module
   app.use('/api/rs-integration', rsIntegrationRouter);
-  app.use('/api/rs-admin', requireAuth, requireCompany, requireGlobalAdmin, rsAdminRouter);
+  app.use('/api/rs-admin', requireAuth, requireGlobalAdmin, rsAdminRouter);
   
   // Reporting Module
   app.use('/api/reports', reportsRouter); // Keep for backward compatibility
@@ -538,7 +539,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/tasks', tasksRouter);
   
   // Other Modules
-  app.use('/api/companies', companiesRouter);
+  // Main company endpoints
+  app.use('/api/company', companyRouter);
+  app.use('/api/companies', companyRouter); // Backward compatibility
+  
+  // Client companies management
+  app.use('/api/clients', clientsRouter);
+  
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/home', homeRouter);
   app.use('/api', customersVendorsRouter);

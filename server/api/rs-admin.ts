@@ -6,6 +6,7 @@ import { db } from "../db";
 import { rsUsers, companies, type RsUser } from "@shared/schema";
 import { and, eq } from "drizzle-orm";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
+import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 

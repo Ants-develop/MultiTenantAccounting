@@ -15,13 +15,12 @@ import {
 import { db } from "../db";
 import { companies } from "@shared/schema";
 import { eq } from "drizzle-orm";
+import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-// Note: In single-company mode, we use a default clientId of 1
-const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
 
 // Shared state for active migration/update
 let activeMigration: MigrationProgress | null = null;

@@ -1,6 +1,8 @@
-// Client Management API Routes  
-// This replaces the old companies API in single-company mode
-// In this system, "clients" represent customer companies (formerly called clients in accounting)
+// Client Companies Management API Routes
+// In this single-company/multi-client system:
+// - "Main company" (ID 1) = the single company running the accounting system
+// - "Client companies" or "clients" = customer companies being managed for accounting
+// All users belong to the main company and manage client data
 import express from "express";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
@@ -17,8 +19,6 @@ const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-// Note: In single-company mode, all users belong to the main company
-// Clients represent customer/client companies
 
 // Client settings helper functions
 async function getClientSettings(clientId: number) {

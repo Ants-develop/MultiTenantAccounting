@@ -1,4 +1,6 @@
-// Company Management API Routes  
+// Main Company Management API Routes
+// This handles the single main company that runs the accounting system
+// The main company profile is configured via CompanyProfile.tsx and SetupWizard component
 import express from "express";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
@@ -20,7 +22,7 @@ router.use(requireAuth);
 // Company settings helper functions
 async function getCompanySettings(companyId: number) {
   try {
-    const [settings] = await db.select().from(companySettings).where(eq(companySettings.companyId, companyId));
+    const [settings] = await db.select().from(companySettings).where(eq(companySettings.clientId, companyId));
     return settings || undefined;
   } catch (error) {
     console.error('Error fetching company settings:', error);
@@ -40,7 +42,7 @@ async function createCompanySettings(settings: any) {
 
 async function updateCompanySettings(companyId: number, settingsUpdate: any) {
   try {
-    const [updatedSettings] = await db.update(companySettings).set(settingsUpdate).where(eq(companySettings.companyId, companyId)).returning();
+    const [updatedSettings] = await db.update(companySettings).set(settingsUpdate).where(eq(companySettings.clientId, companyId)).returning();
     return updatedSettings || undefined;
   } catch (error) {
     console.error('Error updating company settings:', error);

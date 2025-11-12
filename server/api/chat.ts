@@ -2,17 +2,15 @@
 import express from "express";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
-import { requireAuth, requireCompany } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
+import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
-// Note: In single-company mode, we use a default clientId of 1
-const DEFAULT_CLIENT_ID = parseInt(process.env.DEFAULT_CLIENT_ID || '1');
-router.use(requireCompany);
 
-// GET /api/chat/channels - Get all channels for the current company
+// GET /api/chat/channels - Get all channels for the main company
 router.get('/channels', async (req, res) => {
   try {
     const clientId = DEFAULT_CLIENT_ID!;
