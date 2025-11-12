@@ -23,12 +23,6 @@ interface NavigationItem {
 
 const navigation: NavigationItem[] = [
   {
-    name: "navigation.globalAdministration",
-    href: "/global-administration",
-    icon: Globe,
-    permission: "SYSTEM_VIEW_ALL_COMPANIES",
-  },
-  {
     name: "Company Profile",
     href: "/company-profile",
     icon: Building2,
@@ -186,6 +180,12 @@ const tasksSection: NavigationItem[] = [
 
 // Administration Section
 const adminSection: NavigationItem[] = [
+  {
+    name: "navigation.globalAdministration",
+    href: "/global-administration",
+    icon: Globe,
+    permission: "SYSTEM_VIEW_ALL_COMPANIES",
+  },
   {
     name: "navigation.userManagement",
     href: "/user-management",
@@ -349,6 +349,16 @@ export default function Sidebar() {
               <NavItem key={item.name} item={item} />
             ))}
             
+            {/* Administration Section - Moved to top */}
+            {getVisibleItems(adminSection).length > 0 && (
+              <div className="mt-6">
+                {!isCollapsed && <p className="accounting-nav-section">{t('sidebar.administration')}</p>}
+                {getVisibleItems(adminSection).map((item) => (
+                  <NavItem key={item.name} item={item} />
+                ))}
+              </div>
+            )}
+
             {/* Accounting Module */}
             {getVisibleItems(accountingSection).length > 0 && (
               <div className="mt-6">
@@ -414,16 +424,6 @@ export default function Sidebar() {
               <div className="mt-6">
                 {!isCollapsed && <p className="accounting-nav-section">Tasks</p>}
                 {getVisibleItems(tasksSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-
-            {/* Administration Section */}
-            {getVisibleItems(adminSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">{t('sidebar.administration')}</p>}
-                {getVisibleItems(adminSection).map((item) => (
                   <NavItem key={item.name} item={item} />
                 ))}
               </div>

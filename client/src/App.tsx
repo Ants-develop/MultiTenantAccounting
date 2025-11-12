@@ -29,6 +29,7 @@ import Profile from "@/pages/Profile";
 import CompanyProfile from "@/pages/CompanyProfile";
 import NotFound from "@/pages/not-found";
 import RoleManagement from "@/pages/admin/RoleManagement";
+import PermissionsManagement from "@/pages/admin/PermissionsManagement";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import AccountingHome from "@/pages/accounting/AccountingHome";
@@ -99,6 +100,7 @@ function Router() {
       <Route path="/financial-statements" component={() => <ProtectedRoute component={FinancialStatements} />} />
       <Route path="/user-management" component={() => <ProtectedRoute component={UserManagement} />} />
       <Route path="/role-management" component={() => <ProtectedRoute component={RoleManagement} />} />
+      <Route path="/permissions-management" component={() => <ProtectedRoute component={PermissionsManagement} />} />
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/company-profile" component={() => <ProtectedRoute component={CompanyProfile} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={CompanyProfile} />} />

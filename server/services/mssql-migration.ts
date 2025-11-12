@@ -426,41 +426,74 @@ export async function migrateGeneralLedger(
             r.PostingNumber,
           ]);
 
+          // 🚀 BATCH INSERT: Build multi-row VALUES clause for better performance
+          if (progress.processedRecords === 0) {
+            console.log(`🔍 Debug first batch - values.length: ${values.length}, val.length: ${values[0]?.length || 0}`);
+            console.log(`🔍 Expected 57 values for 57 columns`);
+          }
+          
+          const columnList = `client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+            tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+            responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+            id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+            double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+            analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+            withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+            currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+            tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+            attached_files, doc_type, doc_date, doc_number, document_creation_date,
+            document_modify_date, document_comments, posting_number`;
+          
+          const valueGroups: string[] = [];
+          const flatValues: any[] = [];
+          let paramCounter = 1;
+          
           for (const val of values) {
-            try {
-              // Debug: Log array length
-              if (progress.processedRecords === 0) {
-                console.log(`🔍 Debug first insert - val.length: ${val.length}`);
-                console.log(`🔍 Expected 57 values for 57 columns`);
+            const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
+            valueGroups.push(`(${placeholders})`);
+            flatValues.push(...val);
+          }
+          
+          const insertQuery = `
+            INSERT INTO journal_entries (${columnList})
+            VALUES ${valueGroups.join(', ')}
+          `;
+
+          try {
+            await pool.query(insertQuery, flatValues);
+            progress.successCount += values.length;
+          } catch (error) {
+            console.error('❌ Batch insert error:', error);
+            console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
+            // Fallback to individual inserts if batch fails
+            for (const val of values) {
+              try {
+                await db.execute(drizzleSql`INSERT INTO journal_entries (
+                  client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+                  tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+                  responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+                  id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+                  double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+                  analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+                  withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+                  currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+                  tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+                  attached_files, doc_type, doc_date, doc_number, document_creation_date,
+                  document_modify_date, document_comments, posting_number
+                ) VALUES (
+                  ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
+                  ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
+                  ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
+                  ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
+                  ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
+                  ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
+                  ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
+                )`);
+                progress.successCount++;
+              } catch (individualError) {
+                console.error('❌ Individual insert error:', individualError);
+                progress.errorCount++;
               }
-              
-              // Use Drizzle SQL template for proper parameter binding
-              await db.execute(drizzleSql`INSERT INTO journal_entries (
-                client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
-                tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
-                responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
-                id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
-                double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
-                analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
-                withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
-                currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
-                tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
-                attached_files, doc_type, doc_date, doc_number, document_creation_date,
-                document_modify_date, document_comments, posting_number
-              ) VALUES (
-                ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
-                ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
-                ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
-                ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
-                ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
-                ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
-                ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
-              )`);
-              progress.successCount++;
-            } catch (error) {
-              console.error('❌ Insert error:', error);
-              console.error('   Val length:', val.length);
-              progress.errorCount++;
             }
           }
 
@@ -542,34 +575,69 @@ export async function migrateGeneralLedger(
           r.PostingNumber,
         ]);
 
+        // 🚀 BATCH INSERT: Build multi-row VALUES clause for better performance
+        const columnList = `client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+          tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+          responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+          id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+          double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+          analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+          withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+          currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+          tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+          attached_files, doc_type, doc_date, doc_number, document_creation_date,
+          document_modify_date, document_comments, posting_number`;
+        
+        const valueGroups: string[] = [];
+        const flatValues: any[] = [];
+        let paramCounter = 1;
+        
         for (const val of values) {
-          try {
-            // Use Drizzle SQL template for proper parameter binding
-            await db.execute(drizzleSql`INSERT INTO journal_entries (
-              client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
-              tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
-              responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
-              id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
-              double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
-              analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
-              withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
-              currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
-              tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
-              attached_files, doc_type, doc_date, doc_number, document_creation_date,
-              document_modify_date, document_comments, posting_number
-            ) VALUES (
-              ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
-              ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
-              ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
-              ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
-              ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
-              ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
-              ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
-            )`);
-            progress.successCount++;
-          } catch (error) {
-            console.error('❌ Insert error:', error);
-            progress.errorCount++;
+          const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
+          valueGroups.push(`(${placeholders})`);
+          flatValues.push(...val);
+        }
+        
+        const insertQuery = `
+          INSERT INTO journal_entries (${columnList})
+          VALUES ${valueGroups.join(', ')}
+        `;
+
+        try {
+          await pool.query(insertQuery, flatValues);
+          progress.successCount += values.length;
+        } catch (error) {
+          console.error('❌ Final batch insert error:', error);
+          console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
+          // Fallback to individual inserts if batch fails
+          for (const val of values) {
+            try {
+              await db.execute(drizzleSql`INSERT INTO journal_entries (
+                client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+                tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+                responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+                id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+                double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+                analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+                withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+                currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+                tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+                attached_files, doc_type, doc_date, doc_number, document_creation_date,
+                document_modify_date, document_comments, posting_number
+              ) VALUES (
+                ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
+                ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
+                ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
+                ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
+                ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
+                ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
+                ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
+              )`);
+              progress.successCount++;
+            } catch (individualError) {
+              console.error('❌ Individual insert error:', individualError);
+              progress.errorCount++;
+            }
           }
         }
 
@@ -1200,7 +1268,7 @@ export async function updateJournalEntries(
                 document_modify_date = ${r.DocumentModifyDate}, 
                 document_comments = ${r.DocumentComments}, 
                 posting_number = ${r.PostingNumber}
-              WHERE company_id = ${clientId} AND entry_number = ${entryNumber}`);
+              WHERE client_id = ${clientId} AND entry_number = ${entryNumber}`);
               progress.successCount++;
             } catch (error) {
               console.error('❌ Update error:', error);
