@@ -65,9 +65,13 @@ export async function validateServiceUserCredentials(payload: {
 
 export async function fetchRsCredentials(scope: "company" | "all" = "company"): Promise<RsCredential[]> {
   const query = scope === "all" ? "?scope=all" : "";
+  console.log(`[RS Admin API] Fetching credentials with scope: ${scope}, query: ${query}`);
   const response = await apiRequest("GET", `/api/rs-admin/credentials${query}`);
   const data = await response.json();
-  return data?.data ?? [];
+  console.log(`[RS Admin API] Response data:`, data);
+  const credentials = data?.data ?? [];
+  console.log(`[RS Admin API] Returning ${credentials.length} credentials`);
+  return credentials;
 }
 
 export async function createRsCredential(payload: CreateRsCredentialPayload): Promise<RsCredential> {
@@ -84,5 +88,23 @@ export async function updateRsCredential(id: number, payload: UpdateRsCredential
 
 export async function deleteRsCredential(id: number): Promise<void> {
   await apiRequest("DELETE", `/api/rs-admin/credentials/${id}`);
+}
+
+export interface ValidateAllCredentialsResponse {
+  total: number;
+  success: number;
+  failed: number;
+  results: Array<{
+    credentialId: number;
+    companyTin: string | null;
+    companyName: string | null;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
+export async function validateAllCredentials(): Promise<ValidateAllCredentialsResponse> {
+  const response = await apiRequest("POST", "/api/rs-admin/credentials/validate-all", {});
+  return response.json();
 }
 

@@ -12,6 +12,7 @@ import {
   createRsCredential,
   updateRsCredential,
   deleteRsCredential,
+  validateAllCredentials,
   type MainUserValidationResponse,
   type ServiceUserValidationResponse,
   type RsCredential,
@@ -94,8 +95,9 @@ const credentialFormSchema = z.object({
   servicePassword: optionalPasswordSchema,
   companyTin: z.string().min(1, "Company TIN is required"),
   companyName: z.string().min(1, "Company name is required"),
-  rsUserId: optionalStringSchema.optional(),
-  unId: optionalStringSchema.optional(),
+  // Allow empty string, undefined, or valid string for optional fields
+  rsUserId: z.union([z.string(), z.literal(""), z.undefined()]).optional(),
+  unId: z.union([z.string(), z.literal(""), z.undefined()]).optional(),
 });
 
 type MainFormValues = z.infer<typeof mainFormSchema>;
@@ -131,14 +133,8 @@ const parseErrorMessage = (error: unknown): string => {
   return "An unexpected error occurred";
 };
 
-// 3-Step Authentication Modal Component
-interface AuthenticationModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-}
-
-function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModalProps) {
+// 3-Step Authentication Component (inline on page)
+function AuthenticationSection({ onSuccess }: { onSuccess: () => void }) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -195,25 +191,45 @@ function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModal
     });
   }, [authData.serviceUser, authData.servicePassword, serviceForm]);
 
-  useEffect(() => {
-    credentialForm.reset(authData);
-  }, [authData, credentialForm]);
-
-  // Pre-fill Step 3 form when it becomes active
+  // Pre-fill Step 3 form when it becomes active - only reset once when step 3 is reached
   useEffect(() => {
     if (currentStep === 3 && serviceValidation) {
-      credentialForm.reset({
+      // Convert rsUserId to string if it's a number
+      const rsUserIdStr = authData.rsUserId 
+        ? (typeof authData.rsUserId === 'string' ? authData.rsUserId : String(authData.rsUserId))
+        : '';
+      const unIdStr = authData.unId 
+        ? (typeof authData.unId === 'string' ? authData.unId : String(authData.unId))
+        : '';
+      
+      const formValues = {
         mainUser: authData.mainUser,
-        mainPassword: authData.mainPassword,
+        mainPassword: authData.mainPassword, // Preserve password from authData
         serviceUser: authData.serviceUser,
-        servicePassword: authData.servicePassword,
+        servicePassword: authData.servicePassword, // Preserve password from authData
         companyTin: serviceValidation.companyTin || authData.companyTin,
         companyName: serviceValidation.companyName || authData.companyName,
-        rsUserId: authData.rsUserId || undefined,
-        unId: authData.unId || undefined,
+        // Use undefined instead of empty string for optional fields to pass validation
+        rsUserId: rsUserIdStr && rsUserIdStr.trim() ? rsUserIdStr : undefined,
+        unId: unIdStr && unIdStr.trim() ? unIdStr : undefined,
+      };
+      console.log("Setting form values for step 3:", { 
+        ...formValues, 
+        mainPassword: formValues.mainPassword ? "***" : "MISSING", 
+        servicePassword: formValues.servicePassword ? "***" : "MISSING" 
       });
+      credentialForm.reset(formValues);
+      // Also set values explicitly to ensure they're registered and passwords are preserved
+      credentialForm.setValue("mainUser", authData.mainUser, { shouldValidate: false });
+      credentialForm.setValue("mainPassword", authData.mainPassword, { shouldValidate: false });
+      credentialForm.setValue("serviceUser", authData.serviceUser, { shouldValidate: false });
+      credentialForm.setValue("servicePassword", authData.servicePassword, { shouldValidate: false });
+      credentialForm.setValue("companyTin", formValues.companyTin, { shouldValidate: false });
+      credentialForm.setValue("companyName", formValues.companyName, { shouldValidate: false });
+      credentialForm.setValue("rsUserId", formValues.rsUserId, { shouldValidate: false });
+      credentialForm.setValue("unId", formValues.unId, { shouldValidate: false });
     }
-  }, [currentStep, serviceValidation, authData, credentialForm]);
+  }, [currentStep, serviceValidation]); // Removed authData and credentialForm from deps to prevent unnecessary resets
 
   const mainValidationMutation = useMutation({
     mutationFn: validateMainUserCredentials,
@@ -338,47 +354,64 @@ function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModal
   };
 
   const handleStep3Submit = (values: CredentialFormValues) => {
-    createCredentialMutation.mutate({
+    // Always use passwords from authData, not from form values (they might be cleared)
+    const mainPassword = authData.mainPassword || values.mainPassword;
+    const servicePassword = authData.servicePassword || values.servicePassword;
+    
+    console.log("Submitting credentials:", {
       mainUser: authData.mainUser,
-      mainPassword: authData.mainPassword,
+      mainPassword: mainPassword ? "***" : "MISSING",
       serviceUser: authData.serviceUser,
-      servicePassword: authData.servicePassword,
+      servicePassword: servicePassword ? "***" : "MISSING",
       companyTin: values.companyTin,
       companyName: values.companyName,
       rsUserId: values.rsUserId || null,
       unId: values.unId || null,
     });
+    
+    if (!mainPassword || !servicePassword) {
+      toast({
+        title: t("rsAdmin.toasts.errorTitle"),
+        description: "Passwords are required. Please go back to step 1 and 2 to re-enter them.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Convert rsUserId and unId to strings if needed, then to null if empty
+    const rsUserIdValue = values.rsUserId 
+      ? (typeof values.rsUserId === 'string' ? values.rsUserId.trim() : String(values.rsUserId).trim())
+      : '';
+    const unIdValue = values.unId 
+      ? (typeof values.unId === 'string' ? values.unId.trim() : String(values.unId).trim())
+      : '';
+    
+    createCredentialMutation.mutate({
+      mainUser: authData.mainUser,
+      mainPassword: mainPassword,
+      serviceUser: authData.serviceUser,
+      servicePassword: servicePassword,
+      companyTin: values.companyTin,
+      companyName: values.companyName,
+      rsUserId: rsUserIdValue ? rsUserIdValue : null,
+      unId: unIdValue ? unIdValue : null,
+    });
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="h-6 w-6 text-primary" />
-                RS Authentication
-              </CardTitle>
-              <CardDescription>
-                {currentStep === 1 && "Step 1: Validate Main User - Authenticate with your RS account"}
-                {currentStep === 2 && "Step 2: Select Service User - Choose your service user"}
-                {currentStep === 3 && "Step 3: Review & Save - Confirm your credentials"}
-              </CardDescription>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                resetModal();
-                onClose();
-              }}
-            >
-              ✕
-            </Button>
-          </div>
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-6 w-6 text-primary" />
+            RS Authentication
+          </CardTitle>
+          <CardDescription>
+            {currentStep === 1 && "Step 1: Validate Main User - Authenticate with your RS account"}
+            {currentStep === 2 && "Step 2: Select Service User - Choose your service user"}
+            {currentStep === 3 && "Step 3: Review & Save - Confirm your credentials"}
+          </CardDescription>
+        </div>
 
           {/* Progress Bar */}
           <div className="mt-6 flex items-center gap-2">
@@ -445,12 +478,9 @@ function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModal
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => {
-                    resetModal();
-                    onClose();
-                  }}
+                  onClick={resetModal}
                 >
-                  Cancel
+                  Reset
                 </Button>
                 <Button
                   type="submit"
@@ -561,32 +591,27 @@ function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModal
 
           {/* Step 3: Review & Save */}
           {currentStep === 3 && serviceValidation && (
-            <form onSubmit={credentialForm.handleSubmit(handleStep3Submit)} className="space-y-4">
-              {/* Hidden fields for required form validation */}
-              <input
-                type="hidden"
-                {...credentialForm.register("mainUser")}
-              />
-              <input
-                type="hidden"
-                {...credentialForm.register("mainPassword")}
-              />
-              <input
-                type="hidden"
-                {...credentialForm.register("serviceUser")}
-              />
-              <input
-                type="hidden"
-                {...credentialForm.register("servicePassword")}
-              />
-              <input
-                type="hidden"
-                {...credentialForm.register("rsUserId")}
-              />
-              <input
-                type="hidden"
-                {...credentialForm.register("unId")}
-              />
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              console.log("Form submit triggered");
+              console.log("Form values:", credentialForm.getValues());
+              console.log("Auth data:", { ...authData, mainPassword: "***", servicePassword: "***" });
+              credentialForm.handleSubmit(handleStep3Submit, (errors) => {
+                console.error("Form validation errors:", errors);
+                toast({
+                  title: "Validation Error",
+                  description: "Please check all required fields are filled.",
+                  variant: "destructive",
+                });
+              })(e);
+            }} className="space-y-4">
+              {/* Hidden fields for required form validation - using setValue instead */}
+              <input type="hidden" {...credentialForm.register("mainUser")} />
+              <input type="hidden" {...credentialForm.register("mainPassword")} />
+              <input type="hidden" {...credentialForm.register("serviceUser")} />
+              <input type="hidden" {...credentialForm.register("servicePassword")} />
+              <input type="hidden" {...credentialForm.register("rsUserId")} />
+              <input type="hidden" {...credentialForm.register("unId")} />
               
               <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                 <p className="text-sm font-semibold text-gray-700 mb-3">
@@ -675,7 +700,6 @@ function AuthenticationModal({ isOpen, onClose, onSuccess }: AuthenticationModal
           )}
         </CardContent>
       </Card>
-    </div>
   );
 }
 
@@ -683,16 +707,26 @@ export default function RSAdmin() {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const isGlobalAdmin = user?.globalRole === "global_administrator";
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [showAuthSection, setShowAuthSection] = useState(false);
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null);
 
   const credentialsQuery = useQuery({
     queryKey: CREDENTIALS_QUERY_KEY,
-    queryFn: () => fetchRsCredentials(),
+    queryFn: () => {
+      console.log(`[RSAdmin] Fetching credentials with scope: all`);
+      return fetchRsCredentials("all"); // RS Admin is global, so fetch all credentials
+    },
   });
 
-  const credentials = useMemo(() => credentialsQuery.data ?? [], [credentialsQuery.data]);
+  const credentials = useMemo(() => {
+    const creds = credentialsQuery.data ?? [];
+    console.log(`[RSAdmin] credentialsQuery.data:`, credentialsQuery.data);
+    console.log(`[RSAdmin] credentials length:`, creds.length);
+    return creds;
+  }, [credentialsQuery.data]);
 
   const [editingCredential, setEditingCredential] = useState<RsCredential | null>(null);
   const [credentialPendingDeletion, setCredentialPendingDeletion] = useState<RsCredential | null>(null);
@@ -760,6 +794,25 @@ export default function RSAdmin() {
     onSettled: () => setCredentialPendingDeletion(null),
   });
 
+  const validateAllMutation = useMutation({
+    mutationFn: validateAllCredentials,
+    onSuccess: (data) => {
+      setLastRefreshTime(new Date());
+      queryClient.invalidateQueries({ queryKey: CREDENTIALS_QUERY_KEY });
+      toast({
+        title: "Validation Complete",
+        description: `Validated ${data.total} credentials: ${data.success} successful, ${data.failed} failed.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: t("rsAdmin.toasts.errorTitle"),
+        description: parseErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
   if (!isGlobalAdmin) {
     return (
       <div className="p-6">
@@ -825,23 +878,23 @@ export default function RSAdmin() {
             {t("rsAdmin.actions.refresh")}
           </Button>
           <Button
-            onClick={() => setAuthModalOpen(true)}
+            onClick={() => setShowAuthSection(!showAuthSection)}
           >
             <ShieldCheck className="h-4 w-4 mr-2" />
-            Add New Credential
+            {showAuthSection ? "Hide Authentication" : "Add New Credential"}
           </Button>
         </div>
       </div>
 
-      {/* Authentication Modal */}
-      <AuthenticationModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        onSuccess={() => {
-          setAuthModalOpen(false);
-          credentialsQuery.refetch();
-        }}
-      />
+      {/* Authentication Section */}
+      {showAuthSection && (
+        <AuthenticationSection
+          onSuccess={() => {
+            setShowAuthSection(false);
+            credentialsQuery.refetch();
+          }}
+        />
+      )}
 
       {/* Edit Credential Card */}
       {editingCredential && (
@@ -976,8 +1029,28 @@ export default function RSAdmin() {
       {/* Credentials List */}
       <Card>
         <CardHeader>
-          <CardTitle>{t("rsAdmin.storedCredentials.title")}</CardTitle>
-          <CardDescription>{t("rsAdmin.storedCredentials.description")}</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{t("rsAdmin.storedCredentials.title")}</CardTitle>
+              <CardDescription>
+                {t("rsAdmin.storedCredentials.description")}
+                {lastRefreshTime && (
+                  <span className="block mt-1 text-xs text-muted-foreground">
+                    Last refresh: {dayjs(lastRefreshTime).format("YYYY-MM-DD HH:mm:ss")}
+                  </span>
+                )}
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => validateAllMutation.mutate()}
+              disabled={validateAllMutation.isPending || credentials.length === 0}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${validateAllMutation.isPending ? "animate-spin" : ""}`} />
+              {validateAllMutation.isPending ? "Validating..." : "Validate All"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {credentialsQuery.isLoading ? (

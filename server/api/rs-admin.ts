@@ -342,29 +342,16 @@ router.post("/service-user/validate", async (req: Request, res: Response) => {
 
 router.get("/credentials", async (req: Request, res: Response) => {
   try {
-    const scopeAll = req.query.scope === "all";
+    // RS Admin is global admin only, so return all credentials by default
+    // The scope parameter is kept for backward compatibility but default behavior is to return all
+    const scopeCompany = req.query.scope === "company";
+    console.log(`[RS Admin] GET /credentials - scope: ${req.query.scope}, scopeCompany: ${scopeCompany}`);
     let records: CredentialRow[];
 
-    if (scopeAll) {
-      records = await db
-        .select({
-          id: rsUsers.id,
-          clientId: rsUsers.clientId,
-          companyName: rsUsers.companyName,
-          companyTin: rsUsers.companyTin,
-          mainUser: rsUsers.mainUser,
-          sUser: rsUsers.sUser,
-          userId: rsUsers.userId,
-          unId: rsUsers.unId,
-          createdAt: rsUsers.createdAt,
-          updatedAt: rsUsers.updatedAt,
-          companyCode: companies.code,
-          companyDisplayName: companies.name,
-        })
-        .from(rsUsers)
-        .leftJoin(companies, eq(rsUsers.clientId, companies.id));
-    } else {
+    if (scopeCompany) {
+      // Legacy behavior: filter by DEFAULT_CLIENT_ID if explicitly requested
       const clientId = DEFAULT_CLIENT_ID as number;
+      console.log(`[RS Admin] Filtering by clientId: ${clientId}`);
       records = await db
         .select({
           id: rsUsers.id,
@@ -383,10 +370,34 @@ router.get("/credentials", async (req: Request, res: Response) => {
         .from(rsUsers)
         .leftJoin(companies, eq(rsUsers.clientId, companies.id))
         .where(eq(rsUsers.clientId, clientId));
+    } else {
+      // Default: return all credentials (since RS Admin is global admin only)
+      console.log(`[RS Admin] Fetching all credentials`);
+      records = await db
+        .select({
+          id: rsUsers.id,
+          clientId: rsUsers.clientId,
+          companyName: rsUsers.companyName,
+          companyTin: rsUsers.companyTin,
+          mainUser: rsUsers.mainUser,
+          sUser: rsUsers.sUser,
+          userId: rsUsers.userId,
+          unId: rsUsers.unId,
+          createdAt: rsUsers.createdAt,
+          updatedAt: rsUsers.updatedAt,
+          companyCode: companies.code,
+          companyDisplayName: companies.name,
+        })
+        .from(rsUsers)
+        .leftJoin(companies, eq(rsUsers.clientId, companies.id));
     }
 
-    res.json({ data: records.map(sanitizeCredential) });
+    console.log(`[RS Admin] Found ${records.length} credentials`);
+    const sanitized = records.map(sanitizeCredential);
+    console.log(`[RS Admin] Returning ${sanitized.length} sanitized credentials`);
+    res.json({ data: sanitized });
   } catch (error) {
+    console.error(`[RS Admin] Error fetching credentials:`, error);
     await handleError(req, error, "listCredentials");
     const message = error instanceof Error ? error.message : "Failed to load RS credentials";
     res.status(500).json({ message });
@@ -396,42 +407,39 @@ router.get("/credentials", async (req: Request, res: Response) => {
 router.post("/credentials", async (req: Request, res: Response) => {
   try {
     const payload = createCredentialsSchema.parse(req.body);
-    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
-
-    const [existing] = await db
-      .select({ id: rsUsers.id })
-      .from(rsUsers)
-      .where(eq(rsUsers.clientId, clientId))
-      .limit(1);
-
-    if (existing) {
-      return res.status(409).json({ message: "RS credentials already exist for this company. Please update the existing record." });
-    }
 
     const trimmedTin = payload.companyTin.trim();
     const trimmedCompanyName = payload.companyName.trim();
     
-    // Validate that TIN matches company code
-    const [company] = await db
-      .select({ code: companies.code })
+    // Find client company by matching TIN (code) - save first, then verify and link
+    const [matchingClient] = await db
+      .select({ id: companies.id, code: companies.code, name: companies.name })
       .from(companies)
-      .where(eq(companies.id, clientId))
+      .where(eq(companies.code, trimmedTin))
       .limit(1);
     
-    if (company && company.code !== trimmedTin) {
-      return res.status(400).json({ 
-        message: `Company TIN mismatch: RS returned TIN "${trimmedTin}" but selected company code is "${company.code}". Please ensure you are using the correct RS credentials for this company.` 
+    // Check if credentials already exist for this TIN
+    const [existing] = await db
+      .select({ id: rsUsers.id, clientId: rsUsers.clientId })
+      .from(rsUsers)
+      .where(eq(rsUsers.companyTin, trimmedTin))
+      .limit(1);
+
+    if (existing) {
+      return res.status(409).json({ 
+        message: `RS credentials already exist for TIN "${trimmedTin}". Please update the existing record.` 
       });
     }
 
     const hashedMainPassword = await bcrypt.hash(payload.mainPassword, 12);
     const hashedServicePassword = await bcrypt.hash(payload.servicePassword, 12);
 
+    // Save credentials first (with or without clientId)
     const [inserted] = await db
       .insert(rsUsers)
       .values({
-        clientId,
+        clientId: matchingClient?.id ?? null, // Link to client if found, otherwise null
         companyName: trimmedCompanyName,
         companyTin: trimmedTin,
         mainUser: payload.mainUser.trim(),
@@ -446,12 +454,27 @@ router.post("/credentials", async (req: Request, res: Response) => {
       })
       .returning();
 
+    // If matching client found, update verification status to "verified"
+    if (matchingClient) {
+      await db
+        .update(companies)
+        .set({ 
+          verificationStatus: "verified",
+          updatedAt: new Date(),
+        })
+        .where(eq(companies.id, matchingClient.id));
+      
+      console.log(`[RS Admin] Updated client ${matchingClient.id} (${matchingClient.name}) verification status to "verified" for TIN ${trimmedTin}`);
+    } else {
+      console.log(`[RS Admin] No matching client found for TIN ${trimmedTin}. Credentials saved without client link.`);
+    }
+
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.SETTINGS_UPDATE_SECURITY,
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        clientId,
+        clientId: matchingClient?.id,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -462,10 +485,20 @@ router.post("/credentials", async (req: Request, res: Response) => {
         companyName: trimmedCompanyName,
         mainUser: inserted.mainUser,
         serviceUser: inserted.sUser,
+        clientId: matchingClient?.id ?? null,
+        verificationStatus: matchingClient ? "verified" : "not_linked",
       }
     );
 
-    res.status(201).json({ credential: sanitizeCredential(inserted) });
+    res.status(201).json({ 
+      credential: sanitizeCredential(inserted),
+      clientMatched: matchingClient ? {
+        id: matchingClient.id,
+        name: matchingClient.name,
+        code: matchingClient.code,
+        verificationStatus: "verified",
+      } : null,
+    });
   } catch (error) {
     await handleError(req, error, "createCredentials");
     const message = error instanceof z.ZodError
@@ -485,42 +518,39 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
 
   try {
     const payload = updateCredentialsSchema.parse(req.body);
-    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
 
+    // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
       .select()
       .from(rsUsers)
-      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.clientId, clientId)))
+      .where(eq(rsUsers.id, credentialId))
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({ message: "RS credentials not found for this company" });
+      return res.status(404).json({ message: "RS credentials not found" });
     }
     
     const trimmedTin = payload.companyTin.trim();
+    const trimmedCompanyName = payload.companyName.trim();
     
-    // Validate that TIN matches company code
-    const [company] = await db
-      .select({ code: companies.code })
+    // Find matching client by TIN (code) - save first, then verify and link
+    const [matchingClient] = await db
+      .select({ id: companies.id, code: companies.code, name: companies.name })
       .from(companies)
-      .where(eq(companies.id, clientId))
+      .where(eq(companies.code, trimmedTin))
       .limit(1);
-    
-    if (company && company.code !== trimmedTin) {
-      return res.status(400).json({ 
-        message: `Company TIN mismatch: RS returned TIN "${trimmedTin}" but selected company code is "${company.code}". Please ensure you are using the correct RS credentials for this company.` 
-      });
-    }
 
     const updatePayload: Partial<RsUserInsert> = {
-      companyName: payload.companyName.trim(),
+      companyName: trimmedCompanyName,
       companyTin: trimmedTin,
       mainUser: payload.mainUser.trim(),
       sUser: payload.serviceUser.trim(),
       userId: payload.rsUserId ?? null,
       unId: payload.unId ?? null,
       updatedAt: new Date(),
+      // Link to matching client if found, otherwise keep existing clientId or set to null
+      clientId: matchingClient?.id ?? existing.clientId ?? null,
     };
 
     if (payload.mainPassword) {
@@ -533,18 +563,32 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
       updatePayload.sPasswordHash = await bcrypt.hash(payload.servicePassword, 12);
     }
 
+    // Save update first
     const [updated] = await db
       .update(rsUsers)
       .set(updatePayload)
       .where(eq(rsUsers.id, credentialId))
       .returning();
 
+    // If matching client found, update verification status to "verified"
+    if (matchingClient) {
+      await db
+        .update(companies)
+        .set({ 
+          verificationStatus: "verified",
+          updatedAt: new Date(),
+        })
+        .where(eq(companies.id, matchingClient.id));
+      
+      console.log(`[RS Admin] Updated client ${matchingClient.id} (${matchingClient.name}) verification status to "verified" for TIN ${trimmedTin}`);
+    }
+
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.SETTINGS_UPDATE_SECURITY,
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        clientId,
+        clientId: matchingClient?.id ?? existing.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -553,7 +597,15 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
       sanitizeCredential(updated)
     );
 
-    res.json({ credential: sanitizeCredential(updated) });
+    res.json({ 
+      credential: sanitizeCredential(updated),
+      clientMatched: matchingClient ? {
+        id: matchingClient.id,
+        name: matchingClient.name,
+        code: matchingClient.code,
+        verificationStatus: "verified",
+      } : null,
+    });
   } catch (error) {
     await handleError(req, error, "updateCredentials", credentialId);
     const message = error instanceof z.ZodError
@@ -572,17 +624,17 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const clientId = DEFAULT_CLIENT_ID as number;
     const userId = req.session.userId as number;
 
+    // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
       .select()
       .from(rsUsers)
-      .where(and(eq(rsUsers.id, credentialId), eq(rsUsers.clientId, clientId)))
+      .where(eq(rsUsers.id, credentialId))
       .limit(1);
 
     if (!existing) {
-      return res.status(404).json({ message: "RS credentials not found for this company" });
+      return res.status(404).json({ message: "RS credentials not found" });
     }
 
     await db.delete(rsUsers).where(eq(rsUsers.id, credentialId));
@@ -592,7 +644,7 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
       RESOURCE_TYPES.SETTINGS,
       {
         userId,
-        clientId,
+        clientId: existing.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -605,6 +657,157 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
   } catch (error) {
     await handleError(req, error, "deleteCredentials", credentialId);
     const message = error instanceof Error ? error.message : "Failed to delete RS credentials";
+    res.status(500).json({ message });
+  }
+});
+
+// Validate a single credential by ID
+router.post("/credentials/validate/:id", async (req: Request, res: Response) => {
+  const credentialId = Number(req.params.id);
+  if (Number.isNaN(credentialId)) {
+    return res.status(400).json({ message: "Invalid credential identifier" });
+  }
+
+  try {
+    const userId = req.session.userId as number;
+
+    // Get credential from database
+    const [credential] = await db
+      .select()
+      .from(rsUsers)
+      .where(eq(rsUsers.id, credentialId))
+      .limit(1);
+
+    if (!credential) {
+      return res.status(404).json({ message: "RS credentials not found" });
+    }
+
+    if (!credential.mainUser || !credential.mainPassword || !credential.sUser || !credential.sPassword) {
+      return res.status(400).json({ message: "Credential is missing required fields for validation" });
+    }
+
+    let validationResult = {
+      success: false,
+      mainUserValid: false,
+      serviceUserValid: false,
+      error: null as string | null,
+      clientUpdated: false,
+    };
+
+    try {
+      // Validate main user credentials
+      await validateMainUserCredentials(credential.mainUser, credential.mainPassword);
+      validationResult.mainUserValid = true;
+
+      // Validate service user credentials
+      await validateServiceUserCredentials(credential.sUser, credential.sPassword);
+      validationResult.serviceUserValid = true;
+      validationResult.success = true;
+
+      // If both valid and client is linked, update verification status
+      if (credential.clientId) {
+        await db
+          .update(companies)
+          .set({ 
+            verificationStatus: "verified",
+            updatedAt: new Date(),
+          })
+          .where(eq(companies.id, credential.clientId));
+        validationResult.clientUpdated = true;
+        console.log(`[RS Admin] Updated client ${credential.clientId} verification status to "verified" after validation`);
+      }
+    } catch (error) {
+      validationResult.error = error instanceof Error ? error.message : String(error);
+      console.error(`[RS Admin] Validation failed for credential ${credentialId}:`, validationResult.error);
+    }
+
+    res.json({
+      credentialId,
+      ...validationResult,
+    });
+  } catch (error) {
+    await handleError(req, error, "validateCredential", credentialId);
+    const message = error instanceof Error ? error.message : "Failed to validate RS credentials";
+    res.status(500).json({ message });
+  }
+});
+
+// Validate all stored credentials
+router.post("/credentials/validate-all", async (req: Request, res: Response) => {
+  try {
+    const userId = req.session.userId as number;
+
+    // Get all credentials
+    const allCredentials = await db
+      .select()
+      .from(rsUsers)
+      .limit(1000); // Reasonable limit
+
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+
+    // Validate each credential (sequentially to avoid overwhelming RS service)
+    for (const credential of allCredentials) {
+      if (!credential.mainUser || !credential.mainPassword || !credential.sUser || !credential.sPassword) {
+        results.push({
+          credentialId: credential.id,
+          companyTin: credential.companyTin,
+          companyName: credential.companyName,
+          success: false,
+          error: "Missing required fields",
+        });
+        failureCount++;
+        continue;
+      }
+
+      try {
+        // Validate main user credentials
+        await validateMainUserCredentials(credential.mainUser, credential.mainPassword);
+
+        // Validate service user credentials
+        await validateServiceUserCredentials(credential.sUser, credential.sPassword);
+
+        // Update client verification status if linked
+        if (credential.clientId) {
+          await db
+            .update(companies)
+            .set({ 
+              verificationStatus: "verified",
+              updatedAt: new Date(),
+            })
+            .where(eq(companies.id, credential.clientId));
+        }
+
+        results.push({
+          credentialId: credential.id,
+          companyTin: credential.companyTin,
+          companyName: credential.companyName,
+          success: true,
+        });
+        successCount++;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        results.push({
+          credentialId: credential.id,
+          companyTin: credential.companyTin,
+          companyName: credential.companyName,
+          success: false,
+          error: errorMessage,
+        });
+        failureCount++;
+      }
+    }
+
+    res.json({
+      total: allCredentials.length,
+      success: successCount,
+      failed: failureCount,
+      results,
+    });
+  } catch (error) {
+    await handleError(req, error, "validateAllCredentials");
+    const message = error instanceof Error ? error.message : "Failed to validate RS credentials";
     res.status(500).json({ message });
   }
 });

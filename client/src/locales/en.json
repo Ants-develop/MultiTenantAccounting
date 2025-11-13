@@ -66,9 +66,9 @@
     "title": "RS Integration - Revenue Service Data",
     "selectTable": "Select Data Type"
   },
-  "rsAdmin": {
-    "title": "RS Administration",
-    "description": "Validate Revenue Service credentials and store them securely for the selected company.",
+    "rsAdmin": {
+      "title": "RS Administration",
+      "description": "Validate Revenue Service credentials and store them securely.",
     "actions": {
       "refresh": "Refresh",
       "startNew": "Start New",
@@ -142,9 +142,9 @@
     },
     "storedCredentials": {
       "title": "Stored Credentials",
-      "description": "Manage the RS credentials associated with this company.",
+      "description": "Manage all stored RS credentials.",
       "loading": "Loading stored credentials...",
-      "empty": "No RS credentials have been stored for this company yet."
+      "empty": "No RS credentials have been stored yet."
     },
     "table": {
       "company": "Company",
