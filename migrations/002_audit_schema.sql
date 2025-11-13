@@ -86,7 +86,7 @@ CREATE TABLE IF NOT EXISTS audit.analytics (
     tenant_name VARCHAR(255),
     "ხარჯი" NUMERIC(18,2),
     "შემოსავალი" NUMERIC(18,2),
-    "უნიკალური გატარებები" INTEGER,
+    "უნიკალური_გატარებები" INTEGER,
     company_name VARCHAR(255),
     identification_code VARCHAR(50),
     company_id VARCHAR(50),
@@ -102,7 +102,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_analytics_tenant_month
 COMMENT ON TABLE audit.analytics IS 'General income and expense cumulative analytics by posting month';
 COMMENT ON COLUMN audit.analytics."ხარჯი" IS 'Cumulative expenses (account 7*)';
 COMMENT ON COLUMN audit.analytics."შემოსავალი" IS 'Cumulative income (account 6*)';
-COMMENT ON COLUMN audit.analytics."უნიკალური გატარებები" IS 'Unique transaction count';
+COMMENT ON COLUMN audit.analytics."უნიკალური_გატარებები" IS 'Unique transaction count';
 
 -- =====================================================
 -- Table 5: audit.analytics_balance_summary

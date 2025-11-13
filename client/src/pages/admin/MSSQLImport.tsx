@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Database, Upload, RefreshCw, AlertTriangle, CheckCircle, XCircle,
-  Download, Info, Play, Pause, Square, Clock, BarChart3, ArrowUpCircle, Search
+  Download, Info, Play, Pause, Square, Clock, BarChart3, ArrowUpCircle, Search,
+  ChevronDown, ChevronRight, X
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -35,22 +36,41 @@ interface AuditTable {
   recordCount: number;
 }
 
+interface LogEntry {
+  timestamp: string;
+  level: 'info' | 'warn' | 'error';
+  message: string;
+  context?: Record<string, any>;
+}
+
+interface ErrorDetail {
+  timestamp: string;
+  message: string;
+  recordId?: string | number;
+  recordData?: Record<string, any>;
+  stack?: string;
+}
+
 interface MigrationStatus {
   id?: string;
   migrationId?: string; // Backend uses migrationId
-  tenantCode: number;
+  type?: string; // Migration type: 'general-ledger', 'audit', 'rs', 'update'
+  tenantCode?: number | null;
+  tableName?: string | null;
   companyId?: number;
-  status: 'pending' | 'running' | 'completed' | 'failed';
-  progress: number;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
+  progress: number | string; // Can be number or string from database
   totalRecords: number;
   processedRecords: number;
   successCount: number;
   errorCount: number;
-  startTime?: string;
-  endTime?: string;
-  errorMessage?: string;
+  startTime?: string | Date;
+  endTime?: string | Date | null;
+  errorMessage?: string | null;
   duplicateCount?: number;
   newRecordsCount?: number;
+  logs?: LogEntry[];
+  errors?: ErrorDetail[];
 }
 
 interface MigrationResult {
@@ -82,6 +102,216 @@ const auditMigrationFormSchema = z.object({
 type MigrationForm = z.infer<typeof migrationFormSchema>;
 type AuditMigrationForm = z.infer<typeof auditMigrationFormSchema>;
 
+// Logs Display Component
+function LogsDisplay({ logs }: { logs: LogEntry[] }) {
+  const [filter, setFilter] = useState<'all' | 'info' | 'warn' | 'error'>('all');
+  const logsEndRef = React.useRef<HTMLDivElement>(null);
+  const scrollAreaRef = React.useRef<HTMLDivElement>(null);
+
+  const filteredLogs = logs.filter(log => filter === 'all' || log.level === filter);
+
+  React.useEffect(() => {
+    // Only scroll within the ScrollArea container, not the entire page
+    if (logsEndRef.current && scrollAreaRef.current) {
+      // Find the scrollable container within ScrollArea (Radix UI structure)
+      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]') as HTMLElement;
+      if (scrollContainer && logsEndRef.current) {
+        // Scroll the container directly to the bottom, not the page
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [logs.length]);
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+    } catch {
+      return timestamp;
+    }
+  };
+
+  const getLogColor = (level: LogEntry['level']) => {
+    switch (level) {
+      case 'info':
+        return 'text-blue-600 bg-blue-50 border-blue-200';
+      case 'warn':
+        return 'text-yellow-600 bg-yellow-50 border-yellow-200';
+      case 'error':
+        return 'text-red-600 bg-red-50 border-red-200';
+      default:
+        return 'text-gray-600 bg-gray-50 border-gray-200';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Button
+          variant={filter === 'all' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('all')}
+        >
+          All ({logs.length})
+        </Button>
+        <Button
+          variant={filter === 'info' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('info')}
+        >
+          Info ({logs.filter(l => l.level === 'info').length})
+        </Button>
+        <Button
+          variant={filter === 'warn' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('warn')}
+        >
+          Warnings ({logs.filter(l => l.level === 'warn').length})
+        </Button>
+        <Button
+          variant={filter === 'error' ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setFilter('error')}
+        >
+          Errors ({logs.filter(l => l.level === 'error').length})
+        </Button>
+      </div>
+
+      <ScrollArea ref={scrollAreaRef} className="h-96 w-full border rounded-md p-4">
+        <div className="space-y-2">
+          {filteredLogs.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No logs to display</p>
+          ) : (
+            filteredLogs.map((log, idx) => (
+              <div
+                key={idx}
+                className={`p-2 rounded border text-sm ${getLogColor(log.level)}`}
+              >
+                <div className="flex items-start gap-2">
+                  <span className="text-xs font-mono text-muted-foreground min-w-[80px]">
+                    {formatTimestamp(log.timestamp)}
+                  </span>
+                  <span className="font-semibold uppercase text-xs min-w-[60px]">{log.level}</span>
+                  <span className="flex-1">{log.message}</span>
+                </div>
+                {log.context && Object.keys(log.context).length > 0 && (
+                  <details className="mt-2 ml-[148px]">
+                    <summary className="text-xs cursor-pointer text-muted-foreground hover:text-foreground">
+                      Show context
+                    </summary>
+                    <pre className="mt-2 text-xs bg-black/5 p-2 rounded overflow-x-auto">
+                      {JSON.stringify(log.context, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            ))
+          )}
+          <div ref={logsEndRef} />
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
+// Errors Display Component
+function ErrorsDisplay({ errors }: { errors: ErrorDetail[] }) {
+  const [expandedErrors, setExpandedErrors] = useState<Set<number>>(new Set());
+
+  const toggleExpand = (idx: number) => {
+    const newExpanded = new Set(expandedErrors);
+    if (newExpanded.has(idx)) {
+      newExpanded.delete(idx);
+    } else {
+      newExpanded.add(idx);
+    }
+    setExpandedErrors(newExpanded);
+  };
+
+  const formatTimestamp = (timestamp: string) => {
+    try {
+      const date = new Date(timestamp);
+      return date.toLocaleString('en-US', { hour12: false });
+    } catch {
+      return timestamp;
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <ScrollArea className="h-96 w-full">
+        {errors.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">No errors to display</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12"></TableHead>
+                <TableHead>Timestamp</TableHead>
+                <TableHead>Record ID</TableHead>
+                <TableHead>Error Message</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {errors.map((error, idx) => (
+                <React.Fragment key={idx}>
+                  <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(idx)}>
+                    <TableCell>
+                      {expandedErrors.has(idx) ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {formatTimestamp(error.timestamp)}
+                    </TableCell>
+                    <TableCell>
+                      {error.recordId ? (
+                        <Badge variant="outline">{String(error.recordId)}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-red-600 font-medium">{error.message}</TableCell>
+                  </TableRow>
+                  {expandedErrors.has(idx) && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="bg-muted/30">
+                        <div className="space-y-2 p-4">
+                          {error.stack && (
+                            <div>
+                              <p className="text-xs font-semibold mb-1">Stack Trace:</p>
+                              <pre className="text-xs bg-black/5 p-2 rounded overflow-x-auto font-mono">
+                                {error.stack}
+                              </pre>
+                            </div>
+                          )}
+                          {error.recordData && Object.keys(error.recordData).length > 0 && (
+                            <div>
+                              <p className="text-xs font-semibold mb-1">Record Data:</p>
+                              <pre className="text-xs bg-black/5 p-2 rounded overflow-x-auto">
+                                {JSON.stringify(error.recordData, null, 2)}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </React.Fragment>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </ScrollArea>
+    </div>
+  );
+}
+
 export default function MSSQLImport() {
   const [selectedTenant, setSelectedTenant] = useState<TenantCode | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
@@ -91,6 +321,8 @@ export default function MSSQLImport() {
   const [searchQuery, setSearchQuery] = useState("");
   const [auditSearchQuery, setAuditSearchQuery] = useState("");
   const [selectedAuditTables, setSelectedAuditTables] = useState<Set<string>>(new Set());
+  const [selectedHistoricalMigration, setSelectedHistoricalMigration] = useState<MigrationStatus | null>(null);
+  const [showHistoricalMigrations, setShowHistoricalMigrations] = useState(false);
 
   const { user, mainCompany } = useAuth();
   const { toast } = useToast();
@@ -112,14 +344,39 @@ export default function MSSQLImport() {
   });
 
   // Fetch migration status first
-  const { data: activeMigration, refetch: refetchMigrationStatus } = useQuery<MigrationStatus | null>({
+  const { data: activeMigration, refetch: refetchMigrationStatus, isLoading: statusLoading } = useQuery<MigrationStatus | null>({
     queryKey: ['/api/mssql/migration-status'],
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/mssql/migration-status');
-      return response.json();
+      const data = await response.json();
+      // Handle null response (no active migration)
+      return data;
     },
     refetchInterval: isPolling ? 2000 : false, // Poll every 2 seconds when polling is enabled
     enabled: true, // Always enabled to check for running migrations
+  });
+
+  // Fetch historical migrations
+  const { data: historicalMigrationsData, refetch: refetchHistoricalMigrations } = useQuery<{ migrations: MigrationStatus[], total: number }>({
+    queryKey: ['/api/mssql/migration-history'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/mssql/migration-history?limit=50');
+      const data = await response.json();
+      return data || { migrations: [], total: 0 };
+    },
+    enabled: showHistoricalMigrations,
+  });
+
+  // Fetch specific historical migration details
+  const { data: historicalMigrationDetails, refetch: refetchHistoricalDetails } = useQuery<MigrationStatus>({
+    queryKey: ['/api/mssql/migration-history', selectedHistoricalMigration?.migrationId],
+    queryFn: async () => {
+      if (!selectedHistoricalMigration?.migrationId) return null as any;
+      const response = await apiRequest('GET', `/api/mssql/migration-history/${selectedHistoricalMigration.migrationId}`);
+      const data = await response.json();
+      return data;
+    },
+    enabled: !!selectedHistoricalMigration?.migrationId,
   });
 
   // Automatically manage polling based on migration status
@@ -128,8 +385,14 @@ export default function MSSQLImport() {
       setIsPolling(true);
     } else if (activeMigration?.status === 'completed' || activeMigration?.status === 'failed') {
       setIsPolling(false);
+      // Clear migration status after a delay to allow user to see the final status
+      const timeout = setTimeout(() => {
+        queryClient.setQueryData(['/api/mssql/migration-status'], null);
+        setMigrationStatus(null);
+      }, 10000); // Clear after 10 seconds
+      return () => clearTimeout(timeout);
     }
-  }, [activeMigration?.status]);
+  }, [activeMigration?.status, queryClient]);
 
   // Fetch all available clients
   const { data: availableClients = [], isLoading: clientsLoading } = useQuery({
@@ -199,6 +462,7 @@ export default function MSSQLImport() {
 
       console.log('Making API request to start migration...');
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
+        type: 'general-ledger',
         tenantCode: selectedTenant.tenantCode,
         clientId: mainCompany.id,
         batchSize: data.batchSize,
@@ -214,7 +478,8 @@ export default function MSSQLImport() {
           title: "Migration Started",
           description: `Migration started for tenant ${result.message}. Processing ${result.totalRecords} records.`,
         });
-        setIsPolling(true);
+        setIsPolling(true); // Start polling immediately
+        refetchMigrationStatus(); // Immediate refetch to get status right away
         setIsImportDialogOpen(false);
         form.reset();
       } else {
@@ -247,7 +512,8 @@ export default function MSSQLImport() {
       }
 
       console.log('Making API request to start update...');
-      const response = await apiRequest('POST', '/api/mssql/start-update', {
+      const response = await apiRequest('POST', '/api/mssql/start-migration', {
+        type: 'update',
         tenantCode: selectedTenant.tenantCode,
         clientId: mainCompany.id,
         postingsPeriodFrom: postingsPeriodFrom || undefined,
@@ -262,7 +528,8 @@ export default function MSSQLImport() {
           title: "Update Started",
           description: `Update started for tenant ${selectedTenant?.tenantCode}. Processing ${result.totalRecords} records.`,
         });
-        setIsPolling(true);
+        setIsPolling(true); // Start polling immediately
+        refetchMigrationStatus(); // Immediate refetch to get status right away
         setIsImportDialogOpen(false);
       } else {
         toast({
@@ -310,9 +577,10 @@ export default function MSSQLImport() {
         throw new Error("Main company tenant code not configured. Please set tenant code in Global Admin.");
       }
 
-      const response = await apiRequest('POST', '/api/mssql/export-to-audit', {
+      const response = await apiRequest('POST', '/api/mssql/start-migration', {
+        type: 'audit',
         tenantCode: tenantCode,
-        companyId: mainCompany.id,
+        clientId: mainCompany.id,
       });
       return response.json();
     },
@@ -322,7 +590,8 @@ export default function MSSQLImport() {
           title: "Export Started",
           description: `Exporting data from MSSQL to general_ledger for tenant code ${(mainCompany as any)?.tenantCode}`,
         });
-        setIsPolling(true);
+        setIsPolling(true); // Start polling immediately
+        refetchMigrationStatus(); // Immediate refetch to get status right away
         queryClient.invalidateQueries({ queryKey: ['/api/mssql/migration-status'] });
       } else {
         toast({
@@ -348,7 +617,8 @@ export default function MSSQLImport() {
         throw new Error("Main company not configured");
       }
 
-      const response = await apiRequest('POST', '/api/mssql-audit/start-audit-table-migration', {
+      const response = await apiRequest('POST', '/api/mssql/start-migration', {
+        type: 'audit-table',
         tableName: data.tableName,
         batchSize: data.batchSize,
       });
@@ -360,7 +630,8 @@ export default function MSSQLImport() {
           title: "Audit Migration Started",
           description: `Importing audit table. ${result.message}`,
         });
-        setIsPolling(true);
+        setIsPolling(true); // Start polling immediately
+        refetchMigrationStatus(); // Immediate refetch to get status right away
         setIsAuditImportDialogOpen(false);
         setSelectedAuditTables(new Set());
       } else {
@@ -387,7 +658,8 @@ export default function MSSQLImport() {
         throw new Error("Main company not configured");
       }
 
-      const response = await apiRequest('POST', '/api/mssql-audit/start-full-audit-export', {
+      const response = await apiRequest('POST', '/api/mssql/start-migration', {
+        type: 'full-audit-export',
         batchSize: data.batchSize,
       });
       return response.json();
@@ -398,7 +670,8 @@ export default function MSSQLImport() {
           title: "Full Audit Export Started",
           description: `Importing ${result.totalTables} audit tables`,
         });
-        setIsPolling(true);
+        setIsPolling(true); // Start polling immediately
+        refetchMigrationStatus(); // Immediate refetch to get status right away
         setIsAuditImportDialogOpen(false);
         setSelectedAuditTables(new Set());
       } else {
@@ -625,7 +898,16 @@ export default function MSSQLImport() {
       </Card>
 
       {/* Active Migration Status */}
-      {(activeMigration || migrationStatus) && (
+      {statusLoading ? (
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex items-center justify-center">
+              <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+              <span>Loading migration status...</span>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (activeMigration || migrationStatus) ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center">
@@ -649,24 +931,40 @@ export default function MSSQLImport() {
                     {(activeMigration || migrationStatus)!.status.toUpperCase()}
                   </Badge>
                   <span className="text-sm text-muted-foreground">
-                    Tenant Code: {(activeMigration || migrationStatus)!.tenantCode}
+                    Tenant Code: {(activeMigration || migrationStatus)!.tenantCode || 'N/A'}
                   </span>
                 </div>
+                <div className="flex items-center space-x-2">
                   {(activeMigration || migrationStatus)!.status === 'running' && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleStopMigration}
-                    disabled={stopMigrationMutation.isPending}
-                  >
-                    <Square className="w-4 h-4 mr-2" />
-                    Stop {(() => {
-                      const migration = activeMigration || migrationStatus;
-                      const migrationId = migration?.id || migration?.migrationId;
-                      return migrationId?.startsWith('update_') ? 'Update' : 'Migration';
-                    })()}
-                  </Button>
-                )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStopMigration}
+                      disabled={stopMigrationMutation.isPending}
+                    >
+                      <Square className="w-4 h-4 mr-2" />
+                      Stop {(() => {
+                        const migration = activeMigration || migrationStatus;
+                        const migrationId = migration?.id || migration?.migrationId;
+                        return migrationId?.startsWith('update_') ? 'Update' : 'Migration';
+                      })()}
+                    </Button>
+                  )}
+                  {((activeMigration || migrationStatus)!.status === 'completed' || 
+                    (activeMigration || migrationStatus)!.status === 'failed') && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        queryClient.setQueryData(['/api/mssql/migration-status'], null);
+                        setMigrationStatus(null);
+                      }}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Dismiss
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {(activeMigration || migrationStatus)!.status === 'running' && (
@@ -723,10 +1021,263 @@ export default function MSSQLImport() {
                   </p>
                 </div>
               )}
+
+              {/* Logs and Errors Section */}
+              {((activeMigration || migrationStatus)!.logs && (activeMigration || migrationStatus)!.logs!.length > 0) || 
+                ((activeMigration || migrationStatus)!.errors && (activeMigration || migrationStatus)!.errors!.length > 0) ? (
+                <div className="mt-6 border-t pt-4">
+                  <Tabs defaultValue="logs" className="w-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <TabsList>
+                        <TabsTrigger value="logs">
+                          Logs ({(activeMigration || migrationStatus)!.logs?.length || 0})
+                        </TabsTrigger>
+                        <TabsTrigger value="errors">
+                          Errors ({(activeMigration || migrationStatus)!.errors?.length || 0})
+                        </TabsTrigger>
+                      </TabsList>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const migration = activeMigration || migrationStatus;
+                            const logs = migration?.logs || [];
+                            const errors = migration?.errors || [];
+                            const data = {
+                              migrationId: migration?.migrationId,
+                              tenantCode: migration?.tenantCode,
+                              status: migration?.status,
+                              logs,
+                              errors,
+                              exportedAt: new Date().toISOString(),
+                            };
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `migration-logs-${migration?.migrationId || 'export'}-${Date.now()}.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                          }}
+                        >
+                          <Download className="w-4 h-4 mr-2" />
+                          Export Logs
+                        </Button>
+                      </div>
+                    </div>
+
+                    <TabsContent value="logs" className="space-y-4">
+                      <LogsDisplay logs={(activeMigration || migrationStatus)!.logs || []} />
+                    </TabsContent>
+
+                    <TabsContent value="errors" className="space-y-4">
+                      <ErrorsDisplay errors={(activeMigration || migrationStatus)!.errors || []} />
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="py-8">
+            <div className="text-center text-muted-foreground">
+              <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm">No active migration</p>
+              <p className="text-xs mt-1">Start a migration to see status and logs here</p>
             </div>
           </CardContent>
         </Card>
       )}
+
+      {/* Historical Migrations */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center">
+              <Clock className="w-5 h-5 mr-2" />
+              Migration History
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowHistoricalMigrations(!showHistoricalMigrations);
+                if (!showHistoricalMigrations) {
+                  refetchHistoricalMigrations();
+                }
+              }}
+            >
+              {showHistoricalMigrations ? (
+                <>
+                  <ChevronDown className="w-4 h-4 mr-2" />
+                  Hide History
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="w-4 h-4 mr-2" />
+                  Show History
+                </>
+              )}
+            </Button>
+          </div>
+        </CardHeader>
+        {showHistoricalMigrations && (
+          <CardContent>
+            {historicalMigrationsData?.migrations && historicalMigrationsData.migrations.length > 0 ? (
+              <div className="space-y-4">
+                <ScrollArea className="h-96">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Table</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Records</TableHead>
+                        <TableHead>Success</TableHead>
+                        <TableHead>Errors</TableHead>
+                        <TableHead>Start Time</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {historicalMigrationsData.migrations.map((migration) => {
+                        const displayMigration = selectedHistoricalMigration?.migrationId === migration.migrationId 
+                          ? (historicalMigrationDetails || migration)
+                          : migration;
+                        return (
+                          <React.Fragment key={migration.migrationId}>
+                            <TableRow
+                              className={selectedHistoricalMigration?.migrationId === migration.migrationId ? 'bg-muted' : ''}
+                            >
+                              <TableCell className="font-medium">{migration.type || 'N/A'}</TableCell>
+                              <TableCell>{migration.tableName || 'N/A'}</TableCell>
+                              <TableCell>
+                                <Badge className={getStatusColor(migration.status)}>
+                                  {migration.status.toUpperCase()}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{migration.totalRecords.toLocaleString()}</TableCell>
+                              <TableCell className="text-green-600">{migration.successCount.toLocaleString()}</TableCell>
+                              <TableCell className="text-red-600">{migration.errorCount.toLocaleString()}</TableCell>
+                              <TableCell>
+                                {migration.startTime 
+                                  ? new Date(migration.startTime).toLocaleString()
+                                  : 'N/A'}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (selectedHistoricalMigration?.migrationId === migration.migrationId) {
+                                      setSelectedHistoricalMigration(null);
+                                    } else {
+                                      setSelectedHistoricalMigration(migration);
+                                      refetchHistoricalDetails();
+                                    }
+                                  }}
+                                >
+                                  {selectedHistoricalMigration?.migrationId === migration.migrationId ? (
+                                    <>
+                                      <ChevronDown className="w-4 h-4 mr-2" />
+                                      Hide Details
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronRight className="w-4 h-4 mr-2" />
+                                      View Details
+                                    </>
+                                  )}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                            {selectedHistoricalMigration?.migrationId === migration.migrationId && (
+                              <TableRow>
+                                <TableCell colSpan={8} className="bg-muted/50">
+                                  <div className="space-y-4 p-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">Progress</Label>
+                                        <p className="font-medium">{Number(migration.progress).toFixed(1)}%</p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">Duration</Label>
+                                        <p className="font-medium">
+                                          {formatDuration(migration.startTime, migration.endTime)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">Tenant Code</Label>
+                                        <p className="font-medium">{migration.tenantCode || 'N/A'}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="text-xs text-muted-foreground">End Time</Label>
+                                        <p className="font-medium">
+                                          {migration.endTime 
+                                            ? new Date(migration.endTime).toLocaleString()
+                                            : 'N/A'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {migration.errorMessage && (
+                                      <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                                        <p className="text-sm text-red-800">
+                                          <strong>Error:</strong> {migration.errorMessage}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {(displayMigration.logs && displayMigration.logs.length > 0) || 
+                                     (displayMigration.errors && displayMigration.errors.length > 0) ? (
+                                      <Tabs defaultValue="logs" className="w-full">
+                                        <TabsList>
+                                          <TabsTrigger value="logs">
+                                            Logs ({displayMigration.logs?.length || 0})
+                                          </TabsTrigger>
+                                          <TabsTrigger value="errors">
+                                            Errors ({displayMigration.errors?.length || 0})
+                                          </TabsTrigger>
+                                        </TabsList>
+                                        <TabsContent value="logs" className="space-y-4">
+                                          <LogsDisplay logs={displayMigration.logs || []} />
+                                        </TabsContent>
+                                        <TabsContent value="errors" className="space-y-4">
+                                          <ErrorsDisplay errors={displayMigration.errors || []} />
+                                        </TabsContent>
+                                      </Tabs>
+                                    ) : (
+                                      <p className="text-sm text-muted-foreground text-center py-4">
+                                        No logs or errors available for this migration
+                                      </p>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+                <div className="text-sm text-muted-foreground text-center">
+                  Showing {historicalMigrationsData.migrations.length} of {historicalMigrationsData.total} migrations
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p className="text-sm">No historical migrations found</p>
+                <p className="text-xs mt-1">Completed migrations will appear here</p>
+              </div>
+            )}
+          </CardContent>
+        )}
+      </Card>
 
       {/* Tabbed Interface for Imports */}
       <Tabs defaultValue="general-ledger" className="w-full">
@@ -868,7 +1419,7 @@ export default function MSSQLImport() {
               disabled={
                 !mainCompany?.id || 
                 auditTables.length === 0 ||
-                !!activeMigration
+                activeMigration?.status === 'running'
               }
               className="w-full"
             >
@@ -886,7 +1437,7 @@ export default function MSSQLImport() {
               disabled={
                 !mainCompany?.id || 
                 auditTables.length === 0 ||
-                !!activeMigration ||
+                activeMigration?.status === 'running' ||
                 startFullAuditExportMutation.isPending
               }
               className="w-full"

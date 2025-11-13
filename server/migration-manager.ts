@@ -175,7 +175,7 @@ export class MigrationManager {
         
         // Check if required tables exist - if not, we should re-run relevant migrations
         const requiredTables = [
-          "users", "companies", "user_companies", "accounts",
+          "users", "clients", "user_companies", "accounts",
           "journal_entries", "journal_entry_lines", "customers",
           "vendors", "invoices", "bills", "activity_logs",
           "company_settings", "general_ledger"

@@ -12,17 +12,30 @@ export const mssqlImportApi = {
 
   /**
    * Start data migration from MSSQL to PostgreSQL
+   * Unified endpoint that accepts a type parameter
    */
-  startMigration: async (data: { tenantCode: number; clientId: number; batchSize?: number }) => {
+  startMigration: async (data: { 
+    type: 'general-ledger' | 'audit' | 'update' | 'rs' | 'audit-table' | 'full-audit-export';
+    tenantCode?: number;
+    clientId?: number;
+    batchSize?: number;
+    postingsPeriodFrom?: string;
+    postingsPeriodTo?: string;
+    tableName?: string;
+    companyTin?: string;
+  }) => {
     const response = await apiRequest('POST', '/api/mssql/start-migration', data);
     return response.json();
   },
 
   /**
-   * Start data update (incremental sync)
+   * Start data update (incremental sync) - legacy method, uses unified endpoint
    */
-  startUpdate: async (data: { tenantCode: number; clientId: number }) => {
-    const response = await apiRequest('POST', '/api/mssql/start-update', data);
+  startUpdate: async (data: { tenantCode: number; clientId: number; batchSize?: number; postingsPeriodFrom?: string; postingsPeriodTo?: string }) => {
+    const response = await apiRequest('POST', '/api/mssql/start-migration', {
+      type: 'update',
+      ...data,
+    });
     return response.json();
   },
 

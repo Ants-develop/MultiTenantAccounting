@@ -284,7 +284,7 @@ export class DatabaseValidationService {
    */
   private static async checkTablesExist(): Promise<{ allExist: boolean; missing: string[] }> {
     const requiredTables = [
-      'users', 'companies', 'user_companies', 'accounts', 
+      'users', 'clients', 'user_companies', 'accounts', 
       'journal_entries', 'journal_entry_lines', 'customers', 
       'vendors', 'invoices', 'bills', 'activity_logs'
     ];
@@ -319,9 +319,9 @@ export class DatabaseValidationService {
       // Check for orphaned records
       const orphanChecks = [
         { table: 'user_companies', column: 'user_id', refTable: 'users', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN users u ON uc.user_id = u.id WHERE u.id IS NULL` },
-        { table: 'user_companies', column: 'company_id', refTable: 'companies', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN companies c ON uc.company_id = c.id WHERE c.id IS NULL` },
-        { table: 'accounts', column: 'company_id', refTable: 'companies', query: sql`SELECT COUNT(*) as count FROM accounts a LEFT JOIN companies c ON a.company_id = c.id WHERE c.id IS NULL` },
-        { table: 'journal_entries', column: 'company_id', refTable: 'companies', query: sql`SELECT COUNT(*) as count FROM journal_entries je LEFT JOIN companies c ON je.company_id = c.id WHERE c.id IS NULL` },
+        { table: 'user_companies', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN clients c ON uc.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'accounts', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounts a LEFT JOIN clients c ON a.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'journal_entries', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM journal_entries je LEFT JOIN clients c ON je.client_id = c.id WHERE c.id IS NULL` },
         { table: 'journal_entry_lines', column: 'journal_entry_id', refTable: 'journal_entries', query: sql`SELECT COUNT(*) as count FROM journal_entry_lines jel LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id WHERE je.id IS NULL` }
       ];
 
@@ -354,9 +354,9 @@ export class DatabaseValidationService {
 
       // Check for missing indexes on frequently queried columns
       const indexChecks = [
-        { table: 'user_companies', columns: ['user_id', 'company_id'], name: 'user_companies_user_company_idx' },
-        { table: 'accounts', columns: ['company_id'], name: 'accounts_company_idx' },
-        { table: 'journal_entries', columns: ['company_id', 'date'], name: 'journal_entries_company_date_idx' },
+        { table: 'user_companies', columns: ['user_id', 'client_id'], name: 'user_companies_user_company_idx' },
+        { table: 'accounts', columns: ['client_id'], name: 'accounts_client_idx' },
+        { table: 'journal_entries', columns: ['client_id', 'date'], name: 'journal_entries_client_date_idx' },
         { table: 'journal_entry_lines', columns: ['journal_entry_id'], name: 'journal_entry_lines_entry_idx' },
         { table: 'journal_entry_lines', columns: ['account_id'], name: 'journal_entry_lines_account_idx' }
       ];

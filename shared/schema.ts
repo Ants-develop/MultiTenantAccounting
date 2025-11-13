@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -864,6 +864,48 @@ export type InsertNormalizedBankTransaction = z.infer<typeof insertNormalizedBan
 export type MainCompanySettings = typeof mainCompanySettings.$inferSelect;
 export type InsertMainCompanySettings = z.infer<typeof insertMainCompanySettingsSchema>;
 export type UpdateMainCompanySettings = z.infer<typeof updateMainCompanySettingsSchema>;
+
+// Migration History Tables
+export const migrationHistory = pgTable("migration_history", {
+  id: serial("id").primaryKey(),
+  migrationId: text("migration_id").notNull().unique(),
+  type: text("type").notNull(), // 'general-ledger', 'audit', 'rs', 'update'
+  tenantCode: integer("tenant_code"),
+  tableName: text("table_name"),
+  status: text("status").notNull(), // 'pending', 'running', 'completed', 'failed', 'stopped'
+  totalRecords: integer("total_records").default(0),
+  processedRecords: integer("processed_records").default(0),
+  successCount: integer("success_count").default(0),
+  errorCount: integer("error_count").default(0),
+  progress: numeric("progress", { precision: 5, scale: 2 }).default("0"),
+  batchSize: integer("batch_size").default(1000),
+  errorMessage: text("error_message"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const migrationLogs = pgTable("migration_logs", {
+  id: serial("id").primaryKey(),
+  migrationId: text("migration_id").notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  level: text("level").notNull(), // 'info', 'warn', 'error'
+  message: text("message").notNull(),
+  context: jsonb("context"), // Additional context data
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const migrationErrors = pgTable("migration_errors", {
+  id: serial("id").primaryKey(),
+  migrationId: text("migration_id").notNull(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  message: text("message").notNull(),
+  recordId: text("record_id"),
+  recordData: jsonb("record_data"), // Additional record context
+  stack: text("stack"), // Stack trace if available
+  createdAt: timestamp("created_at").defaultNow(),
+});
 
 // Enhanced types with validation
 export type InsertUserEnhanced = z.infer<typeof insertUserSchemaEnhanced>;

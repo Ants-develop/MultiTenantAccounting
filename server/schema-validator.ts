@@ -84,9 +84,9 @@ function getExpectedSchema(): ExpectedTable[] {
     primaryKey: "id",
   });
 
-  // Companies table
+  // Clients table (renamed from companies)
   tables.push({
-    name: "companies",
+    name: "clients",
     columns: [
       { name: "id", type: "integer", nullable: false },
       { name: "name", type: "text", nullable: false },

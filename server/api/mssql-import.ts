@@ -8,12 +8,16 @@ import {
   exportToAudit,
   migrateRSTables,
   migrateAuditTables,
+  migrateAuditSchemaTable,
   updateJournalEntries,
   getProgressEmitter,
+  getAuditTableNames,
   MigrationProgress,
 } from "../services/mssql-migration";
 import { db } from "../db";
 import { DEFAULT_CLIENT_ID } from "../constants";
+import { migrationHistory, migrationLogs, migrationErrors } from "@shared/schema";
+import { sql as drizzleSql, desc, and, eq } from "drizzle-orm";
 
 const router = express.Router();
 
@@ -110,110 +114,78 @@ router.get("/tenant-codes", async (req, res) => {
   }
 });
 
-// Start journal entries update (incremental sync)
-router.post("/start-update", async (req, res) => {
+// Shared handler function for unified migration endpoint
+async function handleStartMigration(req: express.Request, res: express.Response, defaultType?: string) {
   try {
     if (!DEFAULT_CLIENT_ID) {
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { tenantCode, clientId, batchSize, postingsPeriodFrom, postingsPeriodTo } = req.body;
+    const { 
+      type = defaultType, 
+      tenantCode, 
+      clientId, 
+      batchSize, 
+      postingsPeriodFrom, 
+      postingsPeriodTo,
+      tableName,
+      companyTin
+    } = req.body;
 
-    if (!tenantCode || !clientId) {
-      return res.status(400).json({ message: "Missing required parameters" });
+    // Validate type parameter
+    const validTypes = ['general-ledger', 'audit', 'update', 'rs', 'audit-table', 'full-audit-export'];
+    if (!type || !validTypes.includes(type)) {
+      return res.status(400).json({ 
+        message: `Invalid migration type. Must be one of: ${validTypes.join(', ')}` 
+      });
     }
 
     // Check if migration is already running
     if (activeMigration && activeMigration.status === "running") {
-      return res
-        .status(400)
-        .json({ message: "Update is already running" });
+      return res.status(400).json({ message: "Migration is already running" });
+    }
+
+    // Validate required parameters based on type
+    if ((type === 'general-ledger' || type === 'audit' || type === 'update') && (!tenantCode || !clientId)) {
+      return res.status(400).json({ message: "Missing required parameters: tenantCode and clientId" });
+    }
+
+    if (type === 'rs' && (!tableName || !clientId || !companyTin)) {
+      return res.status(400).json({ message: "Missing required parameters: tableName, clientId, and companyTin" });
+    }
+
+    if (type === 'audit-table' && !tableName) {
+      return res.status(400).json({ message: "Missing required parameter: tableName" });
     }
 
     const pool = await initMSSQLPool();
+    const migrationId = `${type}_${Date.now()}`;
 
-    const migrationId = `update_${Date.now()}`;
-
-    res.json({
-      success: true,
-      message: `Update started for tenant ${tenantCode}`,
+    // Create initial progress object and set activeMigration IMMEDIATELY
+    const initialProgress: MigrationProgress = {
       migrationId,
+      type: type as 'general-ledger' | 'audit' | 'rs',
+      tenantCode: type === 'rs' || type === 'audit-table' || type === 'full-audit-export' ? null : (tenantCode || null),
+      tableName: (type === 'rs' || type === 'audit-table' || type === 'full-audit-export') ? tableName : undefined,
+      status: 'running',
       totalRecords: 0,
-      estimatedTime: "Calculating...",
-    });
+      processedRecords: 0,
+      successCount: 0,
+      errorCount: 0,
+      progress: 0,
+      startTime: new Date(),
+      batchSize: batchSize || 1000,
+      logs: [],
+      errors: [],
+    };
 
-    // Start update in background
-    (async () => {
-      try {
-        const progressEmitter = getProgressEmitter();
+    // Set activeMigration immediately
+    activeMigration = initialProgress;
 
-        progressEmitter.on("progress", (progress: MigrationProgress) => {
-          activeMigration = progress;
-          console.log(
-            `[Update ${migrationId}] Progress: ${progress.progress.toFixed(1)}% (${progress.processedRecords}/${progress.totalRecords})`
-          );
-        });
-
-        await updateJournalEntries(
-          pool,
-          tenantCode,
-          clientId,
-          batchSize || 1000,
-          postingsPeriodFrom,
-          postingsPeriodTo
-        );
-        console.log(
-          `✅ Update ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
-        );
-
-        // Keep status for 5 minutes
-        setTimeout(() => {
-          if (activeMigration?.migrationId === migrationId) {
-            activeMigration = null;
-          }
-        }, 300000);
-      } catch (error) {
-        console.error("❌ Background update error:", error);
-        if (activeMigration) {
-          activeMigration.status = "failed";
-          activeMigration.errorMessage = String(error);
-          activeMigration.endTime = new Date();
-        }
-      }
-    })();
-  } catch (error) {
-    console.error("❌ Start update error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// Start general ledger migration
-router.post("/start-migration", async (req, res) => {
-  try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
-    const { tenantCode, clientId, batchSize, postingsPeriodFrom, postingsPeriodTo } = req.body;
-
-    if (!tenantCode || !clientId) {
-      return res.status(400).json({ message: "Missing required parameters" });
-    }
-
-    // Check if migration is already running
-    if (activeMigration && activeMigration.status === "running") {
-      return res
-        .status(400)
-        .json({ message: "Migration is already running" });
-    }
-
-    const pool = await initMSSQLPool();
-
-    const migrationId = `migration_${Date.now()}`;
-
+    // Send response immediately
     res.json({
       success: true,
-      message: `Migration started for tenant ${tenantCode}`,
+      message: getMigrationMessage(type, tenantCode, tableName),
       migrationId,
       totalRecords: 0,
       estimatedTime: "Calculating...",
@@ -225,20 +197,99 @@ router.post("/start-migration", async (req, res) => {
         const progressEmitter = getProgressEmitter();
 
         progressEmitter.on("progress", (progress: MigrationProgress) => {
-          activeMigration = progress;
+          // Update existing activeMigration instead of replacing it
+          if (activeMigration && activeMigration.migrationId === progress.migrationId) {
+            Object.assign(activeMigration, progress);
+          } else {
+            activeMigration = progress;
+          }
           console.log(
             `[Migration ${migrationId}] Progress: ${progress.progress.toFixed(1)}% (${progress.processedRecords}/${progress.totalRecords})`
           );
         });
 
-        await migrateGeneralLedger(
-          pool,
-          tenantCode,
-          clientId,
-          batchSize || 1000,
-          postingsPeriodFrom,
-          postingsPeriodTo
-        );
+        // Route to appropriate migration function based on type
+        switch (type) {
+          case 'general-ledger':
+            await migrateGeneralLedger(
+              pool,
+              tenantCode!,
+              clientId!,
+              batchSize || 1000,
+              postingsPeriodFrom,
+              postingsPeriodTo
+            );
+            break;
+
+          case 'audit':
+            await exportToAudit(
+              pool,
+              tenantCode!,
+              clientId!,
+              batchSize || 1000
+            );
+            break;
+
+          case 'update':
+            await updateJournalEntries(
+              pool,
+              tenantCode!,
+              clientId!,
+              batchSize || 1000,
+              postingsPeriodFrom,
+              postingsPeriodTo
+            );
+            break;
+
+          case 'rs':
+            await migrateRSTables(
+              pool,
+              tableName!,
+              clientId!,
+              companyTin!,
+              batchSize || 1000
+            );
+            break;
+
+          case 'audit-table':
+            await migrateAuditSchemaTable(
+              pool,
+              tableName!,
+              DEFAULT_CLIENT_ID!,
+              batchSize || 1000
+            );
+            break;
+
+          case 'full-audit-export':
+            // Get all audit tables and process them sequentially
+            const tables = await getAuditTableNames(pool);
+            const totalTables = tables.length;
+            
+            for (let i = 0; i < tables.length; i++) {
+              const table = tables[i];
+              console.log(`\n📋 Processing audit table ${i + 1}/${totalTables}: ${table.tableName}`);
+              
+              // Update activeMigration with current table info
+              if (activeMigration) {
+                activeMigration.tableName = table.tableName;
+                activeMigration.totalRecords = table.recordCount;
+                activeMigration.processedRecords = 0;
+                activeMigration.progress = 0;
+              }
+
+              await migrateAuditSchemaTable(
+                pool,
+                table.tableName,
+                DEFAULT_CLIENT_ID!,
+                batchSize || 1000
+              );
+            }
+            break;
+
+          default:
+            throw new Error(`Unknown migration type: ${type}`);
+        }
+
         console.log(
           `✅ Migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
         );
@@ -262,73 +313,32 @@ router.post("/start-migration", async (req, res) => {
     console.error("❌ Start migration error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
+}
+
+// Unified migration endpoint - handles all migration types
+router.post("/start-migration", async (req, res) => {
+  return handleStartMigration(req, res);
 });
 
-// Start audit export
-router.post("/start-audit-export", async (req, res) => {
-  try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
-    const { tenantCode, clientId, batchSize } = req.body;
-
-    if (!tenantCode || !clientId) {
-      return res.status(400).json({ message: "Missing required parameters" });
-    }
-
-    if (activeMigration && activeMigration.status === "running") {
-      return res
-        .status(400)
-        .json({ message: "Export is already running" });
-    }
-
-    const pool = await initMSSQLPool();
-    const migrationId = `audit_${Date.now()}`;
-
-    res.json({
-      success: true,
-      message: `Audit export started for tenant ${tenantCode}`,
-      migrationId,
-      totalRecords: 0,
-    });
-
-    // Start export in background
-    (async () => {
-      try {
-        const progressEmitter = getProgressEmitter();
-
-        progressEmitter.on("progress", (progress: MigrationProgress) => {
-          activeMigration = progress;
-          console.log(
-            `[Audit Export ${migrationId}] Progress: ${progress.progress.toFixed(1)}%`
-          );
-        });
-
-        await exportToAudit(pool, tenantCode, clientId, batchSize || 1000);
-        console.log(
-          `✅ Audit export ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
-        );
-
-        setTimeout(() => {
-          if (activeMigration?.migrationId === migrationId) {
-            activeMigration = null;
-          }
-        }, 300000);
-      } catch (error) {
-        console.error("❌ Background audit export error:", error);
-        if (activeMigration) {
-          activeMigration.status = "failed";
-          activeMigration.errorMessage = String(error);
-          activeMigration.endTime = new Date();
-        }
-      }
-    })();
-  } catch (error) {
-    console.error("❌ Start audit export error:", error);
-    res.status(500).json({ message: "Internal server error" });
+// Helper function to get migration message
+function getMigrationMessage(type: string, tenantCode?: number, tableName?: string): string {
+  switch (type) {
+    case 'general-ledger':
+      return `Migration started for tenant ${tenantCode}`;
+    case 'audit':
+      return `Audit export started for tenant ${tenantCode}`;
+    case 'update':
+      return `Update started for tenant ${tenantCode}`;
+    case 'rs':
+      return `RS migration started for table ${tableName}`;
+    case 'audit-table':
+      return `Audit table migration started for ${tableName}`;
+    case 'full-audit-export':
+      return `Full audit export started`;
+    default:
+      return `Migration started`;
   }
-});
+}
 
 // Get migration status
 router.get("/migration-status", async (req, res) => {
@@ -337,6 +347,118 @@ router.get("/migration-status", async (req, res) => {
   } catch (error) {
     console.error("❌ Get migration status error:", error);
     res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+// Get historical migrations from database
+router.get("/migration-history", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const type = req.query.type as string | undefined;
+    const status = req.query.status as string | undefined;
+
+    let query = db.select().from(migrationHistory).orderBy(desc(migrationHistory.startTime)).limit(limit).offset(offset);
+
+    // Build WHERE conditions
+    const conditions: any[] = [];
+    if (type) {
+      conditions.push(eq(migrationHistory.type, type));
+    }
+    if (status) {
+      conditions.push(eq(migrationHistory.status, status));
+    }
+
+    const histories = conditions.length > 0
+      ? await db.select().from(migrationHistory)
+          .where(and(...conditions))
+          .orderBy(desc(migrationHistory.startTime))
+          .limit(limit)
+          .offset(offset)
+      : await db.select().from(migrationHistory)
+          .orderBy(desc(migrationHistory.startTime))
+          .limit(limit)
+          .offset(offset);
+
+    // Fetch logs and errors for each migration
+    const migrationsWithDetails = await Promise.all(
+      histories.map(async (history) => {
+        const [logs, errors] = await Promise.all([
+          db.select().from(migrationLogs)
+            .where(eq(migrationLogs.migrationId, history.migrationId))
+            .orderBy(migrationLogs.timestamp),
+          db.select().from(migrationErrors)
+            .where(eq(migrationErrors.migrationId, history.migrationId))
+            .orderBy(migrationErrors.timestamp),
+        ]);
+
+        return {
+          ...history,
+          logs: logs.map(log => ({
+            timestamp: log.timestamp,
+            level: log.level,
+            message: log.message,
+            context: log.context,
+          })),
+          errors: errors.map(err => ({
+            timestamp: err.timestamp,
+            message: err.message,
+            recordId: err.recordId,
+            recordData: err.recordData,
+            stack: err.stack,
+          })),
+        };
+      })
+    );
+
+    res.json({ migrations: migrationsWithDetails, total: histories.length });
+  } catch (error: any) {
+    console.error("Failed to fetch migration history:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get specific migration by ID with logs and errors
+router.get("/migration-history/:migrationId", async (req, res) => {
+  try {
+    const { migrationId } = req.params;
+
+    const [history] = await db.select().from(migrationHistory)
+      .where(eq(migrationHistory.migrationId, migrationId))
+      .limit(1);
+
+    if (!history) {
+      return res.status(404).json({ error: "Migration not found" });
+    }
+
+    const [logs, errors] = await Promise.all([
+      db.select().from(migrationLogs)
+        .where(eq(migrationLogs.migrationId, migrationId))
+        .orderBy(migrationLogs.timestamp),
+      db.select().from(migrationErrors)
+        .where(eq(migrationErrors.migrationId, migrationId))
+        .orderBy(migrationErrors.timestamp),
+    ]);
+
+    res.json({
+      ...history,
+      logs: logs.map(log => ({
+        timestamp: log.timestamp,
+        level: log.level,
+        message: log.message,
+        context: log.context,
+      })),
+      errors: errors.map(err => ({
+        timestamp: err.timestamp,
+        message: err.message,
+        recordId: err.recordId,
+        recordData: err.recordData,
+        stack: err.stack,
+      })),
+    });
+  } catch (error: any) {
+    console.error("Failed to fetch migration details:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -361,138 +483,6 @@ router.post("/stop-migration", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Stop migration error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// Start RS table migration
-router.post("/start-rs-migration", async (req, res) => {
-  try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
-    const { tableName, clientId, companyTin, batchSize } = req.body;
-
-    if (!tableName || !clientId || !companyTin) {
-      return res.status(400).json({ message: "Missing required parameters" });
-    }
-
-    if (activeMigration && activeMigration.status === "running") {
-      return res
-        .status(400)
-        .json({ message: "Migration is already running" });
-    }
-
-    const pool = await initMSSQLPool();
-    const migrationId = `rs_${Date.now()}`;
-
-    res.json({
-      success: true,
-      message: `RS migration started for table ${tableName}`,
-      migrationId,
-      totalRecords: 0,
-    });
-
-    // Start migration in background
-    (async () => {
-      try {
-        const progressEmitter = getProgressEmitter();
-
-        progressEmitter.on("progress", (progress: MigrationProgress) => {
-          activeMigration = progress;
-          console.log(
-            `[RS Migration ${migrationId}] Progress: ${progress.progress.toFixed(1)}%`
-          );
-        });
-
-        await migrateRSTables(pool, tableName, clientId, companyTin, batchSize || 1000);
-        console.log(
-          `✅ RS migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
-        );
-
-        setTimeout(() => {
-          if (activeMigration?.migrationId === migrationId) {
-            activeMigration = null;
-          }
-        }, 300000);
-      } catch (error) {
-        console.error("❌ Background RS migration error:", error);
-        if (activeMigration) {
-          activeMigration.status = "failed";
-          activeMigration.errorMessage = String(error);
-          activeMigration.endTime = new Date();
-        }
-      }
-    })();
-  } catch (error) {
-    console.error("❌ Start RS migration error:", error);
-    res.status(500).json({ message: "Internal server error" });
-  }
-});
-
-// Start audit table migration
-router.post("/start-audit-table-migration", async (req, res) => {
-  try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
-    const { tableName, batchSize } = req.body;
-
-    if (!tableName) {
-      return res.status(400).json({ message: "Missing required parameters" });
-    }
-
-    if (activeMigration && activeMigration.status === "running") {
-      return res
-        .status(400)
-        .json({ message: "Migration is already running" });
-    }
-
-    const pool = await initMSSQLPool();
-    const migrationId = `audit_table_${Date.now()}`;
-
-    res.json({
-      success: true,
-      message: `Audit table migration started for ${tableName}`,
-      migrationId,
-      totalRecords: 0,
-    });
-
-    // Start migration in background
-    (async () => {
-      try {
-        const progressEmitter = getProgressEmitter();
-
-        progressEmitter.on("progress", (progress: MigrationProgress) => {
-          activeMigration = progress;
-          console.log(
-            `[Audit Migration ${migrationId}] Progress: ${progress.progress.toFixed(1)}%`
-          );
-        });
-
-        await migrateAuditTables(pool, tableName, batchSize || 1000);
-        console.log(
-          `✅ Audit migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
-        );
-
-        setTimeout(() => {
-          if (activeMigration?.migrationId === migrationId) {
-            activeMigration = null;
-          }
-        }, 300000);
-      } catch (error) {
-        console.error("❌ Background audit migration error:", error);
-        if (activeMigration) {
-          activeMigration.status = "failed";
-          activeMigration.errorMessage = String(error);
-          activeMigration.endTime = new Date();
-        }
-      }
-    })();
-  } catch (error) {
-    console.error("❌ Start audit migration error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 });

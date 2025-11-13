@@ -86,6 +86,56 @@ router.get('/:tableName', async (req, res) => {
       countWhereClause = whereClause;
     }
 
+    // Determine ORDER BY clause based on table structure
+    // Some tables have posting_month, others have doc_date, some have neither
+    // Tables without date columns: dublicate_creditors, dublicate_debitors
+    const tablesWithoutDateColumns = ['dublicate_creditors', 'dublicate_debitors'];
+    let orderByClause = 'ORDER BY tenant_code';
+    
+    // Skip column check for tables we know don't have date columns
+    if (tablesWithoutDateColumns.includes(tableName)) {
+      // These tables don't have date columns, use tenant_code only
+      console.log(`[Audit API] Table ${tableName} has no date columns, using ORDER BY tenant_code only`);
+    } else {
+      // Check if table has posting_month or doc_date column
+      try {
+        // First check for doc_date (preferred for transaction tables)
+        const docDateCheck = await db.execute(sql.raw(`
+          SELECT column_name 
+          FROM information_schema.columns 
+          WHERE table_schema = 'audit' 
+          AND table_name = '${tableName}'
+          AND column_name = 'doc_date'
+          LIMIT 1
+        `));
+        
+        if (docDateCheck.rows.length > 0) {
+          orderByClause = 'ORDER BY tenant_code, doc_date DESC NULLS LAST';
+        } else {
+          // If no doc_date, check for posting_month
+          const postingMonthCheck = await db.execute(sql.raw(`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'audit' 
+            AND table_name = '${tableName}'
+            AND column_name = 'posting_month'
+            LIMIT 1
+          `));
+          
+          if (postingMonthCheck.rows.length > 0) {
+            orderByClause = 'ORDER BY tenant_code, posting_month DESC NULLS LAST';
+          } else {
+            console.log(`[Audit API] Table ${tableName} has no date columns found in schema, using ORDER BY tenant_code only`);
+          }
+        }
+      } catch (err) {
+        // Fallback to tenant_code only if column check fails
+        console.warn(`[Audit API] Could not determine date column for ${tableName}, using tenant_code only:`, err);
+      }
+    }
+    
+    console.log(`[Audit API] Using ORDER BY clause for ${tableName}: ${orderByClause}`);
+
     // Get total count for pagination
     const countQuery = `
       SELECT COUNT(*) as total
@@ -102,7 +152,7 @@ router.get('/:tableName', async (req, res) => {
       SELECT *
       FROM audit."${tableName}"
       ${whereClause}
-      ORDER BY tenant_code, posting_month DESC NULLS LAST
+      ${orderByClause}
       LIMIT ${limit}
       OFFSET ${offset}
     `;
