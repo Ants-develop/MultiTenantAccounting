@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import session from "express-session";
 import { storage } from "./storage";
 import { authenticateUser, hashPassword, getUserWithCompanies } from "./auth";
-import { insertUserSchema, insertUserCompanySchema, users as usersTable, userCompanies as userCompaniesTable } from "@shared/schema";
+import { insertUserSchema, insertUserCompanySchema, users as usersTable, userCompanies as userCompaniesTable, clients as clientsTable } from "@shared/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "./services/activity-logger";
@@ -445,14 +445,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastName: usersTable.lastName,
             },
             company: {
-              id: sql`companies.id`,
-              name: sql`companies.name`,
-              code: sql`companies.code`,
+              id: clientsTable.id,
+              name: clientsTable.name,
+              code: clientsTable.code,
             }
           })
           .from(userCompaniesTable)
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(sql`companies`, sql`user_companies.company_id = companies.id`);
+          .innerJoin(clientsTable, eq(userCompaniesTable.companyId, clientsTable.id));
       } else {
         // For non-global admins in single-company model, show all assignments
         userCompanyAssignments = await db
@@ -470,14 +470,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
               lastName: usersTable.lastName,
             },
             company: {
-              id: sql`companies.id`,
-              name: sql`companies.name`,
-              code: sql`companies.code`,
+              id: clientsTable.id,
+              name: clientsTable.name,
+              code: clientsTable.code,
             }
           })
           .from(userCompaniesTable)
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(sql`companies`, sql`user_companies.company_id = companies.id`);
+          .innerJoin(clientsTable, eq(userCompaniesTable.companyId, clientsTable.id));
       }
 
       res.json(userCompanyAssignments);

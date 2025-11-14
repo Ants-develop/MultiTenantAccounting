@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node } from "flexlayout-react";
+import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSetNode } from "flexlayout-react";
 import "flexlayout-react/style/light.css";
 import { pageRegistry, getPageMetadata, resolvePath, extractParams } from "@/lib/pageRegistry";
 import { saveLayoutState, loadLayoutState, clearLayoutState } from "@/lib/flexLayoutStorage";
@@ -16,6 +16,7 @@ interface FlexLayoutContainerProps {
 
 export default function FlexLayoutContainer({ defaultPath = "/home", onContextReady }: FlexLayoutContainerProps) {
   const layoutRef = useRef<Layout | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [model, setModel] = useState<Model | null>(null);
   const [tabs, setTabs] = useState<Map<string, TabState>>(new Map());
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
@@ -100,8 +101,12 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
 
             // Check if this tab is active
             const parent = tabNode.getParent();
-            if (parent && parent.getSelectedNode() === tabNode) {
-              foundActiveId = tabId;
+            if (parent && parent.getType() === "tabset") {
+              const tabset = parent as TabSetNode;
+              const selectedNode = tabset.getSelectedNode();
+              if (selectedNode === tabNode) {
+                foundActiveId = tabId;
+              }
             }
           }
         }
@@ -184,7 +189,7 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
   const setActiveTab = useCallback((tabId: string) => {
     if (!model) return;
 
-    // Find the tab node
+    // Find the tab node to verify it exists
     let targetNode: TabNode | null = null;
     model.visitNodes((node: Node) => {
       if (node.getType() === "tab" && node.getId() === tabId) {
@@ -193,11 +198,8 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
     });
 
     if (targetNode) {
-      const parent = targetNode.getParent();
-      if (parent) {
-        // Use setSelectedNode to activate the tab
-        parent.setSelectedNode(targetNode);
-      }
+      // Use Actions API to select the tab
+      model.doAction(Actions.selectTab(tabId));
     }
   }, [model]);
 
@@ -365,12 +367,75 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
     }
   }, [updateTabsFromModel]);
 
+  // Add middle mouse click to close tabs (like Chrome)
+  useEffect(() => {
+    if (!containerRef.current || !model) return;
+
+    const handleMouseDown = (event: MouseEvent) => {
+      // Check if middle mouse button (button 1) is clicked
+      if (event.button !== 1) return;
+
+      // Find the closest tab element - FlexLayout uses multiple possible selectors
+      const target = event.target as HTMLElement;
+      const tabElement = target.closest('.flexlayout__tab, [class*="flexlayout__tab"]') as HTMLElement | null;
+      
+      if (!tabElement) return;
+
+      // Prevent default behavior (scrolling, etc.)
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Try multiple ways to get the node ID
+      let nodeId: string | null = null;
+      
+      // Method 1: data-nodeid attribute
+      nodeId = tabElement.getAttribute('data-nodeid');
+      
+      // Method 2: Check parent elements for data-nodeid
+      if (!nodeId) {
+        let parent = tabElement.parentElement;
+        while (parent && !nodeId) {
+          nodeId = parent.getAttribute('data-nodeid');
+          parent = parent.parentElement;
+        }
+      }
+      
+      // Method 3: Try to find by tab title
+      if (!nodeId) {
+        const tabTitle = tabElement.textContent?.trim() || tabElement.querySelector('.flexlayout__tab_title')?.textContent?.trim();
+        if (tabTitle) {
+          const matchingTab = Array.from(tabs.values()).find(
+            tab => tab.title === tabTitle
+          );
+          if (matchingTab) {
+            nodeId = matchingTab.id;
+          }
+        }
+      }
+      
+      if (nodeId) {
+        // Verify it's a tab node and close it
+        const node = model.getNodeById(nodeId);
+        if (node && node.getType() === "tab") {
+          closeTab(nodeId);
+        }
+      }
+    };
+
+    const container = containerRef.current;
+    container.addEventListener('mousedown', handleMouseDown);
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown);
+    };
+  }, [tabs, closeTab, model]);
+
   if (!model) {
     return <div className="w-full h-full" />;
   }
 
   return (
-    <div className="w-full h-full flexlayout-container">
+    <div ref={containerRef} className="w-full h-full flexlayout-container">
       <Layout
         ref={layoutRef}
         model={model}
@@ -380,4 +445,5 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
     </div>
   );
 }
+
 
