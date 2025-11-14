@@ -661,41 +661,20 @@ export async function migrateGeneralLedger(
           } catch (error) {
             console.error('❌ Batch insert error:', error);
             console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
-            addLog(progress, 'warn', `Batch insert failed, falling back to individual inserts`, { batchSize: values.length });
-            // Fallback to individual inserts if batch fails
-            for (let idx = 0; idx < values.length; idx++) {
-              const val = values[idx];
-              const entryNumber = val[1] as string;
-              try {
-                await db.execute(drizzleSql`INSERT INTO accounting.journal_entries (
-                  client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
-                  tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
-                  responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
-                  id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
-                  double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
-                  analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
-                  withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
-                  currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
-                  tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
-                  attached_files, doc_type, doc_date, doc_number, document_creation_date,
-                  document_modify_date, document_comments, posting_number
-                ) VALUES (
-                  ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
-                  ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
-                  ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
-                  ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
-                  ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
-                  ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
-                  ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
-                )`);
-                progress.successCount++;
-              } catch (individualError) {
-                console.error('❌ Individual insert error:', individualError);
-                progress.errorCount++;
-                const error = individualError instanceof Error ? individualError : new Error(String(individualError));
-                addError(progress, error, entryNumber, { entryNumber, tenantCode });
-              }
-            }
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            addLog(progress, 'error', `Batch insert failed: ${errorMessage}`, { batchSize: values.length });
+            addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+              batchSize: values.length, 
+              processedRecords: progress.processedRecords,
+              tenantCode 
+            });
+            // Stop migration immediately on any insert failure
+            progress.status = 'failed';
+            progress.errorMessage = `Insert failed: ${errorMessage}`;
+            progress.endTime = new Date();
+            emitProgress(progress);
+            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
           }
 
           progress.processedRecords += batch.length;
@@ -706,11 +685,17 @@ export async function migrateGeneralLedger(
           request.resume();
         } catch (error) {
           console.error('❌ Batch error:', error);
-          progress.errorCount += batch.length;
-          const err = error instanceof Error ? error : new Error(String(error));
-          addError(progress, err, undefined, { batchSize: batch.length, processedRecords: progress.processedRecords });
-          batch = [];
-          request.resume();
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(progress, 'error', `Batch processing failed: ${errorMessage}`, { batchSize: batch.length, processedRecords: progress.processedRecords });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { batchSize: batch.length, processedRecords: progress.processedRecords });
+          // Stop migration immediately on any error
+          progress.status = 'failed';
+          progress.errorMessage = `Batch processing failed: ${errorMessage}`;
+          progress.endTime = new Date();
+          emitProgress(progress);
+          saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+          // Don't resume - stop processing
+          return;
         }
       }
     });
@@ -812,41 +797,21 @@ export async function migrateGeneralLedger(
         } catch (error) {
           console.error('❌ Final batch insert error:', error);
           console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
-          addLog(progress, 'warn', `Final batch insert failed, falling back to individual inserts`, { batchSize: values.length });
-          // Fallback to individual inserts if batch fails
-          for (let idx = 0; idx < values.length; idx++) {
-            const val = values[idx];
-            const entryNumber = val[1] as string;
-            try {
-              await db.execute(drizzleSql`INSERT INTO accounting.journal_entries (
-                client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
-                tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
-                responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
-                id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
-                double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
-                analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
-                withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
-                currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
-                tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
-                attached_files, doc_type, doc_date, doc_number, document_creation_date,
-                document_modify_date, document_comments, posting_number
-              ) VALUES (
-                ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
-                ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
-                ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
-                ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
-                ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
-                ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
-                ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}, ${val[53]}, ${val[54]}, ${val[55]}, ${val[56]}
-              )`);
-              progress.successCount++;
-            } catch (individualError) {
-              console.error('❌ Individual insert error:', individualError);
-              progress.errorCount++;
-              const error = individualError instanceof Error ? individualError : new Error(String(individualError));
-              addError(progress, error, entryNumber, { entryNumber, tenantCode });
-            }
-          }
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(progress, 'error', `Final batch insert failed: ${errorMessage}`, { batchSize: values.length });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+            batchSize: values.length, 
+            processedRecords: progress.processedRecords,
+            tenantCode,
+            isFinalBatch: true
+          });
+          // Stop migration immediately on any insert failure
+          progress.status = 'failed';
+          progress.errorMessage = `Insert failed: ${errorMessage}`;
+          progress.endTime = new Date();
+          emitProgress(progress);
+          saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+          throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
         }
 
         progress.processedRecords += batch.length;
@@ -1026,7 +991,19 @@ export async function exportToAudit(
               progress.successCount++;
             } catch (error) {
               console.error('❌ Insert error:', error);
-              progress.errorCount++;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              addLog(progress, 'error', `Insert failed: ${errorMessage}`, { recordIndex: values.indexOf(val) });
+              addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+                recordIndex: values.indexOf(val),
+                tenantCode 
+              });
+              // Stop migration immediately on any insert failure
+              progress.status = 'failed';
+              progress.errorMessage = `Insert failed: ${errorMessage}`;
+              progress.endTime = new Date();
+              emitProgress(progress);
+              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+              throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
             }
           }
 
@@ -1038,9 +1015,17 @@ export async function exportToAudit(
           request.resume();
         } catch (error) {
           console.error('❌ Batch error:', error);
-          progress.errorCount += batch.length;
-          batch = [];
-          request.resume();
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(progress, 'error', `Batch processing failed: ${errorMessage}`, { batchSize: batch.length, processedRecords: progress.processedRecords, tenantCode });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { batchSize: batch.length, processedRecords: progress.processedRecords, tenantCode });
+          // Stop migration immediately on any error
+          progress.status = 'failed';
+          progress.errorMessage = `Batch processing failed: ${errorMessage}`;
+          progress.endTime = new Date();
+          emitProgress(progress);
+          saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+          // Don't resume - stop processing
+          return;
         }
       }
     });
@@ -1159,7 +1144,19 @@ export async function migrateRSTables(
               progress.successCount++;
             } catch (error) {
               console.error('❌ RS insert error:', error);
-              progress.errorCount++;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              addLog(progress, 'error', `RS insert failed: ${errorMessage}`, { recordIndex: values.indexOf(val), tableName });
+              addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+                recordIndex: values.indexOf(val),
+                tableName 
+              });
+              // Stop migration immediately on any insert failure
+              progress.status = 'failed';
+              progress.errorMessage = `Insert failed: ${errorMessage}`;
+              progress.endTime = new Date();
+              emitProgress(progress);
+              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+              throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
             }
           }
 
@@ -1290,7 +1287,19 @@ export async function migrateAuditTables(
               progress.successCount++;
             } catch (error) {
               console.error('❌ Audit insert error:', error);
-              progress.errorCount++;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              addLog(progress, 'error', `Audit insert failed: ${errorMessage}`, { recordIndex: values.indexOf(val), tableName });
+              addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+                recordIndex: values.indexOf(val),
+                tableName 
+              });
+              // Stop migration immediately on any insert failure
+              progress.status = 'failed';
+              progress.errorMessage = `Insert failed: ${errorMessage}`;
+              progress.endTime = new Date();
+              emitProgress(progress);
+              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+              throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
             }
           }
 
@@ -1503,7 +1512,19 @@ export async function updateJournalEntries(
               progress.successCount++;
             } catch (error) {
               console.error('❌ Update error:', error);
-              progress.errorCount++;
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              addLog(progress, 'error', `Update failed: ${errorMessage}`, { entryNumber, tenantCode });
+              addError(progress, error instanceof Error ? error : new Error(String(error)), entryNumber, { 
+                entryNumber, 
+                tenantCode 
+              });
+              // Stop migration immediately on any update failure
+              progress.status = 'failed';
+              progress.errorMessage = `Update failed: ${errorMessage}`;
+              progress.endTime = new Date();
+              emitProgress(progress);
+              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+              throw new Error(`Migration stopped due to update failure: ${errorMessage}`);
             }
           }
 
@@ -1515,9 +1536,17 @@ export async function updateJournalEntries(
           request.resume();
         } catch (error) {
           console.error('❌ Batch error:', error);
-          progress.errorCount += batch.length;
-          batch = [];
-          request.resume();
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(progress, 'error', `Batch processing failed: ${errorMessage}`, { batchSize: batch.length, processedRecords: progress.processedRecords, tenantCode });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { batchSize: batch.length, processedRecords: progress.processedRecords, tenantCode });
+          // Stop migration immediately on any error
+          progress.status = 'failed';
+          progress.errorMessage = `Batch processing failed: ${errorMessage}`;
+          progress.endTime = new Date();
+          emitProgress(progress);
+          saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+          // Don't resume - stop processing
+          return;
         }
       }
     });
@@ -1876,11 +1905,22 @@ export async function migrateAuditSchemaTable(
             progress.successCount += values.length;
           } catch (error) {
             console.error(`❌ Batch insert error for ${pgTableName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            addLog(progress, 'error', `Batch insert failed for ${pgTableName}: ${errorMessage}`, { 
+              tableName: pgTableName, 
+              batchSize: values.length 
+            });
             addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
               tableName: pgTableName, 
               batchSize: values.length 
             });
-            progress.errorCount += values.length;
+            // Stop migration immediately on any insert failure
+            progress.status = 'failed';
+            progress.errorMessage = `Insert failed for ${pgTableName}: ${errorMessage}`;
+            progress.endTime = new Date();
+            emitProgress(progress);
+            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
           }
 
           progress.processedRecords += batch.length;
@@ -1958,12 +1998,24 @@ export async function migrateAuditSchemaTable(
             progress.successCount += values.length;
           } catch (error) {
             console.error(`❌ Final batch insert error for ${pgTableName}:`, error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            addLog(progress, 'error', `Final batch insert failed for ${pgTableName}: ${errorMessage}`, { 
+              tableName: pgTableName, 
+              batchSize: values.length,
+              isFinalBatch: true
+            });
             addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
               tableName: pgTableName, 
               batchSize: values.length,
               isFinalBatch: true
             });
-            progress.errorCount += values.length;
+            // Stop migration immediately on any insert failure
+            progress.status = 'failed';
+            progress.errorMessage = `Insert failed for ${pgTableName}: ${errorMessage}`;
+            progress.endTime = new Date();
+            emitProgress(progress);
+            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
           }
 
           progress.processedRecords += batch.length;

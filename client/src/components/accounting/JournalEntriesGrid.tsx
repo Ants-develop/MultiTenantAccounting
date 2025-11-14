@@ -1,10 +1,13 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { BaseHandsontableGrid } from "@/components/grid";
 import dayjs from 'dayjs';
+
+// Maximum number of records to load for performance
+const MAX_RECORDS_LIMIT = 50000;
 
 interface JournalEntry {
   id: number;
@@ -83,12 +86,41 @@ export function JournalEntriesGrid({
 }: JournalEntriesGridProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const hasShownLimitWarning = useRef(false);
 
-  // Prepare data for Handsontable
+  // Check if data exceeds limit and show warning
+  useEffect(() => {
+    // Reset warning flag when loading starts (refresh triggered)
+    if (isLoading || isFetching) {
+      hasShownLimitWarning.current = false;
+      return;
+    }
+
+    // Show warning when data is loaded and exceeds limit
+    if (journalEntries && journalEntries.length > MAX_RECORDS_LIMIT) {
+      if (!hasShownLimitWarning.current) {
+        toast({
+          title: "Performance Warning",
+          description: `Only showing first ${MAX_RECORDS_LIMIT.toLocaleString()} of ${journalEntries.length.toLocaleString()} records for performance. Please use filters to reduce the dataset.`,
+          variant: "destructive",
+          duration: 8000,
+        });
+        hasShownLimitWarning.current = true;
+      }
+    } else if (journalEntries && journalEntries.length <= MAX_RECORDS_LIMIT) {
+      // Reset warning flag when data is within limit
+      hasShownLimitWarning.current = false;
+    }
+  }, [journalEntries, isLoading, isFetching, toast]);
+
+  // Prepare data for Handsontable with record limit
   const tableData = useMemo(() => {
     if (!journalEntries) return [];
     
-    return journalEntries.map((entry: JournalEntry) => ({
+    // Limit records to MAX_RECORDS_LIMIT for performance
+    const limitedEntries = journalEntries.slice(0, MAX_RECORDS_LIMIT);
+    
+    return limitedEntries.map((entry: JournalEntry) => ({
       // Entry Information (4 columns)
       id: entry.id,
       entryNumber: entry.entryNumber,
@@ -163,6 +195,15 @@ export function JournalEntriesGrid({
       postingNumber: entry.postingNumber || '',
     }));
   }, [journalEntries]);
+
+  // Track total records count for display
+  const totalRecords = useMemo(() => {
+    return journalEntries?.length || 0;
+  }, [journalEntries]);
+
+  const displayedRecords = useMemo(() => {
+    return Math.min(totalRecords, MAX_RECORDS_LIMIT);
+  }, [totalRecords]);
 
   // Column width configuration
   const columnWidths = useMemo(() => [
