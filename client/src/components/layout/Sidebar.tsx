@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { useGoldenLayout } from "@/hooks/useGoldenLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Calculator, BarChart3, List, Book, File, Receipt, 
          University, Edit, FileText, DollarSign, ChartBar, 
          Scale, PieChart, Users, Settings, Shield, Globe, 
@@ -396,15 +396,23 @@ export default function Sidebar() {
   // Get Golden Layout context
   const goldenLayoutContext = useGoldenLayout();
   
-  // Track active tab to force re-render when it changes
-  const [, forceUpdate] = useState(0);
+  // Track active tab path to only re-render when it actually changes
+  const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
+  const prevActiveTabPathRef = useRef<string | null>(null);
   
-  // Subscribe to active tab changes (poll every 500ms since Golden Layout doesn't emit events)
+  // Subscribe to active tab changes (poll every 500ms, but only update if changed)
   useEffect(() => {
     if (!goldenLayoutContext) return;
     
     const interval = setInterval(() => {
-      forceUpdate(prev => prev + 1);
+      const activeTab = goldenLayoutContext.getActiveTab();
+      const currentPath = activeTab?.path || null;
+      
+      // Only update state if the path actually changed
+      if (currentPath !== prevActiveTabPathRef.current) {
+        prevActiveTabPathRef.current = currentPath;
+        setActiveTabPath(currentPath);
+      }
     }, 500);
     
     return () => clearInterval(interval);
@@ -431,18 +439,18 @@ export default function Sidebar() {
     });
   };
 
-  const isActive = (href: string) => {
-    // Check active tab from Golden Layout instead of URL
-    if (goldenLayoutContext) {
-      const activeTab = goldenLayoutContext.getActiveTab();
-      if (activeTab) {
+  // Memoize isActive function to prevent unnecessary recalculations
+  const isActive = useMemo(() => {
+    return (href: string) => {
+      // Check active tab from tracked state (more efficient than calling getActiveTab every time)
+      if (activeTabPath) {
         // Match by path - exact match or starts with (for nested routes)
-        return activeTab.path === href || (href !== "/dashboard" && activeTab.path.startsWith(href));
+        return activeTabPath === href || (href !== "/dashboard" && activeTabPath.startsWith(href));
       }
-    }
-    // Fallback to URL matching for initial load
-    return location === href || (href !== "/dashboard" && location.startsWith(href));
-  };
+      // Fallback to URL matching for initial load
+      return location === href || (href !== "/dashboard" && location.startsWith(href));
+    };
+  }, [activeTabPath, location]);
 
   const isModuleActive = (moduleId: string) => {
     return currentModule === moduleId;
@@ -460,6 +468,9 @@ export default function Sidebar() {
       return null;
     }
 
+    // Memoize active state to prevent unnecessary recalculations
+    const itemIsActive = useMemo(() => isActive(item.href), [isActive, item.href]);
+
     const handleClick = (e: React.MouseEvent) => {
       e.preventDefault();
       if (!goldenLayoutContext) {
@@ -473,7 +484,7 @@ export default function Sidebar() {
     const navItem = (
       <div 
         onClick={handleClick}
-        className={`accounting-nav-item cursor-pointer ${isActive(item.href) ? 'active' : ''} ${isCollapsed ? 'collapsed' : ''}`}
+        className={`accounting-nav-item cursor-pointer ${itemIsActive ? 'active' : ''} ${isCollapsed ? 'collapsed' : ''}`}
       >
         <Icon className="w-5 h-5" />
         {!isCollapsed && <span className="ml-3">{t(item.name)}</span>}

@@ -174,17 +174,34 @@ router.get('/', async (req, res) => {
     
     const filteredQuery = query.where(whereConditions);
     
-    // Get total count for pagination
-    const [{ count: totalCount }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(journalEntries)
-      .where(whereConditions);
-    
     // Order by date descending with pagination
     const entries = await filteredQuery
       .orderBy(desc(journalEntries.date))
       .limit(limit)
       .offset(offset);
+    
+    // Get total count for pagination
+    // Use a more efficient count query with timeout handling
+    let totalCount = 0;
+    try {
+      const countResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(journalEntries)
+        .where(whereConditions);
+      
+      totalCount = countResult[0]?.count || 0;
+    } catch (error: any) {
+      // If count query times out, estimate based on current page results
+      console.warn('[JournalEntries API] Count query failed, using fallback:', error.message);
+      if (error.message?.includes('timeout') || error.message?.includes('canceling statement')) {
+        // For timeout errors, estimate count based on current page
+        // This is a fallback - ideally the count should complete
+        totalCount = entries.length > 0 ? (page * limit) + entries.length : 0;
+        console.warn(`[JournalEntries API] Using estimated count: ${totalCount} (page ${page}, limit ${limit}, entries: ${entries.length})`);
+      } else {
+        throw error; // Re-throw non-timeout errors
+      }
+    }
     
     const totalPages = Math.ceil(Number(totalCount) / limit);
     console.log(`[JournalEntries API] Found ${entries.length} entries (page ${page}/${totalPages}, total: ${totalCount})`);
