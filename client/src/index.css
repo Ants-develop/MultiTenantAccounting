@@ -394,4 +394,37 @@
   }
 }
 
+/* FlexLayout container styles - ensure it doesn't cover sidebar/topbar */
+.flexlayout-container {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
+.flexlayout-container .flexlayout__layout {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 0 !important;
+}
+
+/* Ensure FlexLayout doesn't use fixed positioning that covers other elements */
+.flexlayout__layout {
+  position: relative !important;
+}
+
+/* Ensure sidebar and topbar stay on top */
+.accounting-sidebar {
+  position: relative;
+  z-index: 10;
+}
+
+/* TopBar should also stay visible */
+header,
+[class*="topbar"],
+[class*="TopBar"] {
+  position: relative;
+  z-index: 10;
+}
 
