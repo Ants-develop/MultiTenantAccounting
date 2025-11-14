@@ -25,9 +25,8 @@ export const ClientPortalMessages: React.FC = () => {
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["/api/client-portal/messages", clientId],
     queryFn: async () => {
-      return apiRequest(`/api/client-portal/messages?clientId=${clientId}`, {
-        method: "GET",
-      });
+      const res = await apiRequest("GET", `/api/client-portal/messages?clientId=${clientId}`);
+      return res.json();
     },
     enabled: clientId > 0,
   });
@@ -35,10 +34,8 @@ export const ClientPortalMessages: React.FC = () => {
   const sendMessageMutation = useMutation({
     mutationFn: async (data: { to: string; subject: string; body: string }) => {
       // TODO: Implement message sending via email API
-      return apiRequest("/api/client-portal/messages/send", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("POST", "/api/client-portal/messages/send", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/client-portal/messages"] });

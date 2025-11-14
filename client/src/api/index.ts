@@ -18,9 +18,6 @@ export { reportingApi } from './reporting';
 // Bank Module
 export { bankApi } from './bank';
 
-// Chat Module
-export { chatApi } from './chat';
-
 // Tasks Module
 export { tasksApi } from './tasks';
 

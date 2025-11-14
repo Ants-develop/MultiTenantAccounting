@@ -102,14 +102,14 @@ export default function JobsDashboard() {
 
       <div className="flex items-center gap-3">
         <Select
-          value={statusFilter || ""}
-          onValueChange={(value) => setStatusFilter(value || undefined)}
+          value={statusFilter || "all"}
+          onValueChange={(value) => setStatusFilter(value === "all" ? undefined : value)}
         >
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Filter by status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Status</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>

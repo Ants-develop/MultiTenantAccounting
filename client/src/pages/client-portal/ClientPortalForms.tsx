@@ -32,19 +32,16 @@ export const ClientPortalForms: React.FC = () => {
   const { data: forms = [], isLoading } = useQuery({
     queryKey: ["/api/client-portal/forms", clientId],
     queryFn: async () => {
-      return apiRequest(`/api/client-portal/forms?clientId=${clientId}`, {
-        method: "GET",
-      });
+      const res = await apiRequest("GET", `/api/client-portal/forms?clientId=${clientId}`);
+      return res.json();
     },
     enabled: clientId > 0,
   });
 
   const submitFormMutation = useMutation({
     mutationFn: async (data: { formId: number; answers: Record<string, any> }) => {
-      return apiRequest("/api/client-portal/forms/submit", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      const res = await apiRequest("POST", "/api/client-portal/forms/submit", data);
+      return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/client-portal/forms"] });

@@ -63,18 +63,15 @@ export interface EmailTemplate {
 // =====================================================
 
 export async function fetchEmailAccounts(): Promise<EmailAccount[]> {
-  return apiRequest("/api/email/accounts", {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", "/api/email/accounts");
+  return res.json();
 }
 
 export async function createEmailAccount(
   account: Omit<EmailAccount, "id" | "createdAt" | "updatedAt" | "lastSyncAt">
 ): Promise<EmailAccount> {
-  return apiRequest("/api/email/accounts", {
-    method: "POST",
-    body: JSON.stringify(account),
-  });
+  const res = await apiRequest("POST", "/api/email/accounts", account);
+  return res.json();
 }
 
 // =====================================================
@@ -88,15 +85,13 @@ export async function fetchInbox(
   const params = new URLSearchParams();
   if (accountId) params.append("accountId", accountId.toString());
   params.append("limit", limit.toString());
-  return apiRequest(`/api/email/inbox?${params.toString()}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/email/inbox?${params.toString()}`);
+  return res.json();
 }
 
 export async function fetchEmailMessage(messageId: number): Promise<EmailMessage> {
-  return apiRequest(`/api/email/messages/${messageId}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/email/messages/${messageId}`);
+  return res.json();
 }
 
 export async function sendEmail(
@@ -107,24 +102,20 @@ export async function sendEmail(
   bodyHtml?: string,
   attachments?: any[]
 ): Promise<{ success: boolean }> {
-  return apiRequest("/api/email/send", {
-    method: "POST",
-    body: JSON.stringify({
-      accountId,
-      to,
-      subject,
-      body,
-      bodyHtml,
-      attachments,
-    }),
+  const res = await apiRequest("POST", "/api/email/send", {
+    accountId,
+    to,
+    subject,
+    body,
+    bodyHtml,
+    attachments,
   });
+  return res.json();
 }
 
 export async function syncEmails(accountId: number): Promise<{ success: boolean; emailsFetched: number }> {
-  return apiRequest("/api/email/sync", {
-    method: "POST",
-    body: JSON.stringify({ accountId }),
-  });
+  const res = await apiRequest("POST", "/api/email/sync", { accountId });
+  return res.json();
 }
 
 // =====================================================
@@ -133,18 +124,15 @@ export async function syncEmails(accountId: number): Promise<{ success: boolean;
 
 export async function fetchEmailTemplates(category?: string): Promise<EmailTemplate[]> {
   const params = category ? `?category=${encodeURIComponent(category)}` : "";
-  return apiRequest(`/api/email/templates${params}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/email/templates${params}`);
+  return res.json();
 }
 
 export async function createEmailTemplate(
   template: Omit<EmailTemplate, "id" | "createdAt" | "updatedAt" | "createdBy">
 ): Promise<EmailTemplate> {
-  return apiRequest("/api/email/templates", {
-    method: "POST",
-    body: JSON.stringify(template),
-  });
+  const res = await apiRequest("POST", "/api/email/templates", template);
+  return res.json();
 }
 
 // =====================================================

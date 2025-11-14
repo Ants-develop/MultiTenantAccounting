@@ -24,9 +24,8 @@ export const ClientPortalDocuments: React.FC = () => {
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ["/api/client-portal/documents", clientId],
     queryFn: async () => {
-      return apiRequest(`/api/client-portal/documents?clientId=${clientId}`, {
-        method: "GET",
-      });
+      const res = await apiRequest("GET", `/api/client-portal/documents?clientId=${clientId}`);
+      return res.json();
     },
     enabled: clientId > 0,
   });

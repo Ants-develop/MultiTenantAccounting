@@ -15,9 +15,8 @@ export const ClientPortalTasks: React.FC = () => {
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ["/api/client-portal/tasks", clientId],
     queryFn: async () => {
-      return apiRequest(`/api/client-portal/tasks?clientId=${clientId}`, {
-        method: "GET",
-      });
+      const res = await apiRequest("GET", `/api/client-portal/tasks?clientId=${clientId}`);
+      return res.json();
     },
     enabled: clientId > 0,
   });

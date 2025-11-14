@@ -33,12 +33,12 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
         <span>Filters:</span>
       </div>
 
-      <Select value={status || ""} onValueChange={(value) => onStatusChange(value || undefined)}>
+      <Select value={status || "all"} onValueChange={(value) => onStatusChange(value === "all" ? undefined : value)}>
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">All Status</SelectItem>
+          <SelectItem value="all">All Status</SelectItem>
           <SelectItem value="todo">To Do</SelectItem>
           <SelectItem value="in_progress">In Progress</SelectItem>
           <SelectItem value="done">Done</SelectItem>
@@ -47,12 +47,12 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
         </SelectContent>
       </Select>
 
-      <Select value={priority || ""} onValueChange={(value) => onPriorityChange(value || undefined)}>
+      <Select value={priority || "all"} onValueChange={(value) => onPriorityChange(value === "all" ? undefined : value)}>
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">All Priorities</SelectItem>
+          <SelectItem value="all">All Priorities</SelectItem>
           <SelectItem value="low">Low</SelectItem>
           <SelectItem value="medium">Medium</SelectItem>
           <SelectItem value="high">High</SelectItem>
@@ -62,14 +62,14 @@ export const TaskFilters: React.FC<TaskFiltersProps> = ({
 
       {assignees.length > 0 && (
         <Select
-          value={assigneeId?.toString() || ""}
-          onValueChange={(value) => onAssigneeChange(value ? parseInt(value) : undefined)}
+          value={assigneeId?.toString() || "all"}
+          onValueChange={(value) => onAssigneeChange(value === "all" ? undefined : parseInt(value))}
         >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="Assignee" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Assignees</SelectItem>
+            <SelectItem value="all">All Assignees</SelectItem>
             {assignees.map((a) => (
               <SelectItem key={a.id} value={a.id.toString()}>
                 {a.name}

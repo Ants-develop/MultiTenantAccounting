@@ -40,44 +40,35 @@ export interface CreateAutomationPayload {
 
 export async function fetchAutomations(workspaceId?: number): Promise<Automation[]> {
   const params = workspaceId ? `?workspaceId=${workspaceId}` : "";
-  return apiRequest(`/api/automations${params}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/automations${params}`);
+  return res.json();
 }
 
 export async function createAutomation(
   payload: CreateAutomationPayload
 ): Promise<Automation> {
-  return apiRequest("/api/automations", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  const res = await apiRequest("POST", "/api/automations", payload);
+  return res.json();
 }
 
 export async function updateAutomation(
   id: number,
   updates: Partial<Automation>
 ): Promise<Automation> {
-  return apiRequest(`/api/automations/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
+  const res = await apiRequest("PUT", `/api/automations/${id}`, updates);
+  return res.json();
 }
 
 export async function deleteAutomation(id: number): Promise<void> {
-  return apiRequest(`/api/automations/${id}`, {
-    method: "DELETE",
-  });
+  await apiRequest("DELETE", `/api/automations/${id}`);
 }
 
 export async function testAutomation(
   id: number,
   testEventData: Record<string, any>
 ): Promise<{ success: boolean; message: string }> {
-  return apiRequest(`/api/automations/${id}/test`, {
-    method: "POST",
-    body: JSON.stringify(testEventData),
-  });
+  const res = await apiRequest("POST", `/api/automations/${id}/test`, testEventData);
+  return res.json();
 }
 
 export async function executeBulkAction(
@@ -85,10 +76,8 @@ export async function executeBulkAction(
   targetIds: number[],
   metadata?: Record<string, any>
 ): Promise<{ success: boolean; message: string }> {
-  return apiRequest("/api/automations/bulk-action", {
-    method: "POST",
-    body: JSON.stringify({ actionType, targetIds, metadata }),
-  });
+  const res = await apiRequest("POST", "/api/automations/bulk-action", { actionType, targetIds, metadata });
+  return res.json();
 }
 
 // =====================================================

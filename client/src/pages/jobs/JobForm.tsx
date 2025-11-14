@@ -130,14 +130,14 @@ export const JobForm: React.FC<JobFormProps> = ({
           <div className="space-y-2">
             <Label htmlFor="pipeline">Pipeline (Optional)</Label>
             <Select
-              value={pipelineIdValue?.toString() || ""}
-              onValueChange={(value) => setValue("pipelineId", value ? parseInt(value) : undefined)}
+              value={pipelineIdValue?.toString() || "none"}
+              onValueChange={(value) => setValue("pipelineId", value === "none" ? undefined : parseInt(value))}
             >
               <SelectTrigger id="pipeline">
                 <SelectValue placeholder="No Pipeline" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Pipeline</SelectItem>
+                <SelectItem value="none">No Pipeline</SelectItem>
                 {pipelines.map(p => (
                   <SelectItem key={p.id} value={p.id.toString()}>
                     {p.name}

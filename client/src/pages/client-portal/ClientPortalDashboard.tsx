@@ -19,9 +19,8 @@ export const ClientPortalDashboard: React.FC = () => {
   const { data: dashboard, isLoading } = useQuery({
     queryKey: ["/api/client-portal/dashboard", clientId],
     queryFn: async () => {
-      return apiRequest(`/api/client-portal/dashboard?clientId=${clientId}`, {
-        method: "GET",
-      });
+      const res = await apiRequest("GET", `/api/client-portal/dashboard?clientId=${clientId}`);
+      return res.json();
     },
     enabled: clientId > 0,
   });
@@ -263,9 +262,6 @@ export const ClientPortalDashboard: React.FC = () => {
                 variant="outline"
                 className="w-full mt-4"
                 onClick={() => {
-                  if (selectedMessage) {
-                    setSelectedMessage(null);
-                  }
                   setLocation("/client-portal/messages");
                 }}
               >

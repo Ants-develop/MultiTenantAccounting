@@ -1,15 +1,16 @@
--- RS Integration Module Tables
--- Migration: 006_rs_module.sql
--- Description: Create tables for Georgian Revenue Service (RS.ge) integration data
+-- =====================================================
+-- RS Integration Module Migration
+-- Schema: rs
+-- Description: Georgian Revenue Service (RS.ge) integration data
+-- =====================================================
 
 -- UP
--- Create RS schema and tables for RS.ge integration data
+-- Create RS schema and tables
 
--- Create RS schema for RS.ge data
 CREATE SCHEMA IF NOT EXISTS rs;
 
 -- =====================================================
--- RS Users Table (Credentials) - In rs schema
+-- RS Users Table (Credentials)
 -- =====================================================
 CREATE TABLE IF NOT EXISTS rs.users (
   id SERIAL PRIMARY KEY,
@@ -38,25 +39,11 @@ ALTER TABLE rs.users
   ADD CONSTRAINT rs_users_created_by_user_id_fkey
   FOREIGN KEY (created_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
--- Create indexes
 CREATE INDEX IF NOT EXISTS idx_rs_users_company_name ON rs.users(company_name);
 CREATE INDEX IF NOT EXISTS idx_rs_users_client_id ON rs.users(client_id);
 CREATE INDEX IF NOT EXISTS idx_rs_users_company_tin ON rs.users(company_tin);
 
--- Create trigger function for auto-updating updated_at
-CREATE OR REPLACE FUNCTION rs.set_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Create trigger
-CREATE TRIGGER rs_users_set_updated_at
-BEFORE UPDATE ON rs.users
-FOR EACH ROW
-EXECUTE FUNCTION rs.set_updated_at();
+COMMENT ON TABLE rs.users IS 'RS.ge API credentials per company';
 
 -- =====================================================
 -- RS Schema Tables
@@ -92,6 +79,8 @@ CREATE INDEX idx_seller_invoices_invoice_id ON rs.seller_invoices("INVOICE_ID");
 CREATE INDEX idx_seller_invoices_company_tin ON rs.seller_invoices("COMPANY_TIN");
 CREATE INDEX idx_seller_invoices_updated_at ON rs.seller_invoices("UPDATED_AT");
 
+COMMENT ON TABLE rs.seller_invoices IS 'Sales invoices issued by clients';
+
 -- 2. Buyer Invoices (Incoming invoices)
 CREATE TABLE IF NOT EXISTS rs.buyer_invoices (
   "ID" SERIAL PRIMARY KEY,
@@ -122,6 +111,8 @@ CREATE INDEX idx_buyer_invoices_invoice_id ON rs.buyer_invoices("INVOICE_ID");
 CREATE INDEX idx_buyer_invoices_company_tin ON rs.buyer_invoices("COMPANY_TIN");
 CREATE INDEX idx_buyer_invoices_updated_at ON rs.buyer_invoices("UPDATED_AT");
 
+COMMENT ON TABLE rs.buyer_invoices IS 'Purchase invoices received by clients';
+
 -- 3. Special Seller Invoices (NSAF API)
 CREATE TABLE IF NOT EXISTS rs.spec_seller_invoices (
   "ID" SERIAL PRIMARY KEY,
@@ -145,6 +136,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_seller_invoices (
 CREATE INDEX idx_spec_seller_invoices_invoice_id ON rs.spec_seller_invoices("INVOICE_ID");
 CREATE INDEX idx_spec_seller_invoices_company_tin ON rs.spec_seller_invoices("COMPANY_TIN");
 
+COMMENT ON TABLE rs.spec_seller_invoices IS 'Special seller invoices (NSAF API)';
+
 -- 4. Special Buyer Invoices (NSAF API)
 CREATE TABLE IF NOT EXISTS rs.spec_buyer_invoices (
   "ID" SERIAL PRIMARY KEY,
@@ -167,6 +160,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_buyer_invoices (
 
 CREATE INDEX idx_spec_buyer_invoices_invoice_id ON rs.spec_buyer_invoices("INVOICE_ID");
 CREATE INDEX idx_spec_buyer_invoices_company_tin ON rs.spec_buyer_invoices("COMPANY_TIN");
+
+COMMENT ON TABLE rs.spec_buyer_invoices IS 'Special buyer invoices (NSAF API)';
 
 -- 5. Sellers Waybills (Outgoing shipments)
 CREATE TABLE IF NOT EXISTS rs.sellers_waybills (
@@ -206,6 +201,8 @@ CREATE INDEX idx_sellers_waybills_external_id ON rs.sellers_waybills("EXTERNAL_I
 CREATE INDEX idx_sellers_waybills_company_tin ON rs.sellers_waybills("COMPANY_TIN");
 CREATE INDEX idx_sellers_waybills_updated_at ON rs.sellers_waybills("UPDATED_AT");
 
+COMMENT ON TABLE rs.sellers_waybills IS 'Outgoing waybills';
+
 -- 6. Buyers Waybills (Incoming shipments)
 CREATE TABLE IF NOT EXISTS rs.buyers_waybills (
   "ID" SERIAL PRIMARY KEY,
@@ -244,6 +241,8 @@ CREATE INDEX idx_buyers_waybills_external_id ON rs.buyers_waybills("EXTERNAL_ID"
 CREATE INDEX idx_buyers_waybills_company_tin ON rs.buyers_waybills("COMPANY_TIN");
 CREATE INDEX idx_buyers_waybills_updated_at ON rs.buyers_waybills("UPDATED_AT");
 
+COMMENT ON TABLE rs.buyers_waybills IS 'Incoming waybills';
+
 -- 7. Sellers Waybill Goods (Line items)
 CREATE TABLE IF NOT EXISTS rs.sellers_waybill_goods (
   "ID" SERIAL PRIMARY KEY,
@@ -267,6 +266,8 @@ CREATE TABLE IF NOT EXISTS rs.sellers_waybill_goods (
 CREATE INDEX idx_sellers_waybill_goods_waybill_id ON rs.sellers_waybill_goods("WAYBILL_ID");
 CREATE INDEX idx_sellers_waybill_goods_company_tin ON rs.sellers_waybill_goods("COMPANY_TIN");
 
+COMMENT ON TABLE rs.sellers_waybill_goods IS 'Seller waybill line items';
+
 -- 8. Buyers Waybill Goods (Line items)
 CREATE TABLE IF NOT EXISTS rs.buyers_waybill_goods (
   "ID" SERIAL PRIMARY KEY,
@@ -289,6 +290,8 @@ CREATE TABLE IF NOT EXISTS rs.buyers_waybill_goods (
 
 CREATE INDEX idx_buyers_waybill_goods_waybill_id ON rs.buyers_waybill_goods("WAYBILL_ID");
 CREATE INDEX idx_buyers_waybill_goods_company_tin ON rs.buyers_waybill_goods("COMPANY_TIN");
+
+COMMENT ON TABLE rs.buyers_waybill_goods IS 'Buyer waybill line items';
 
 -- 9. Sellers Invoice Goods (Line items)
 CREATE TABLE IF NOT EXISTS rs.sellers_invoice_goods (
@@ -318,6 +321,8 @@ CREATE TABLE IF NOT EXISTS rs.sellers_invoice_goods (
 CREATE INDEX idx_sellers_invoice_goods_invoice_id ON rs.sellers_invoice_goods("INVOICE_ID");
 CREATE INDEX idx_sellers_invoice_goods_company_tin ON rs.sellers_invoice_goods("COMPANY_TIN");
 
+COMMENT ON TABLE rs.sellers_invoice_goods IS 'Seller invoice line items';
+
 -- 10. Buyers Invoice Goods (Line items)
 CREATE TABLE IF NOT EXISTS rs.buyers_invoice_goods (
   "ID" SERIAL PRIMARY KEY,
@@ -346,6 +351,8 @@ CREATE TABLE IF NOT EXISTS rs.buyers_invoice_goods (
 CREATE INDEX idx_buyers_invoice_goods_invoice_id ON rs.buyers_invoice_goods("INVOICE_ID");
 CREATE INDEX idx_buyers_invoice_goods_company_tin ON rs.buyers_invoice_goods("COMPANY_TIN");
 
+COMMENT ON TABLE rs.buyers_invoice_goods IS 'Buyer invoice line items';
+
 -- 11. Special Invoice Goods (NSAF API)
 CREATE TABLE IF NOT EXISTS rs.spec_invoice_goods (
   "ID" SERIAL PRIMARY KEY,
@@ -365,6 +372,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_invoice_goods (
 CREATE INDEX idx_spec_invoice_goods_invoice_id ON rs.spec_invoice_goods("INVOICE_ID");
 CREATE INDEX idx_spec_invoice_goods_company_tin ON rs.spec_invoice_goods("COMPANY_TIN");
 
+COMMENT ON TABLE rs.spec_invoice_goods IS 'Special invoice goods (NSAF)';
+
 -- 12. Waybill-Invoice Associations
 CREATE TABLE IF NOT EXISTS rs.waybill_invoices (
   "ID" SERIAL PRIMARY KEY,
@@ -383,21 +392,28 @@ CREATE INDEX idx_waybill_invoices_waybill_id ON rs.waybill_invoices("WAYBILL_EXT
 CREATE INDEX idx_waybill_invoices_invoice_id ON rs.waybill_invoices("INVOICE_ID");
 CREATE INDEX idx_waybill_invoices_company_tin ON rs.waybill_invoices("COMPANY_TIN");
 
--- Comments
-COMMENT ON SCHEMA rs IS 'Georgian Revenue Service (RS.ge) integration data';
-COMMENT ON TABLE rs.users IS 'RS.ge API credentials per company';
-COMMENT ON TABLE rs.seller_invoices IS 'Sales invoices issued by clients';
-COMMENT ON TABLE rs.buyer_invoices IS 'Purchase invoices received by clients';
-COMMENT ON TABLE rs.spec_seller_invoices IS 'Special seller invoices (NSAF API)';
-COMMENT ON TABLE rs.spec_buyer_invoices IS 'Special buyer invoices (NSAF API)';
-COMMENT ON TABLE rs.sellers_waybills IS 'Outgoing waybills';
-COMMENT ON TABLE rs.buyers_waybills IS 'Incoming waybills';
-COMMENT ON TABLE rs.sellers_waybill_goods IS 'Seller waybill line items';
-COMMENT ON TABLE rs.buyers_waybill_goods IS 'Buyer waybill line items';
-COMMENT ON TABLE rs.sellers_invoice_goods IS 'Seller invoice line items';
-COMMENT ON TABLE rs.buyers_invoice_goods IS 'Buyer invoice line items';
-COMMENT ON TABLE rs.spec_invoice_goods IS 'Special invoice goods (NSAF)';
 COMMENT ON TABLE rs.waybill_invoices IS 'Waybill-invoice associations';
+
+-- =====================================================
+-- Trigger Functions
+-- =====================================================
+CREATE OR REPLACE FUNCTION rs.set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- Triggers
+-- =====================================================
+CREATE TRIGGER rs_users_set_updated_at
+BEFORE UPDATE ON rs.users
+FOR EACH ROW
+EXECUTE FUNCTION rs.set_updated_at();
+
+COMMENT ON SCHEMA rs IS 'Georgian Revenue Service (RS.ge) integration data';
 
 -- DOWN
 -- Drop RS schema and tables (rollback)

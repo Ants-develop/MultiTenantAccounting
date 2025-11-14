@@ -82,19 +82,16 @@ export interface OnboardingStatus {
 // =====================================================
 
 export async function fetchClientProfile(clientId: number): Promise<ClientProfile> {
-  return apiRequest(`/api/clients/${clientId}/profile`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/clients/${clientId}/profile`);
+  return res.json();
 }
 
 export async function updateClientProfile(
   clientId: number,
   updates: Partial<ClientProfile["client"]>
 ): Promise<ClientProfile["client"]> {
-  return apiRequest(`/api/clients/${clientId}/profile`, {
-    method: "PUT",
-    body: JSON.stringify(updates),
-  });
+  const res = await apiRequest("PUT", `/api/clients/${clientId}/profile`, updates);
+  return res.json();
 }
 
 // =====================================================
@@ -106,9 +103,8 @@ export async function fetchClientDocuments(
   category?: string
 ): Promise<ClientDocument[]> {
   const params = category ? `?category=${encodeURIComponent(category)}` : "";
-  return apiRequest(`/api/clients/${clientId}/documents${params}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/clients/${clientId}/documents${params}`);
+  return res.json();
 }
 
 export async function uploadClientDocument(
@@ -126,12 +122,18 @@ export async function uploadClientDocument(
     formData.append("expirationDate", expirationDate);
   }
 
-  return apiRequest(`/api/clients/${clientId}/documents`, {
+  const res = await fetch(`/api/clients/${clientId}/documents`, {
     method: "POST",
     body: formData,
-    // Don't set Content-Type header, browser will set it with boundary
-    headers: {},
+    credentials: "include",
   });
+
+  if (!res.ok) {
+    const text = (await res.text()) || res.statusText;
+    throw new Error(`${res.status}: ${text}`);
+  }
+
+  return res.json();
 }
 
 export async function downloadClientDocument(
@@ -157,18 +159,15 @@ export async function deleteClientDocument(
   clientId: number,
   docId: number
 ): Promise<void> {
-  return apiRequest(`/api/clients/${clientId}/documents/${docId}`, {
-    method: "DELETE",
-  });
+  await apiRequest("DELETE", `/api/clients/${clientId}/documents/${docId}`);
 }
 
 export async function fetchExpiringDocuments(
   clientId: number,
   days: number = 30
 ): Promise<ClientDocument[]> {
-  return apiRequest(`/api/clients/${clientId}/documents/expiring?days=${days}`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/clients/${clientId}/documents/expiring?days=${days}`);
+  return res.json();
 }
 
 // =====================================================
@@ -179,26 +178,21 @@ export async function startClientOnboarding(
   clientId: number,
   steps: Array<{ name: string; type: string; metadata?: any }>
 ): Promise<any[]> {
-  return apiRequest(`/api/clients/${clientId}/onboarding/start`, {
-    method: "POST",
-    body: JSON.stringify({ steps }),
-  });
+  const res = await apiRequest("POST", `/api/clients/${clientId}/onboarding/start`, { steps });
+  return res.json();
 }
 
 export async function fetchOnboardingStatus(clientId: number): Promise<OnboardingStatus> {
-  return apiRequest(`/api/clients/${clientId}/onboarding/status`, {
-    method: "GET",
-  });
+  const res = await apiRequest("GET", `/api/clients/${clientId}/onboarding/status`);
+  return res.json();
 }
 
 export async function completeOnboardingStep(
   clientId: number,
   stepId: number
 ): Promise<any> {
-  return apiRequest(`/api/clients/${clientId}/onboarding/complete-step`, {
-    method: "POST",
-    body: JSON.stringify({ stepId }),
-  });
+  const res = await apiRequest("POST", `/api/clients/${clientId}/onboarding/complete-step`, { stepId });
+  return res.json();
 }
 
 // =====================================================

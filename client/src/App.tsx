@@ -48,7 +48,7 @@ import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
 import JobsDashboard from "@/pages/jobs/JobsDashboard";
 import JobDetail from "@/pages/jobs/JobDetail";
 import CalendarPage from "@/pages/calendar/CalendarPage";
-import AutomationsDashboard from "@/pages/automations/AutomationsDashboard";
+import { AutomationsDashboard } from "@/pages/automations/AutomationsDashboard";
 import { ClientProfile } from "@/pages/clients/ClientProfile";
 import { ClientOnboarding } from "@/pages/clients/ClientOnboarding";
 import { EmailInbox } from "@/pages/email/EmailInbox";
