@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,50 +8,9 @@ import { MessengerProvider } from "@/contexts/MessengerContext";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Dashboard";
-import Home from "@/pages/Home";
+import Setup from "@/pages/Setup";
 import AppLayout from "@/components/layout/AppLayout";
-import ChartOfAccounts from "@/pages/accounting/ChartOfAccounts";
-import GeneralLedger from "@/pages/accounting/GeneralLedger";
-import AccountsReceivable from "@/pages/accounting/AccountsReceivable";
-import AccountsPayable from "@/pages/accounting/AccountsPayable";
-import BankReconciliation from "@/pages/accounting/BankReconciliation";
-import JournalEntries from "@/pages/accounting/JournalEntriesPage";
-import JournalEntriesSyncfusion from "@/pages/accounting/JournalEntriesSyncfusionPage";
-import AccountingOperations from "@/pages/accounting/AccountingOperations";
-import Sales from "@/pages/accounting/Sales";
-import Purchases from "@/pages/accounting/Purchases";
-import BankStatementUpload from "@/pages/accounting/BankStatementUpload";
-import Invoices from "@/pages/accounting/Invoices";
-import BankAccounts from "@/pages/bank/BankAccounts";
-import ImportStatement from "@/pages/bank/ImportStatement";
-import FinancialStatements from "@/pages/reports/FinancialStatements";
-import UserManagement from "@/pages/admin/UserManagement";
-import Profile from "@/pages/Profile";
-import CompanyProfile from "@/pages/CompanyProfile";
 import NotFound from "@/pages/not-found";
-import RoleManagement from "@/pages/admin/RoleManagement";
-import PermissionsManagement from "@/pages/admin/PermissionsManagement";
-import Clients from "@/pages/admin/Clients";
-import GlobalAdministration from "@/pages/admin/GlobalAdministration";
-import MSSQLImport from "@/pages/admin/MSSQLImport";
-import AccountingHome from "@/pages/accounting/AccountingHome";
-import AuditDashboard from "@/pages/audit/AuditDashboard";
-import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
-import ErrorBoundary from "@/components/ErrorBoundary";
-import RSAdmin from "@/pages/rs/RSAdmin";
-import TestingDashboard from "@/pages/testing/TestingDashboard";
-import TasksDashboard from "@/pages/tasks/TasksDashboard";
-import TaskDetail from "@/pages/tasks/TaskDetail";
-import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
-import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
-import JobsDashboard from "@/pages/jobs/JobsDashboard";
-import JobDetail from "@/pages/jobs/JobDetail";
-import CalendarPage from "@/pages/calendar/CalendarPage";
-import { AutomationsDashboard } from "@/pages/automations/AutomationsDashboard";
-import { ClientProfile } from "@/pages/clients/ClientProfile";
-import { ClientOnboarding } from "@/pages/clients/ClientOnboarding";
-import { EmailInbox } from "@/pages/email/EmailInbox";
 import { ClientPortalLogin } from "@/pages/client-portal/ClientPortalLogin";
 import { ClientPortalDashboard } from "@/pages/client-portal/ClientPortalDashboard";
 import { ClientPortalDocuments } from "@/pages/client-portal/ClientPortalDocuments";
@@ -59,15 +18,10 @@ import { ClientPortalTasks } from "@/pages/client-portal/ClientPortalTasks";
 import { ClientPortalForms } from "@/pages/client-portal/ClientPortalForms";
 import { ClientPortalMessages } from "@/pages/client-portal/ClientPortalMessages";
 import { ClientPortalInvoices } from "@/pages/client-portal/ClientPortalInvoices";
-import HandsontableDemo from "@/pages/testing/HandsontableDemo";
-import TanStackTableDemo from "@/pages/testing/TanStackTableDemo";
-import AgGridDemo from "@/pages/testing/AgGridDemo";
-import SyncfusionGridDemo from "@/pages/testing/SyncfusionGridDemo";
-import TabulatorDemo from "@/pages/testing/TabulatorDemo";
-import Setup from "@/pages/Setup";
 
-function ProtectedRoute({ component: Component, hideSidebar = false }: { component: React.ComponentType; hideSidebar?: boolean }) {
+function ProtectedApp() {
   const { user, isLoading, needsSetup } = useAuth();
+  const [location] = useLocation();
 
   if (isLoading) {
     return (
@@ -89,44 +43,21 @@ function ProtectedRoute({ component: Component, hideSidebar = false }: { compone
     return <Setup />;
   }
 
-  return (
-    <AppLayout hideSidebar={hideSidebar}>
-      <ErrorBoundary>
-        <Component />
-      </ErrorBoundary>
-    </AppLayout>
-  );
+  // All protected routes are handled by Golden Layout tabs
+  // Use current location as default path, or /home as fallback
+  const defaultPath = location && location !== "/" && location !== "/login" && location !== "/setup"
+    ? location
+    : "/home";
+
+  return <AppLayout defaultPath={defaultPath} />;
 }
 
 function Router() {
   return (
     <Switch>
+      {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/setup" component={Setup} />
-      <Route path="/" component={() => <ProtectedRoute component={Home} />} />
-      <Route path="/home" component={() => <ProtectedRoute component={Home} />} />
-      <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/accounting" component={() => <ProtectedRoute component={AccountingHome} />} />
-      <Route path="/accounting/chart-of-accounts" component={() => <ProtectedRoute component={ChartOfAccounts} />} />
-      <Route path="/accounting/general-ledger" component={() => <ProtectedRoute component={GeneralLedger} />} />
-      <Route path="/accounting/accounts-receivable" component={() => <ProtectedRoute component={AccountsReceivable} />} />
-      <Route path="/accounting/accounts-payable" component={() => <ProtectedRoute component={AccountsPayable} />} />
-      <Route path="/accounting/bank-reconciliation" component={() => <ProtectedRoute component={BankReconciliation} />} />
-        <Route path="/accounting/journal-entries" component={() => <ProtectedRoute component={JournalEntries} />} />
-      <Route path="/accounting/journal-entries-syncfusion" component={() => <ProtectedRoute component={JournalEntriesSyncfusion} />} />
-      <Route path="/accounting/accounting-operations" component={() => <ProtectedRoute component={AccountingOperations} />} />
-      <Route path="/accounting/sales" component={() => <ProtectedRoute component={Sales} />} />
-      <Route path="/accounting/purchases" component={() => <ProtectedRoute component={Purchases} />} />
-      <Route path="/accounting/bank-statement-upload" component={() => <ProtectedRoute component={BankStatementUpload} />} />
-      <Route path="/accounting/invoices" component={() => <ProtectedRoute component={Invoices} />} />
-      <Route path="/financial-statements" component={() => <ProtectedRoute component={FinancialStatements} />} />
-      <Route path="/user-management" component={() => <ProtectedRoute component={UserManagement} />} />
-      <Route path="/role-management" component={() => <ProtectedRoute component={RoleManagement} />} />
-      <Route path="/permissions-management" component={() => <ProtectedRoute component={PermissionsManagement} />} />
-      <Route path="/clients" component={() => <ProtectedRoute component={Clients} />} />
-      <Route path="/clients/:id/profile" component={({ params }: any) => <ProtectedRoute component={() => <ClientProfile clientId={parseInt(params.id)} />} />} />
-      <Route path="/clients/:id/onboarding" component={({ params }: any) => <ProtectedRoute component={() => <ClientOnboarding clientId={parseInt(params.id)} />} />} />
-      <Route path="/email" component={() => <ProtectedRoute component={EmailInbox} />} />
       
       {/* Client Portal Routes (no auth required - uses client portal auth) */}
       <Route path="/client-portal/login" component={ClientPortalLogin} />
@@ -137,33 +68,9 @@ function Router() {
       <Route path="/client-portal/messages" component={ClientPortalMessages} />
       <Route path="/client-portal/invoices" component={ClientPortalInvoices} />
       
-      <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
-      <Route path="/company-profile" component={() => <ProtectedRoute component={CompanyProfile} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={CompanyProfile} />} />
-      <Route path="/global-administration" component={() => <ProtectedRoute component={GlobalAdministration} />} />
-      <Route path="/mssql-import" component={() => <ProtectedRoute component={MSSQLImport} />} />
-      <Route path="/audit" component={() => <ProtectedRoute component={AuditDashboard} />} />
-      <Route path="/rs-integration" component={() => <ProtectedRoute component={RSIntegrationDashboard} />} />
-      <Route path="/rs-admin" component={() => <ProtectedRoute component={RSAdmin} />} />
-      <Route path="/bank/accounts" component={() => <ProtectedRoute component={BankAccounts} />} />
-      <Route path="/tasks" component={() => <ProtectedRoute component={TasksDashboard} />} />
-      <Route path="/tasks/:id" component={() => <ProtectedRoute component={TaskDetail} />} />
-      <Route path="/pipelines" component={() => <ProtectedRoute component={PipelinesDashboard} />} />
-      <Route path="/pipelines/new" component={() => <ProtectedRoute component={PipelineBuilder} />} />
-      <Route path="/pipelines/:id" component={() => <ProtectedRoute component={PipelineBuilder} />} />
-      <Route path="/jobs" component={() => <ProtectedRoute component={JobsDashboard} />} />
-      <Route path="/jobs/new" component={() => <ProtectedRoute component={JobDetail} />} />
-      <Route path="/jobs/:id" component={() => <ProtectedRoute component={JobDetail} />} />
-      <Route path="/calendar" component={() => <ProtectedRoute component={CalendarPage} />} />
-      <Route path="/automations" component={() => <ProtectedRoute component={AutomationsDashboard} />} />
-      <Route path="/bank/import" component={() => <ProtectedRoute component={ImportStatement} />} />
-      <Route path="/testing" component={() => <ProtectedRoute component={TestingDashboard} />} />
-      <Route path="/testing/handsontable" component={() => <ProtectedRoute component={HandsontableDemo} hideSidebar={true} />} />
-      <Route path="/testing/tanstack" component={() => <ProtectedRoute component={TanStackTableDemo} hideSidebar={true} />} />
-      <Route path="/testing/ag-grid" component={() => <ProtectedRoute component={AgGridDemo} hideSidebar={true} />} />
-      <Route path="/testing/syncfusion" component={() => <ProtectedRoute component={SyncfusionGridDemo} hideSidebar={true} />} />
-      <Route path="/testing/tabulator" component={() => <ProtectedRoute component={TabulatorDemo} hideSidebar={true} />} />
-      <Route component={NotFound} />
+      {/* All other routes are protected and handled by Golden Layout */}
+      <Route path="/:rest*" component={ProtectedApp} />
+      <Route component={ProtectedApp} />
     </Switch>
   );
 }

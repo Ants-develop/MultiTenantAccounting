@@ -1,9 +1,9 @@
+/* Import TaxDome theme - must be before @tailwind directives */
+@import './styles/taxdome-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import TaxDome theme */
-@import './styles/taxdome-theme.css';
 
 :root {
   --background: hsl(0, 0%, 98%);

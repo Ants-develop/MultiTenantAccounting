@@ -441,8 +441,8 @@ router.delete('/:id', async (req, res) => {
 
     // Force-remove children then parent in one transaction using raw SQL
     await db.transaction(async (tx) => {
-      await tx.execute(sql`DELETE FROM journal_entry_lines WHERE journal_entry_id = ${entryId}`);
-      await tx.execute(sql`DELETE FROM journal_entries WHERE id = ${entryId}`);
+      await tx.execute(sql`DELETE FROM accounting.journal_entry_lines WHERE journal_entry_id = ${entryId}`);
+      await tx.execute(sql`DELETE FROM accounting.journal_entries WHERE id = ${entryId}`);
     });
 
     res.json({ message: 'Journal entry deleted successfully' });

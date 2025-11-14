@@ -80,6 +80,7 @@
     "express-session": "^1.18.1",
     "fast-xml-parser": "^4.4.2",
     "framer-motion": "^11.13.1",
+    "golden-layout": "^2.6.0",
     "handsontable": "^16.1.1",
     "html2canvas": "^1.4.1",
     "i18next": "^25.5.3",

@@ -143,7 +143,7 @@ export class DatabaseValidationService {
       try {
         // Check account code uniqueness within company
         const existingCode = await db.execute(
-          sql`SELECT id FROM accounts WHERE code = ${data.code} AND company_id = ${data.companyId} LIMIT 1`
+          sql`SELECT id FROM accounting.accounts WHERE code = ${data.code} AND client_id = ${data.companyId} LIMIT 1`
         );
         if (existingCode.rows.length > 0) {
           errors.push("Account code already exists in this company");
@@ -152,11 +152,11 @@ export class DatabaseValidationService {
         // Validate parent account exists and is in same company
         if (data.parentId) {
           const parentAccount = await db.execute(
-            sql`SELECT company_id FROM accounts WHERE id = ${data.parentId} LIMIT 1`
+            sql`SELECT client_id FROM accounting.accounts WHERE id = ${data.parentId} LIMIT 1`
           );
           if (parentAccount.rows.length === 0) {
             errors.push("Parent account does not exist");
-          } else if (parentAccount.rows[0].company_id !== data.companyId) {
+          } else if (parentAccount.rows[0].client_id !== data.companyId) {
             errors.push("Parent account must be in the same company");
           }
         }
@@ -178,7 +178,7 @@ export class DatabaseValidationService {
       try {
         // Check entry number uniqueness within company
         const existingEntry = await db.execute(
-          sql`SELECT id FROM journal_entries WHERE entry_number = ${data.entry.entryNumber} AND company_id = ${data.entry.companyId} LIMIT 1`
+          sql`SELECT id FROM accounting.journal_entries WHERE entry_number = ${data.entry.entryNumber} AND client_id = ${data.entry.companyId} LIMIT 1`
         );
         if (existingEntry.rows.length > 0) {
           errors.push("Entry number already exists in this company");
@@ -187,11 +187,11 @@ export class DatabaseValidationService {
         // Validate all accounts exist and belong to the same company
         for (const line of data.lines) {
           const account = await db.execute(
-            sql`SELECT company_id FROM accounts WHERE id = ${line.accountId} LIMIT 1`
+            sql`SELECT client_id FROM accounting.accounts WHERE id = ${line.accountId} LIMIT 1`
           );
           if (account.rows.length === 0) {
             errors.push(`Account ID ${line.accountId} does not exist`);
-          } else if (account.rows[0].company_id !== data.entry.companyId) {
+          } else if (account.rows[0].client_id !== data.entry.companyId) {
             errors.push(`Account ID ${line.accountId} does not belong to this company`);
           }
         }
@@ -320,9 +320,9 @@ export class DatabaseValidationService {
       const orphanChecks = [
         { table: 'user_companies', column: 'user_id', refTable: 'users', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN users u ON uc.user_id = u.id WHERE u.id IS NULL` },
         { table: 'user_companies', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN clients c ON uc.client_id = c.id WHERE c.id IS NULL` },
-        { table: 'accounts', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounts a LEFT JOIN clients c ON a.client_id = c.id WHERE c.id IS NULL` },
-        { table: 'journal_entries', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM journal_entries je LEFT JOIN clients c ON je.client_id = c.id WHERE c.id IS NULL` },
-        { table: 'journal_entry_lines', column: 'journal_entry_id', refTable: 'journal_entries', query: sql`SELECT COUNT(*) as count FROM journal_entry_lines jel LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id WHERE je.id IS NULL` }
+        { table: 'accounts', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.accounts a LEFT JOIN clients c ON a.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'journal_entries', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.journal_entries je LEFT JOIN clients c ON je.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'journal_entry_lines', column: 'journal_entry_id', refTable: 'journal_entries', query: sql`SELECT COUNT(*) as count FROM accounting.journal_entry_lines jel LEFT JOIN accounting.journal_entries je ON jel.journal_entry_id = je.id WHERE je.id IS NULL` }
       ];
 
       for (const check of orphanChecks) {

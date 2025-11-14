@@ -1,6 +1,5 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { tasksApi, Task } from "@/api/tasks";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,11 +7,22 @@ import { Badge } from "@/components/ui/badge";
 import { TaskForm } from "@/components/tasks/TaskForm";
 import { ArrowLeft, Calendar, User, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import dayjs from "dayjs";
+import { useRouteParams } from "@/contexts/RouteParamsContext";
+import { useGoldenLayout } from "@/hooks/useGoldenLayout";
 
-export default function TaskDetail() {
-  const [, setLocation] = useLocation();
+interface TaskDetailProps {
+  taskId?: number;
+}
+
+export default function TaskDetail({ taskId: propTaskId }: TaskDetailProps = {}) {
   const queryClient = useQueryClient();
-  const taskId = parseInt(window.location.pathname.split("/").pop() || "0");
+  const routeParams = useRouteParams();
+  const goldenLayout = useGoldenLayout();
+  
+  // Get taskId from props, route params, or URL (fallback)
+  const taskId = propTaskId || 
+    (routeParams.params.id ? parseInt(routeParams.params.id) : 0) ||
+    parseInt(window.location.pathname.split("/").pop() || "0");
 
   const { data: task, isLoading } = useQuery({
     queryKey: ["/api/tasks", taskId],
@@ -47,7 +57,7 @@ export default function TaskDetail() {
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-gray-500">Task not found</p>
-            <Button variant="outline" onClick={() => setLocation("/tasks")} className="mt-4">
+            <Button variant="outline" onClick={() => goldenLayout?.openTab("/tasks")} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Tasks
             </Button>
@@ -79,7 +89,7 @@ export default function TaskDetail() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/tasks")}>
+          <Button variant="ghost" onClick={() => goldenLayout?.openTab("/tasks")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

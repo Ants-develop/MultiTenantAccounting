@@ -648,7 +648,7 @@ export async function migrateGeneralLedger(
           }
           
           const insertQuery = `
-            INSERT INTO journal_entries (${columnList})
+            INSERT INTO accounting.journal_entries (${columnList})
             VALUES ${valueGroups.join(', ')}
           `;
 
@@ -667,7 +667,7 @@ export async function migrateGeneralLedger(
               const val = values[idx];
               const entryNumber = val[1] as string;
               try {
-                await db.execute(drizzleSql`INSERT INTO journal_entries (
+                await db.execute(drizzleSql`INSERT INTO accounting.journal_entries (
                   client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
                   tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
                   responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
@@ -802,7 +802,7 @@ export async function migrateGeneralLedger(
         }
         
         const insertQuery = `
-          INSERT INTO journal_entries (${columnList})
+          INSERT INTO accounting.journal_entries (${columnList})
           VALUES ${valueGroups.join(', ')}
         `;
 
@@ -818,7 +818,7 @@ export async function migrateGeneralLedger(
             const val = values[idx];
             const entryNumber = val[1] as string;
             try {
-              await db.execute(drizzleSql`INSERT INTO journal_entries (
+              await db.execute(drizzleSql`INSERT INTO accounting.journal_entries (
                 client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
                 tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
                 responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
@@ -1004,8 +1004,8 @@ export async function exportToAudit(
           for (const val of values) {
             try {
               // Use Drizzle SQL template for proper parameter binding
-              await db.execute(drizzleSql`INSERT INTO general_ledger (
-                company_id, tenant_code, tenant_name, abonent, postings_period, register, branch, content,
+              await db.execute(drizzleSql`INSERT INTO accounting.general_ledger (
+                client_id, tenant_code, tenant_name, abonent, postings_period, register, branch, content,
                 responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr, id_dr,
                 legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr, double_taxation_dr,
                 pension_scheme_participant_dr, account_cr, account_name_cr, analytic_cr, analytic_ref_cr,
@@ -1446,7 +1446,7 @@ export async function updateJournalEntries(
 
             try {
               // Use Drizzle SQL template for proper parameter binding
-              await db.execute(drizzleSql`UPDATE journal_entries SET 
+              await db.execute(drizzleSql`UPDATE accounting.journal_entries SET 
                 date = ${r.PostingsPeriod || new Date()}, 
                 description = ${r.Content || `General Ledger Entry ${idx + 1}`}, 
                 total_amount = ${convertDecimal(r.Amount) || 0}, 

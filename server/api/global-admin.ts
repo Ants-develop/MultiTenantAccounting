@@ -1054,31 +1054,31 @@ router.delete("/clients/:id", async (req, res) => {
 
       // Delete journal entry lines tied to this company's entries
       await tx.execute(sql`
-        DELETE FROM journal_entry_lines
+        DELETE FROM accounting.journal_entry_lines
         WHERE journal_entry_id IN (
-          SELECT id FROM journal_entries WHERE company_id = ${companyId}
+          SELECT id FROM accounting.journal_entries WHERE client_id = ${companyId}
         )
       `);
 
       // Also delete lines tied to this company's accounts (safety)
       await tx.execute(sql`
-        DELETE FROM journal_entry_lines
+        DELETE FROM accounting.journal_entry_lines
         WHERE account_id IN (
-          SELECT id FROM accounts WHERE company_id = ${companyId}
+          SELECT id FROM accounting.accounts WHERE client_id = ${companyId}
         )
       `);
 
       // Delete journal entries for this company
-      await tx.execute(sql`DELETE FROM journal_entries WHERE company_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.journal_entries WHERE client_id = ${companyId}`);
 
       // Delete accounts for this company
-      await tx.execute(sql`DELETE FROM accounts WHERE company_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.accounts WHERE client_id = ${companyId}`);
 
       // Delete operational entities
-      await tx.execute(sql`DELETE FROM invoices WHERE company_id = ${companyId}`);
-      await tx.execute(sql`DELETE FROM bills WHERE company_id = ${companyId}`);
-      await tx.execute(sql`DELETE FROM customers WHERE company_id = ${companyId}`);
-      await tx.execute(sql`DELETE FROM vendors WHERE company_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.invoices WHERE client_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.bills WHERE client_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.customers WHERE client_id = ${companyId}`);
+      await tx.execute(sql`DELETE FROM accounting.vendors WHERE client_id = ${companyId}`);
 
       // Delete company settings (FK constraint)
       await tx.delete(companySettings).where(eq(companySettings.clientId, companyId));

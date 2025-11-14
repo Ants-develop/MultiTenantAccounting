@@ -27,13 +27,13 @@ router.get('/kpis', async (req, res) => {
 
     const invoicesCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
-      FROM invoices
+      FROM accounting.invoices
       WHERE client_id = ${clientId}
     `);
 
     const billsCountResult = await db.execute(sql`
       SELECT COUNT(*)::int AS cnt
-      FROM bills
+      FROM accounting.bills
       WHERE client_id = ${clientId}
     `);
 
@@ -43,9 +43,9 @@ router.get('/kpis', async (req, res) => {
              THEN (jel.debit_amount::numeric - jel.credit_amount::numeric)
              ELSE 0 END
       ), 0) AS net_cashflow
-      FROM journal_entry_lines jel
-      JOIN accounts a ON jel.account_id = a.id
-      JOIN journal_entries je ON jel.journal_entry_id = je.id
+      FROM accounting.journal_entry_lines jel
+      JOIN accounting.accounts a ON jel.account_id = a.id
+      JOIN accounting.journal_entries je ON jel.journal_entry_id = je.id
       WHERE a.client_id = ${clientId}
         AND je.is_posted = true
         ${range === 'lastYear' ? sql`AND je.date >= DATE_TRUNC('year', CURRENT_DATE) - INTERVAL '1 year' AND je.date < DATE_TRUNC('year', CURRENT_DATE)` : sql``}
@@ -77,8 +77,8 @@ router.get('/top-customers', async (req, res) => {
 
     const result = await db.execute(sql.raw(`
       SELECT c.name, COALESCE(SUM(i.total_amount::numeric), 0) AS amount
-      FROM invoices i
-      JOIN customers c ON i.customer_id = c.id
+      FROM accounting.invoices i
+      JOIN accounting.customers c ON i.customer_id = c.id
       WHERE i.client_id = ${clientId}
         ${dateFilter}
       GROUP BY c.name
@@ -108,8 +108,8 @@ router.get('/top-vendors', async (req, res) => {
 
     const result = await db.execute(sql.raw(`
       SELECT v.name, COALESCE(SUM(b.total_amount::numeric), 0) AS amount
-      FROM bills b
-      JOIN vendors v ON b.vendor_id = v.id
+      FROM accounting.bills b
+      JOIN accounting.vendors v ON b.vendor_id = v.id
       WHERE b.client_id = ${clientId}
         ${dateFilter}
       GROUP BY v.name

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { pipelinesApi, Pipeline, PipelineStage } from "@/api/pipelines";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,8 @@ import { ArrowLeft, Plus, Trash2, GripVertical } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useRouteParams } from "@/contexts/RouteParamsContext";
+import { useGoldenLayout } from "@/hooks/useGoldenLayout";
 
 const pipelineSchema = z.object({
   name: z.string().min(1, "Pipeline name is required"),
@@ -20,11 +21,20 @@ const pipelineSchema = z.object({
 
 type PipelineFormValues = z.infer<typeof pipelineSchema>;
 
-export default function PipelineBuilder() {
-  const [, setLocation] = useLocation();
+interface PipelineBuilderProps {
+  pipelineId?: number;
+}
+
+export default function PipelineBuilder({ pipelineId: propPipelineId }: PipelineBuilderProps = {}) {
   const queryClient = useQueryClient();
-  const pipelineId = parseInt(window.location.pathname.split("/").pop() || "0");
-  const isNew = window.location.pathname.includes("/new");
+  const routeParams = useRouteParams();
+  const goldenLayout = useGoldenLayout();
+  
+  // Get pipelineId from props, route params, or URL (fallback)
+  const pipelineId = propPipelineId || 
+    (routeParams.params.id ? parseInt(routeParams.params.id) : 0) ||
+    parseInt(window.location.pathname.split("/").pop() || "0");
+  const isNew = routeParams.path.includes("/new") || window.location.pathname.includes("/new");
   const workspaceId = 1; // Default workspace
 
   const [stages, setStages] = useState<PipelineStage[]>([]);
@@ -57,7 +67,7 @@ export default function PipelineBuilder() {
     mutationFn: (data: any) => pipelinesApi.createPipeline(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      setLocation("/pipelines");
+      goldenLayout?.openTab("/pipelines");
     },
   });
 
@@ -65,7 +75,7 @@ export default function PipelineBuilder() {
     mutationFn: (data: any) => pipelinesApi.updatePipeline(pipelineId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      setLocation("/pipelines");
+      goldenLayout?.openTab("/pipelines");
     },
   });
 
@@ -149,7 +159,7 @@ export default function PipelineBuilder() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/pipelines")}>
+          <Button variant="ghost" onClick={() => goldenLayout?.openTab("/pipelines")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

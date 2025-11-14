@@ -251,7 +251,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(accounts)
-      .where(and(eq(accounts.companyId, companyId), eq(accounts.isActive, true)))
+      .where(and(eq(accounts.clientId, companyId), eq(accounts.isActive, true)))
       .orderBy(asc(accounts.code));
   }
 
@@ -287,7 +287,7 @@ export class DatabaseStorage implements IStorage {
         .from(journalEntries)
         .where(
           or(
-            eq(journalEntries.companyId, companyId),
+            eq(journalEntries.clientId, companyId),
             eq(journalEntries.tenantCode, company.tenantCode)
           )
         )
@@ -296,7 +296,7 @@ export class DatabaseStorage implements IStorage {
       entries = await db
         .select()
         .from(journalEntries)
-        .where(eq(journalEntries.companyId, companyId))
+        .where(eq(journalEntries.clientId, companyId))
         .orderBy(desc(journalEntries.date));
     }
     
@@ -351,7 +351,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(customers)
-      .where(and(eq(customers.companyId, companyId), eq(customers.isActive, true)))
+      .where(and(eq(customers.clientId, companyId), eq(customers.isActive, true)))
       .orderBy(asc(customers.name));
   }
 
@@ -372,7 +372,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getVendorsByCompany(companyId: number): Promise<Vendor[]> {
-    return await db.select().from(vendors).where(eq(vendors.companyId, companyId));
+    return await db.select().from(vendors).where(eq(vendors.clientId, companyId));
   }
 
   async createVendor(vendor: InsertVendor): Promise<Vendor> {
@@ -398,7 +398,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(invoices)
-      .where(eq(invoices.companyId, companyId))
+      .where(eq(invoices.clientId, companyId))
       .orderBy(desc(invoices.date));
   }
 
@@ -419,7 +419,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getBillsByCompany(companyId: number): Promise<Bill[]> {
-    return await db.select().from(bills).where(eq(bills.companyId, companyId));
+    return await db.select().from(bills).where(eq(bills.clientId, companyId));
   }
 
   async createBill(bill: InsertBill): Promise<Bill> {
@@ -473,8 +473,8 @@ export class DatabaseStorage implements IStorage {
   async companyHasData(companyId: number): Promise<boolean> {
     // Check if company has any accounts, transactions, etc.
     const [accountResults, journalEntryResults] = await Promise.all([
-      db.select().from(accounts).where(eq(accounts.companyId, companyId)).limit(1),
-      db.select().from(journalEntries).where(eq(journalEntries.companyId, companyId)).limit(1),
+      db.select().from(accounts).where(eq(accounts.clientId, companyId)).limit(1),
+      db.select().from(journalEntries).where(eq(journalEntries.clientId, companyId)).limit(1),
     ]);
 
     return accountResults.length > 0 || journalEntryResults.length > 0;
@@ -617,41 +617,41 @@ export class DatabaseStorage implements IStorage {
         
         // Delete journal entry lines first
         await tx.execute(sql`
-          DELETE FROM journal_entry_lines 
+          DELETE FROM accounting.journal_entry_lines 
           WHERE journal_entry_id IN (
-            SELECT id FROM journal_entries WHERE company_id = ${companyId}
+            SELECT id FROM accounting.journal_entries WHERE client_id = ${companyId}
           )
         `);
 
         // Delete journal entries
         await tx
           .delete(journalEntries)
-          .where(eq(journalEntries.companyId, companyId));
+          .where(eq(journalEntries.clientId, companyId));
 
         // Delete bills
         await tx
           .delete(bills)
-          .where(eq(bills.companyId, companyId));
+          .where(eq(bills.clientId, companyId));
 
         // Delete invoices
         await tx
           .delete(invoices)
-          .where(eq(invoices.companyId, companyId));
+          .where(eq(invoices.clientId, companyId));
 
         // Delete vendors
         await tx
           .delete(vendors)
-          .where(eq(vendors.companyId, companyId));
+          .where(eq(vendors.clientId, companyId));
 
         // Delete customers
         await tx
           .delete(customers)
-          .where(eq(customers.companyId, companyId));
+          .where(eq(customers.clientId, companyId));
 
         // Delete accounts
         await tx
           .delete(accounts)
-          .where(eq(accounts.companyId, companyId));
+          .where(eq(accounts.clientId, companyId));
 
         // Delete activity logs
         await tx

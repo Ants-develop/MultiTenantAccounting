@@ -13,7 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import {
-  Plus, Loader2, Search, Eye, Edit, Trash2, RefreshCw, Users
+  Plus, Loader2, Search, Eye, Edit, Trash2, RefreshCw, Users, User, ClipboardList
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";

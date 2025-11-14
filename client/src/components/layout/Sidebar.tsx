@@ -1,4 +1,6 @@
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
+import { useGoldenLayout } from "@/hooks/useGoldenLayout";
+import { useEffect, useState } from "react";
 import { Calculator, BarChart3, List, Book, File, Receipt, 
          University, Edit, FileText, DollarSign, ChartBar, 
          Scale, PieChart, Users, Settings, Shield, Globe, 
@@ -14,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
 
 interface NavigationItem {
   name: string;
@@ -392,6 +393,23 @@ export default function Sidebar() {
   const { mainCompany } = useAuth();
   const currentModule = getCurrentModule(location);
   
+  // Get Golden Layout context
+  const goldenLayoutContext = useGoldenLayout();
+  
+  // Track active tab to force re-render when it changes
+  const [, forceUpdate] = useState(0);
+  
+  // Subscribe to active tab changes (poll every 500ms since Golden Layout doesn't emit events)
+  useEffect(() => {
+    if (!goldenLayoutContext) return;
+    
+    const interval = setInterval(() => {
+      forceUpdate(prev => prev + 1);
+    }, 500);
+    
+    return () => clearInterval(interval);
+  }, [goldenLayoutContext]);
+  
   // Track which modules are open (default: current module or first module with items)
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
     const initial = new Set<string>();
@@ -414,6 +432,15 @@ export default function Sidebar() {
   };
 
   const isActive = (href: string) => {
+    // Check active tab from Golden Layout instead of URL
+    if (goldenLayoutContext) {
+      const activeTab = goldenLayoutContext.getActiveTab();
+      if (activeTab) {
+        // Match by path - exact match or starts with (for nested routes)
+        return activeTab.path === href || (href !== "/dashboard" && activeTab.path.startsWith(href));
+      }
+    }
+    // Fallback to URL matching for initial load
     return location === href || (href !== "/dashboard" && location.startsWith(href));
   };
 
@@ -433,13 +460,24 @@ export default function Sidebar() {
       return null;
     }
 
+    const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
+      if (!goldenLayoutContext) {
+        console.error("Golden Layout context not available");
+        return;
+      }
+      // Always open as tab - check for existing tab and switch if found
+      goldenLayoutContext.openTab(item.href, undefined, t(item.name));
+    };
+
     const navItem = (
-      <Link href={item.href}>
-        <div className={`accounting-nav-item ${isActive(item.href) ? 'active' : ''} ${isCollapsed ? 'collapsed' : ''}`}>
-          <Icon className="w-5 h-5" />
-          {!isCollapsed && <span className="ml-3">{t(item.name)}</span>}
-        </div>
-      </Link>
+      <div 
+        onClick={handleClick}
+        className={`accounting-nav-item cursor-pointer ${isActive(item.href) ? 'active' : ''} ${isCollapsed ? 'collapsed' : ''}`}
+      >
+        <Icon className="w-5 h-5" />
+        {!isCollapsed && <span className="ml-3">{t(item.name)}</span>}
+      </div>
     );
 
     // Always wrap in tooltip for better UX, even when expanded

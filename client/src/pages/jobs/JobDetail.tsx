@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { jobsApi, Job } from "@/api/jobs";
 import { tasksApi, Task } from "@/api/tasks";
 import { pipelinesApi } from "@/api/pipelines";
@@ -11,11 +10,22 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Plus, CheckCircle2, Edit } from "lucide-react";
 import { JobForm } from "./JobForm";
 import dayjs from "dayjs";
+import { useRouteParams } from "@/contexts/RouteParamsContext";
+import { useGoldenLayout } from "@/hooks/useGoldenLayout";
 
-export default function JobDetail() {
-  const [, setLocation] = useLocation();
+interface JobDetailProps {
+  jobId?: number;
+}
+
+export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
   const queryClient = useQueryClient();
-  const jobId = parseInt(window.location.pathname.split("/").pop() || "0");
+  const routeParams = useRouteParams();
+  const goldenLayout = useGoldenLayout();
+  
+  // Get jobId from props, route params, or URL (fallback)
+  const jobId = propJobId || 
+    (routeParams.params.id ? parseInt(routeParams.params.id) : 0) ||
+    parseInt(window.location.pathname.split("/").pop() || "0");
 
   const { data: job, isLoading: jobLoading } = useQuery({
     queryKey: ["/api/jobs", jobId],
@@ -79,7 +89,7 @@ export default function JobDetail() {
         <TaxDomeCard>
           <div className="text-center py-8">
             <p className="text-gray-500">Job not found</p>
-            <TaxDomeButton variant="secondary" onClick={() => setLocation("/jobs")} className="mt-4">
+            <TaxDomeButton variant="secondary" onClick={() => goldenLayout?.openTab("/jobs")} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Jobs
             </TaxDomeButton>
@@ -102,7 +112,7 @@ export default function JobDetail() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <TaxDomeButton variant="ghost" onClick={() => setLocation("/jobs")}>
+          <TaxDomeButton variant="ghost" onClick={() => goldenLayout?.openTab("/jobs")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </TaxDomeButton>
@@ -186,7 +196,7 @@ export default function JobDetail() {
               <TaxDomeButton
                 variant="secondary"
                 size="sm"
-                onClick={() => setLocation(`/tasks/new?jobId=${job.id}`)}
+                onClick={() => goldenLayout?.openTab("/tasks/new", { jobId: job.id.toString() })}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Task
@@ -230,7 +240,7 @@ export default function JobDetail() {
                       <TaxDomeTableRow
                         key={task.id}
                         className="cursor-pointer hover:bg-gray-50"
-                        onClick={() => setLocation(`/tasks/${task.id}`)}
+                        onClick={() => goldenLayout?.openTab(`/tasks/${task.id}`, { id: task.id.toString() })}
                       >
                         <TaxDomeTableCell className="font-medium">{task.title}</TaxDomeTableCell>
                         <TaxDomeTableCell>

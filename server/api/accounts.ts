@@ -284,16 +284,16 @@ router.delete('/:id', async (req, res) => {
     // Cascade delete: remove journal entry lines referencing this account,
     // and remove orphan journal entries with no lines remaining
     await db.execute(sql`
-      DELETE FROM journal_entry_lines
+      DELETE FROM accounting.journal_entry_lines
       WHERE account_id = ${accountId}
     `);
 
     await db.execute(sql`
-      DELETE FROM journal_entries je
+      DELETE FROM accounting.journal_entries je
       WHERE NOT EXISTS (
-        SELECT 1 FROM journal_entry_lines jel WHERE jel.journal_entry_id = je.id
+        SELECT 1 FROM accounting.journal_entry_lines jel WHERE jel.journal_entry_id = je.id
       )
-      AND je.company_id = ${DEFAULT_CLIENT_ID}
+      AND je.client_id = ${DEFAULT_CLIENT_ID}
     `);
 
     const deletedResult = await db

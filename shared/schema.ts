@@ -4,6 +4,7 @@ import { z } from "zod";
 import { relations } from "drizzle-orm";
 
 const rs = pgSchema("rs");
+const accounting = pgSchema("accounting");
 
 // Users table
 export const users = pgTable("users", {
@@ -268,7 +269,7 @@ export const userClientFeatures = pgTable("user_client_features", {
 });
 
 // Chart of Accounts
-export const accounts = pgTable("accounts", {
+export const accounts = accounting.table("accounts", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   code: text("code").notNull(),
@@ -288,7 +289,7 @@ export const accounts = pgTable("accounts", {
 // Journal Entries
 // Note: journal_entries is a copy of general_ledger imported from MSSQL
 // mssql_record_id links back to general_ledger.id for tracking individual records
-export const journalEntries = pgTable("journal_entries", {
+export const journalEntries = accounting.table("journal_entries", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   entryNumber: text("entry_number").notNull(),
@@ -404,7 +405,7 @@ export const journalEntries = pgTable("journal_entries", {
 });
 
 // Journal Entry Lines
-export const journalEntryLines = pgTable("journal_entry_lines", {
+export const journalEntryLines = accounting.table("journal_entry_lines", {
   id: serial("id").primaryKey(),
   journalEntryId: integer("journal_entry_id").references(() => journalEntries.id).notNull(),
   accountId: integer("account_id").references(() => accounts.id).notNull(),
@@ -415,7 +416,7 @@ export const journalEntryLines = pgTable("journal_entry_lines", {
 });
 
 // Customers
-export const customers = pgTable("customers", {
+export const customers = accounting.table("customers", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
@@ -427,7 +428,7 @@ export const customers = pgTable("customers", {
 });
 
 // Vendors
-export const vendors = pgTable("vendors", {
+export const vendors = accounting.table("vendors", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
@@ -439,7 +440,7 @@ export const vendors = pgTable("vendors", {
 });
 
 // Invoices
-export const invoices = pgTable("invoices", {
+export const invoices = accounting.table("invoices", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   customerId: integer("customer_id").references(() => customers.id).notNull(),
@@ -455,7 +456,7 @@ export const invoices = pgTable("invoices", {
 });
 
 // Bills
-export const bills = pgTable("bills", {
+export const bills = accounting.table("bills", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
@@ -488,7 +489,7 @@ export const activityLogs = pgTable("activity_logs", {
 // General Ledger (Raw MSSQL Import Storage)
 // Purpose: Store raw data from MSSQL GeneralLedger before copying to journal_entries
 // journal_entries is a copy of general_ledger after tenantCode identification
-export const generalLedger = pgTable("general_ledger", {
+export const generalLedger = accounting.table("general_ledger", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   // MSSQL parity fields (all from MSSQL GeneralLedger table)
