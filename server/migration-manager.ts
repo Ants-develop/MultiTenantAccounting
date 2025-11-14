@@ -304,12 +304,17 @@ export class MigrationManager {
         // Execute the migration SQL
         await tx.execute(sql.raw(migration.up));
         
-        // Record the migration
+        // Record the migration (use ON CONFLICT to handle duplicate key)
         const executionTime = Date.now() - startTime;
         await tx.execute(sql`
           INSERT INTO ${sql.identifier(this.MIGRATIONS_TABLE)} 
           (id, name, version, checksum, execution_time_ms)
           VALUES (${migration.id}, ${migration.name}, ${migration.version}, ${migration.checksum}, ${executionTime})
+          ON CONFLICT (version) DO UPDATE SET
+            name = EXCLUDED.name,
+            checksum = EXCLUDED.checksum,
+            execution_time_ms = EXCLUDED.execution_time_ms,
+            applied_at = NOW()
         `);
         
       } catch (error) {

@@ -20,6 +20,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Role } from "@shared/permissions";
 import { ClientCompaniesGrid, ClientCompanyGridItem } from "@/components/admin/ClientCompaniesGrid";
+import { useLocation } from "wouter";
 
 interface CompanyUser {
   id: number;
@@ -53,6 +54,7 @@ const userAssignmentSchema = z.object({
 type UserAssignmentForm = z.infer<typeof userAssignmentSchema>;
 
 export default function Clients() {
+  const [location, setLocation] = useLocation();
   const [managingCompany, setManagingCompany] = useState<ClientCompanyGridItem | null>(null);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
   const [isEditRoleDialogOpen, setIsEditRoleDialogOpen] = useState(false);
@@ -207,7 +209,11 @@ export default function Clients() {
         </div>
       </div>
 
-      <ClientCompaniesGrid onManageUsers={handleManageCompanyUsers} />
+      <ClientCompaniesGrid 
+        onManageUsers={handleManageCompanyUsers}
+        onViewProfile={(company) => setLocation(`/clients/${company.id}/profile`)}
+        onViewOnboarding={(company) => setLocation(`/clients/${company.id}/onboarding`)}
+      />
 
       {/* Manage Company Users Dialog */}
       <Dialog open={isAssignUserDialogOpen} onOpenChange={setIsAssignUserDialogOpen}>

@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import { MessengerProvider } from "@/contexts/MessengerContext";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
@@ -40,6 +41,24 @@ import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import RSAdmin from "@/pages/rs/RSAdmin";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
+import TasksDashboard from "@/pages/tasks/TasksDashboard";
+import TaskDetail from "@/pages/tasks/TaskDetail";
+import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
+import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
+import JobsDashboard from "@/pages/jobs/JobsDashboard";
+import JobDetail from "@/pages/jobs/JobDetail";
+import CalendarPage from "@/pages/calendar/CalendarPage";
+import AutomationsDashboard from "@/pages/automations/AutomationsDashboard";
+import { ClientProfile } from "@/pages/clients/ClientProfile";
+import { ClientOnboarding } from "@/pages/clients/ClientOnboarding";
+import { EmailInbox } from "@/pages/email/EmailInbox";
+import { ClientPortalLogin } from "@/pages/client-portal/ClientPortalLogin";
+import { ClientPortalDashboard } from "@/pages/client-portal/ClientPortalDashboard";
+import { ClientPortalDocuments } from "@/pages/client-portal/ClientPortalDocuments";
+import { ClientPortalTasks } from "@/pages/client-portal/ClientPortalTasks";
+import { ClientPortalForms } from "@/pages/client-portal/ClientPortalForms";
+import { ClientPortalMessages } from "@/pages/client-portal/ClientPortalMessages";
+import { ClientPortalInvoices } from "@/pages/client-portal/ClientPortalInvoices";
 import HandsontableDemo from "@/pages/testing/HandsontableDemo";
 import TanStackTableDemo from "@/pages/testing/TanStackTableDemo";
 import AgGridDemo from "@/pages/testing/AgGridDemo";
@@ -105,6 +124,19 @@ function Router() {
       <Route path="/role-management" component={() => <ProtectedRoute component={RoleManagement} />} />
       <Route path="/permissions-management" component={() => <ProtectedRoute component={PermissionsManagement} />} />
       <Route path="/clients" component={() => <ProtectedRoute component={Clients} />} />
+      <Route path="/clients/:id/profile" component={({ params }: any) => <ProtectedRoute component={() => <ClientProfile clientId={parseInt(params.id)} />} />} />
+      <Route path="/clients/:id/onboarding" component={({ params }: any) => <ProtectedRoute component={() => <ClientOnboarding clientId={parseInt(params.id)} />} />} />
+      <Route path="/email" component={() => <ProtectedRoute component={EmailInbox} />} />
+      
+      {/* Client Portal Routes (no auth required - uses client portal auth) */}
+      <Route path="/client-portal/login" component={ClientPortalLogin} />
+      <Route path="/client-portal/dashboard" component={ClientPortalDashboard} />
+      <Route path="/client-portal/documents" component={ClientPortalDocuments} />
+      <Route path="/client-portal/tasks" component={ClientPortalTasks} />
+      <Route path="/client-portal/forms" component={ClientPortalForms} />
+      <Route path="/client-portal/messages" component={ClientPortalMessages} />
+      <Route path="/client-portal/invoices" component={ClientPortalInvoices} />
+      
       <Route path="/profile" component={() => <ProtectedRoute component={Profile} />} />
       <Route path="/company-profile" component={() => <ProtectedRoute component={CompanyProfile} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={CompanyProfile} />} />
@@ -114,6 +146,16 @@ function Router() {
       <Route path="/rs-integration" component={() => <ProtectedRoute component={RSIntegrationDashboard} />} />
       <Route path="/rs-admin" component={() => <ProtectedRoute component={RSAdmin} />} />
       <Route path="/bank/accounts" component={() => <ProtectedRoute component={BankAccounts} />} />
+      <Route path="/tasks" component={() => <ProtectedRoute component={TasksDashboard} />} />
+      <Route path="/tasks/:id" component={() => <ProtectedRoute component={TaskDetail} />} />
+      <Route path="/pipelines" component={() => <ProtectedRoute component={PipelinesDashboard} />} />
+      <Route path="/pipelines/new" component={() => <ProtectedRoute component={PipelineBuilder} />} />
+      <Route path="/pipelines/:id" component={() => <ProtectedRoute component={PipelineBuilder} />} />
+      <Route path="/jobs" component={() => <ProtectedRoute component={JobsDashboard} />} />
+      <Route path="/jobs/new" component={() => <ProtectedRoute component={JobDetail} />} />
+      <Route path="/jobs/:id" component={() => <ProtectedRoute component={JobDetail} />} />
+      <Route path="/calendar" component={() => <ProtectedRoute component={CalendarPage} />} />
+      <Route path="/automations" component={() => <ProtectedRoute component={AutomationsDashboard} />} />
       <Route path="/bank/import" component={() => <ProtectedRoute component={ImportStatement} />} />
       <Route path="/testing" component={() => <ProtectedRoute component={TestingDashboard} />} />
       <Route path="/testing/handsontable" component={() => <ProtectedRoute component={HandsontableDemo} hideSidebar={true} />} />
@@ -130,8 +172,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Toaster />
-        <Router />
+        <MessengerProvider>
+          <Toaster />
+          <Router />
+        </MessengerProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

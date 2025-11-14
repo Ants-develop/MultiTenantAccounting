@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   lastName: text("last_name").notNull(),
   globalRole: text("global_role").default("user"),
   isActive: boolean("is_active").default(true),
+  matrixId: text("matrix_id"), // Matrix user ID for messaging integration
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -41,6 +42,173 @@ export const clients = pgTable("clients", {
 
 // Keep companies as an alias for backwards compatibility during transition
 export const companies = clients;
+
+// Client Management (CRM) Tables
+export const clientDocuments = pgTable("client_documents", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull(), // Tax, Payroll, Accounting, Legal, Other
+  fileData: text("file_data"), // BYTEA stored as text in Drizzle (nullable until uploaded)
+  fileType: text("file_type"),
+  fileSize: integer("file_size").default(0), // Default to 0 until file is uploaded
+  version: integer("version").default(1),
+  expirationDate: timestamp("expiration_date"),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clientServicePackages = pgTable("client_service_packages", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  packageName: text("package_name").notNull(),
+  services: jsonb("services").notNull(), // JSON array of services
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clientTeamAssignments = pgTable("client_team_assignments", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull(), // Client Owner, Accountant, Reviewer, Assistant
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: integer("assigned_by").references(() => users.id),
+});
+
+export const clientOnboardingForms = pgTable("client_onboarding_forms", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  formType: text("form_type").notNull(), // intake, tax_questionnaire, payroll_setup
+  formData: jsonb("form_data").notNull(), // Form field values
+  status: text("status").default("draft"), // draft, in_progress, completed, archived
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clientOnboardingSteps = pgTable("client_onboarding_steps", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  stepName: text("step_name").notNull(),
+  stepType: text("step_type").notNull(), // document_upload, form_completion, meeting
+  isCompleted: boolean("is_completed").default(false),
+  completedAt: timestamp("completed_at"),
+  metadata: jsonb("metadata"), // Step-specific data
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Task System Enhancements
+export const taskAssignments = pgTable("task_assignments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  role: text("role").notNull(), // assignee, reviewer, watcher
+  assignedAt: timestamp("assigned_at").defaultNow(),
+  assignedBy: integer("assigned_by").references(() => users.id),
+});
+
+export const checklistTemplates = pgTable("checklist_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category"),
+  items: jsonb("items").notNull(), // Array of items with conditions
+  isClientFacing: boolean("is_client_facing").default(false),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const clientChecklists = pgTable("client_checklists", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id).notNull(),
+  templateId: integer("template_id").references(() => checklistTemplates.id),
+  items: jsonb("items").notNull(), // Checklist items with completion status
+  status: text("status").default("in_progress"), // in_progress, completed, archived
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Email Integration Tables (Gmail API)
+export const emailAccounts = pgTable("email_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  clientId: integer("client_id").references(() => clients.id),
+  emailAddress: text("email_address").notNull(),
+  provider: text("provider").default("gmail"), // 'gmail' (Google OAuth)
+  accessToken: text("access_token"), // Encrypted OAuth access token
+  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
+  tokenExpiry: timestamp("token_expiry"), // When the access token expires
+  // Legacy fields (kept for compatibility)
+  imapHost: text("imap_host"),
+  imapPort: integer("imap_port").default(993),
+  imapUsername: text("imap_username"),
+  imapPassword: text("imap_password"), // Can store encrypted token as fallback
+  smtpHost: text("smtp_host"),
+  smtpPort: integer("smtp_port").default(587),
+  smtpUsername: text("smtp_username"),
+  smtpPassword: text("smtp_password"), // Can store encrypted refresh token as fallback
+  isActive: boolean("is_active").default(true),
+  lastSyncAt: timestamp("last_sync_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const emailMessages = pgTable("email_messages", {
+  id: serial("id").primaryKey(),
+  emailAccountId: integer("email_account_id").references(() => emailAccounts.id).notNull(),
+  clientId: integer("client_id").references(() => clients.id),
+  messageId: text("message_id").notNull(),
+  threadId: text("thread_id"),
+  subject: text("subject"),
+  fromAddress: text("from_address").notNull(),
+  toAddresses: jsonb("to_addresses"), // Array of strings
+  ccAddresses: jsonb("cc_addresses"),
+  bccAddresses: jsonb("bcc_addresses"),
+  bodyText: text("body_text"),
+  bodyHtml: text("body_html"),
+  attachments: jsonb("attachments"), // Array of attachment metadata
+  isRead: boolean("is_read").default(false),
+  isArchived: boolean("is_archived").default(false),
+  labels: jsonb("labels"), // Array of strings
+  receivedAt: timestamp("received_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const emailTemplates = pgTable("email_templates", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  bodyHtml: text("body_html"),
+  bodyText: text("body_text"),
+  variables: jsonb("variables"), // Available template variables
+  category: text("category"),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const emailRoutingRules = pgTable("email_routing_rules", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id),
+  ruleType: text("rule_type").notNull(),
+  condition: jsonb("condition").notNull(),
+  action: text("action").notNull(),
+  actionConfig: jsonb("action_config"),
+  isActive: boolean("is_active").default(true),
+  priority: integer("priority").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 export const rsUsers = rs.table("users", {
   id: serial("id").primaryKey(),
@@ -865,6 +1033,139 @@ export type MainCompanySettings = typeof mainCompanySettings.$inferSelect;
 export type InsertMainCompanySettings = z.infer<typeof insertMainCompanySettingsSchema>;
 export type UpdateMainCompanySettings = z.infer<typeof updateMainCompanySettingsSchema>;
 
+// ============ TAXDOME MODULE ============
+
+// Workspaces Table
+export const workspaces = pgTable("workspaces", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").unique(),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: 'cascade' }),
+  plan: text("plan").default("standard"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Pipelines Table
+export const pipelines = pgTable("pipelines", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  stages: jsonb("stages").notNull(), // Array of stage objects
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Jobs Table
+export const jobs = pgTable("jobs", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  pipelineId: integer("pipeline_id").references(() => pipelines.id, { onDelete: 'set null' }),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: 'set null' }),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").default("active"), // active, completed, cancelled, on_hold
+  currentStage: text("current_stage"),
+  metadata: jsonb("metadata"),
+  matrixRoomId: text("matrix_room_id"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
+  assignedTo: integer("assigned_to").references(() => users.id, { onDelete: 'set null' }),
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Tasks Table
+export const tasks = pgTable("tasks", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  jobId: integer("job_id").references(() => jobs.id, { onDelete: 'cascade' }),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").default("todo"), // todo, in_progress, done, cancelled, blocked
+  priority: text("priority").default("medium"), // low, medium, high, urgent
+  assigneeId: integer("assignee_id").references(() => users.id, { onDelete: 'set null' }),
+  reporterId: integer("reporter_id").references(() => users.id, { onDelete: 'set null' }),
+  dueDate: timestamp("due_date"),
+  startDate: timestamp("start_date"),
+  completedAt: timestamp("completed_at"),
+  recurrence: jsonb("recurrence"), // Recurrence pattern (legacy - use recurrencePattern)
+  recurrencePattern: jsonb("recurrence_pattern"), // JSON object for recurrence: {frequency, interval, daysOfWeek, dayOfMonth}
+  recurrenceEndDate: timestamp("recurrence_end_date"), // When recurring task generation should stop
+  slaDueDate: timestamp("sla_due_date"), // SLA-based due date
+  slaPriority: text("sla_priority"), // SLA priority level
+  dependsOnTaskId: integer("depends_on_task_id").references(() => tasks.id, { onDelete: 'set null' }), // Task dependency
+  matrixRoomId: text("matrix_room_id"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Subtasks Table
+export const subtasks = pgTable("subtasks", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasks.id, { onDelete: 'cascade' }).notNull(),
+  title: text("title").notNull(),
+  done: boolean("done").default(false),
+  orderIndex: integer("order_index").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Events Table (Calendar)
+export const events = pgTable("events", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  title: text("title").notNull(),
+  description: text("description"),
+  start: timestamp("start").notNull(),
+  end: timestamp("end").notNull(),
+  timezone: text("timezone").default("UTC"),
+  ownerId: integer("owner_id").references(() => users.id, { onDelete: 'set null' }),
+  relatedTaskId: integer("related_task_id").references(() => tasks.id, { onDelete: 'set null' }),
+  relatedJobId: integer("related_job_id").references(() => jobs.id, { onDelete: 'set null' }),
+  matrixRoomId: text("matrix_room_id"),
+  location: text("location"),
+  isAllDay: boolean("is_all_day").default(false),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Automations Table
+export const automations = pgTable("automations", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: text("name").notNull(),
+  description: text("description"),
+  triggerType: text("trigger_type").notNull(), // job.stage_entered, task.completed, etc.
+  triggerConfig: jsonb("trigger_config").notNull(),
+  actions: jsonb("actions").notNull(), // Array of actions
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Activity Log Table (TaxDome-specific, extends existing activity_logs)
+export const taxdomeActivityLog = pgTable("activity_log", {
+  id: serial("id").primaryKey(),
+  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
+  actionType: text("action_type").notNull(), // task.created, job.stage_changed, etc.
+  targetType: text("target_type").notNull(), // task, job, pipeline, event, automation
+  targetId: integer("target_id").notNull(),
+  payload: jsonb("payload"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Migration History Tables
 export const migrationHistory = pgTable("migration_history", {
   id: serial("id").primaryKey(),
@@ -916,3 +1217,21 @@ export type InsertAccountEnhanced = z.infer<typeof insertAccountSchemaEnhanced>;
 export type InsertJournalEntryEnhanced = z.infer<typeof insertJournalEntrySchemaEnhanced>;
 export type InsertJournalEntryLineEnhanced = z.infer<typeof insertJournalEntryLineSchemaEnhanced>;
 export type JournalEntryWithLines = z.infer<typeof journalEntryWithLinesSchema>;
+
+// TaxDome Types
+export type Workspace = typeof workspaces.$inferSelect;
+export type InsertWorkspace = typeof workspaces.$inferInsert;
+export type Pipeline = typeof pipelines.$inferSelect;
+export type InsertPipeline = typeof pipelines.$inferInsert;
+export type Job = typeof jobs.$inferSelect;
+export type InsertJob = typeof jobs.$inferInsert;
+export type Task = typeof tasks.$inferSelect;
+export type InsertTask = typeof tasks.$inferInsert;
+export type Subtask = typeof subtasks.$inferSelect;
+export type InsertSubtask = typeof subtasks.$inferInsert;
+export type Event = typeof events.$inferSelect;
+export type InsertEvent = typeof events.$inferInsert;
+export type Automation = typeof automations.$inferSelect;
+export type InsertAutomation = typeof automations.$inferInsert;
+export type TaxDomeActivityLog = typeof taxdomeActivityLog.$inferSelect;
+export type InsertTaxDomeActivityLog = typeof taxdomeActivityLog.$inferInsert;

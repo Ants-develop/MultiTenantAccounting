@@ -3,7 +3,8 @@ import { Calculator, BarChart3, List, Book, File, Receipt,
          University, Edit, FileText, DollarSign, ChartBar, 
          Scale, PieChart, Users, Settings, Shield, Globe, 
          ChevronLeft, ChevronRight, Database, FileSearch, MessageSquare, 
-         CheckSquare, User, Plus, KeyRound, Beaker, Table, Building2 } from "lucide-react";
+         CheckSquare, User, Plus, KeyRound, Beaker, Table, Building2, Calendar,
+         Mail, CreditCard, FolderOpen, ChevronDown, ChevronUp, Zap } from "lucide-react";
 // CompanySwitcher removed - no longer needed in single-company mode
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,7 +12,9 @@ import { useSidebar } from "@/hooks/useSidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 
 interface NavigationItem {
   name: string;
@@ -21,19 +24,91 @@ interface NavigationItem {
   requiresGlobalAdmin?: boolean;
 }
 
-const navigation: NavigationItem[] = [
+interface NavigationModule {
+  id: string;
+  name: string;
+  icon: any;
+  items: NavigationItem[];
+  defaultOpen?: boolean;
+}
+
+// Dashboard (always visible at top)
+const dashboardItem: NavigationItem = {
+  name: "navigation.dashboard",
+  href: "/home",
+  icon: BarChart3,
+  permission: "DASHBOARD_VIEW",
+};
+
+// Client Management (CRM) Module
+const clientManagementSection: NavigationItem[] = [
   {
-    name: "Company Profile",
-    href: "/company-profile",
+    name: "Clients",
+    href: "/clients",
     icon: Building2,
-    permission: "SETTINGS_VIEW",
+    permission: "SYSTEM_VIEW_ALL_COMPANIES",
+  },
+  // Placeholder for future client management features
+  // {
+  //   name: "Client Documents",
+  //   href: "/clients/documents",
+  //   icon: FolderOpen,
+  // },
+  // {
+  //   name: "Client Onboarding",
+  //   href: "/clients/onboarding",
+  //   icon: User,
+  // },
+];
+
+// Workflow & Tasks Module
+const workflowTasksSection: NavigationItem[] = [
+  {
+    name: "Tasks",
+    href: "/tasks",
+    icon: CheckSquare,
+    permission: "TASKS_VIEW",
   },
   {
-    name: "navigation.dashboard",
-    href: "/home",
-    icon: BarChart3,
-    permission: "DASHBOARD_VIEW",
+    name: "Pipelines",
+    href: "/pipelines",
+    icon: List,
+    permission: "TASKS_VIEW",
   },
+  {
+    name: "Jobs",
+    href: "/jobs",
+    icon: FileText,
+    permission: "TASKS_VIEW",
+  },
+  {
+    name: "Calendar",
+    href: "/calendar",
+    icon: Calendar,
+    permission: "TASKS_VIEW",
+  },
+  {
+    name: "Automations",
+    href: "/automations",
+    icon: Zap,
+    permission: "TASKS_VIEW",
+  },
+];
+
+// Communication Module
+const communicationSection: NavigationItem[] = [
+  {
+    name: "Email Inbox",
+    href: "/email",
+    icon: Mail,
+    permission: "SYSTEM_VIEW_ALL_COMPANIES", // TODO: Add proper email permission
+  },
+  // Placeholder for future communication features
+  // {
+  //   name: "Messages",
+  //   href: "/messages",
+  //   icon: MessageSquare,
+  // },
 ];
 
 // Accounting Module
@@ -108,8 +183,14 @@ const rsSection: NavigationItem[] = [
   },
 ];
 
-// Reporting Module
-const reportingSection: NavigationItem[] = [
+// Reporting & Analytics Module
+const reportingAnalyticsSection: NavigationItem[] = [
+  {
+    name: "navigation.audit",
+    href: "/audit",
+    icon: FileSearch,
+    permission: "AUDIT_VIEW",
+  },
   {
     name: "Trial Balance",
     href: "/trial-balance",
@@ -152,40 +233,29 @@ const bankSection: NavigationItem[] = [
   },
 ];
 
-// Messenger Module
-const messengerSection: NavigationItem[] = [
+// Billing & Payments Module
+const billingPaymentsSection: NavigationItem[] = [
   {
-    name: "Messages",
-    href: "/chat",
-    icon: MessageSquare,
-    permission: "CHAT_VIEW",
+    name: "navigation.invoices",
+    href: "/accounting/invoices",
+    icon: CreditCard,
+    permission: "INVOICES_VIEW",
   },
+  // Placeholder for future billing features
+  // {
+  //   name: "Payments",
+  //   href: "/billing/payments",
+  //   icon: CreditCard,
+  // },
+  // {
+  //   name: "Subscriptions",
+  //   href: "/billing/subscriptions",
+  //   icon: DollarSign,
+  // },
 ];
 
-// Tasks Module
-const tasksSection: NavigationItem[] = [
-  {
-    name: "My Tasks",
-    href: "/tasks/my",
-    icon: User,
-    permission: "TASKS_VIEW",
-  },
-  {
-    name: "All Tasks",
-    href: "/tasks",
-    icon: CheckSquare,
-    permission: "TASKS_VIEW",
-  },
-  {
-    name: "Create Task",
-    href: "/tasks/new",
-    icon: Plus,
-    permission: "TASKS_CREATE",
-  },
-];
-
-// Administration Section
-const adminSection: NavigationItem[] = [
+// Administration Module
+const administrationSection: NavigationItem[] = [
   {
     name: "navigation.globalAdministration",
     href: "/global-administration",
@@ -199,22 +269,68 @@ const adminSection: NavigationItem[] = [
     permission: "USER_VIEW",
   },
   {
-    name: "Clients",
-    href: "/clients",
-    icon: Building2,
-    permission: "SYSTEM_VIEW_ALL_COMPANIES",
-  },
-  {
     name: "Permissions",
     href: "/permissions-management",
     icon: Shield,
     permission: "SYSTEM_VIEW_ALL_COMPANIES",
   },
   {
+    name: "Company Profile",
+    href: "/company-profile",
+    icon: Building2,
+    permission: "SETTINGS_VIEW",
+  },
+  {
     name: "MSSQL Import",
     href: "/mssql-import",
     icon: Database,
     permission: "JOURNAL_VIEW",
+  },
+];
+
+// Module definitions with icons
+const MODULES: NavigationModule[] = [
+  {
+    id: 'client-management',
+    name: 'Client Management',
+    icon: Building2,
+    items: clientManagementSection,
+  },
+  {
+    id: 'workflow-tasks',
+    name: 'Workflow & Tasks',
+    icon: CheckSquare,
+    items: workflowTasksSection,
+  },
+  {
+    id: 'communication',
+    name: 'Communication',
+    icon: MessageSquare,
+    items: communicationSection,
+  },
+  {
+    id: 'accounting',
+    name: 'Accounting',
+    icon: Book,
+    items: accountingSection,
+  },
+  {
+    id: 'billing-payments',
+    name: 'Billing & Payments',
+    icon: CreditCard,
+    items: billingPaymentsSection,
+  },
+  {
+    id: 'reporting-analytics',
+    name: 'Reporting & Analytics',
+    icon: ChartBar,
+    items: reportingAnalyticsSection,
+  },
+  {
+    id: 'administration',
+    name: 'Administration',
+    icon: Settings,
+    items: administrationSection,
   },
 ];
 
@@ -258,15 +374,51 @@ const testingSection: NavigationItem[] = [
   },
 ];
 
+// Get current module from route
+const getCurrentModule = (path: string): string | null => {
+  if (path.startsWith('/clients') || path.startsWith('/client')) return 'client-management';
+  if (path.startsWith('/tasks') || path.startsWith('/pipelines') || path.startsWith('/jobs') || path.startsWith('/calendar')) return 'workflow-tasks';
+  if (path.startsWith('/accounting')) return 'accounting';
+  if (path.startsWith('/audit') || path.startsWith('/financial-statements') || path.startsWith('/trial-balance') || path.startsWith('/custom-reports')) return 'reporting-analytics';
+  if (path.startsWith('/global-administration') || path.startsWith('/user-management') || path.startsWith('/permissions-management') || path.startsWith('/company-profile') || path.startsWith('/mssql-import')) return 'administration';
+  return null;
+};
+
 export default function Sidebar() {
   const [location] = useLocation();
   const { can, isGlobalAdministrator } = usePermissions();
   const { isCollapsed, toggleSidebar } = useSidebar();
   const { t } = useTranslation();
   const { mainCompany } = useAuth();
+  const currentModule = getCurrentModule(location);
+  
+  // Track which modules are open (default: current module or first module with items)
+  const [openModules, setOpenModules] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (currentModule) {
+      initial.add(currentModule);
+    }
+    return initial;
+  });
+
+  const toggleModule = (moduleId: string) => {
+    setOpenModules(prev => {
+      const next = new Set(prev);
+      if (next.has(moduleId)) {
+        next.delete(moduleId);
+      } else {
+        next.add(moduleId);
+      }
+      return next;
+    });
+  };
 
   const isActive = (href: string) => {
     return location === href || (href !== "/dashboard" && location.startsWith(href));
+  };
+
+  const isModuleActive = (moduleId: string) => {
+    return currentModule === moduleId;
   };
 
   const NavItem = ({ item }: { item: NavigationItem }) => {
@@ -320,6 +472,49 @@ export default function Sidebar() {
     });
   };
 
+  // Module Section Component
+  const ModuleSection = ({ module }: { module: NavigationModule }) => {
+    const visibleItems = getVisibleItems(module.items);
+    if (visibleItems.length === 0) return null;
+
+    const isOpen = openModules.has(module.id);
+    const isActive = isModuleActive(module.id);
+    const ModuleIcon = module.icon;
+
+    return (
+      <Collapsible open={isOpen} onOpenChange={() => toggleModule(module.id)}>
+        <CollapsibleTrigger asChild>
+          <div
+            className={`
+              flex items-center justify-between w-full px-3 py-2 rounded-md transition-colors
+              ${isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}
+              ${isCollapsed ? 'justify-center px-2' : ''}
+            `}
+          >
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <ModuleIcon className="w-5 h-5 flex-shrink-0" />
+              {!isCollapsed && (
+                <span className="text-sm font-medium truncate">{module.name}</span>
+              )}
+            </div>
+            {!isCollapsed && (
+              isOpen ? <ChevronUp className="w-4 h-4 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 flex-shrink-0" />
+            )}
+          </div>
+        </CollapsibleTrigger>
+        {!isCollapsed && (
+          <CollapsibleContent>
+            <div className="ml-7 mt-1 space-y-1">
+              {visibleItems.map((item) => (
+                <NavItem key={item.name} item={item} />
+              ))}
+            </div>
+          </CollapsibleContent>
+        )}
+      </Collapsible>
+    );
+  };
+
   return (
     <div className={`flex flex-col h-full accounting-sidebar transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`}>
       {/* Logo & Company Switcher - Fixed Header */}
@@ -351,85 +546,33 @@ export default function Sidebar() {
       <ScrollArea className="flex-1">
         <nav className={`px-4 py-4 space-y-2 pb-6 ${isCollapsed ? 'px-2' : ''}`}>
           <div className="space-y-1">
-            {navigation.map((item) => (
-              <NavItem key={item.name} item={item} />
-            ))}
-            
-            {/* Administration Section - Moved to top */}
-            {getVisibleItems(adminSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">{t('sidebar.administration')}</p>}
-                {getVisibleItems(adminSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
+            {/* Dashboard - Always at top */}
+            {can('DASHBOARD_VIEW' as any) && (
+              <NavItem item={dashboardItem} />
             )}
 
-            {/* Accounting Module */}
-            {getVisibleItems(accountingSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">{t('sidebar.accounting')}</p>}
-                {getVisibleItems(accountingSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
+            {/* Module Sections */}
+            <div className="space-y-1 mt-4">
+              {MODULES.map((module) => (
+                <ModuleSection key={module.id} module={module} />
+              ))}
+            </div>
 
-            {/* Audit Module */}
-            {getVisibleItems(auditSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Audit</p>}
-                {getVisibleItems(auditSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-
-            {/* RS Integration Module */}
-            {getVisibleItems(rsSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">RS Integration</p>}
-                {getVisibleItems(rsSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-
-            {/* Reporting Module */}
-            {getVisibleItems(reportingSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Reporting</p>}
-                {getVisibleItems(reportingSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-
-            {/* Bank Module */}
+            {/* Bank Module (standalone for now) */}
             {getVisibleItems(bankSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Bank</p>}
+              <div className="mt-4">
+                {!isCollapsed && <p className="accounting-nav-section text-xs font-semibold text-muted-foreground uppercase mb-2">Bank</p>}
                 {getVisibleItems(bankSection).map((item) => (
                   <NavItem key={item.name} item={item} />
                 ))}
               </div>
             )}
 
-            {/* Messenger Module */}
-            {getVisibleItems(messengerSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Messenger</p>}
-                {getVisibleItems(messengerSection).map((item) => (
-                  <NavItem key={item.name} item={item} />
-                ))}
-              </div>
-            )}
-
-            {/* Tasks Module */}
-            {getVisibleItems(tasksSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Tasks</p>}
-                {getVisibleItems(tasksSection).map((item) => (
+            {/* RS Integration Module (standalone for now) */}
+            {getVisibleItems(rsSection).length > 0 && (
+              <div className="mt-4">
+                {!isCollapsed && <p className="accounting-nav-section text-xs font-semibold text-muted-foreground uppercase mb-2">RS Integration</p>}
+                {getVisibleItems(rsSection).map((item) => (
                   <NavItem key={item.name} item={item} />
                 ))}
               </div>
@@ -437,8 +580,8 @@ export default function Sidebar() {
 
             {/* Testing Section */}
             {getVisibleItems(testingSection).length > 0 && (
-              <div className="mt-6">
-                {!isCollapsed && <p className="accounting-nav-section">Testing</p>}
+              <div className="mt-4">
+                {!isCollapsed && <p className="accounting-nav-section text-xs font-semibold text-muted-foreground uppercase mb-2">Testing</p>}
                 {getVisibleItems(testingSection).map((item) => (
                   <NavItem key={item.name} item={item} />
                 ))}

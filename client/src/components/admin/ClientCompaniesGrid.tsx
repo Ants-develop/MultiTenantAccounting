@@ -50,6 +50,8 @@ interface ClientCompaniesGridProps<T extends ClientCompanyGridItem = ClientCompa
   onEdit?: (company: T) => void;
   onDelete?: (company: T) => void;
   onManageUsers?: (company: T) => void;
+  onViewProfile?: (company: T) => void;
+  onViewOnboarding?: (company: T) => void;
 }
 
 type ClientCompanyFormData = z.infer<typeof insertClientSchemaEnhanced>;
@@ -58,7 +60,9 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
   onCreateNew,
   onEdit,
   onDelete,
-  onManageUsers
+  onManageUsers,
+  onViewProfile,
+  onViewOnboarding
 }: ClientCompaniesGridProps<T>) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -387,6 +391,26 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+                          {onViewProfile && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onViewProfile(company)}
+                              title="View Profile"
+                            >
+                              <User className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {onViewOnboarding && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onViewOnboarding(company)}
+                              title="View Onboarding"
+                            >
+                              <ClipboardList className="h-4 w-4" />
+                            </Button>
+                          )}
                           {onManageUsers && (
                             <Button
                               variant="ghost"

@@ -23,8 +23,6 @@ import clientsRouter from "./api/clients";
 import reportsRouter from "./api/reports";
 import reportingRouter from "./api/reporting";
 import bankRouter from "./api/bank";
-import chatRouter from "./api/chat";
-import tasksRouter from "./api/tasks";
 import dashboardRouter from "./api/dashboard";
 import homeRouter from "./api/home";
 import customersVendorsRouter from "./api/customers-vendors";
@@ -32,10 +30,21 @@ import mssqlImportRouter from "./api/mssql-import";
 import mssqlAuditImportRouter from "./api/mssql-audit-import";
 import rsAdminRouter from "./api/rs-admin";
 import permissionsRouter from "./api/permissions";
+import pipelinesRouter from "./api/pipelines";
+import jobsRouter from "./api/jobs";
+import tasksRouter from "./api/tasks";
+import calendarRouter from "./api/calendar";
+import matrixRouter from "./api/matrix";
+import clientManagementRouter from "./api/client-management";
+import emailRouter from "./api/email";
+import automationsRouter from "./api/automations";
+import clientPortalRouter from "./api/client-portal";
 
 declare module "express-session" {
   interface SessionData {
     userId?: number;
+    clientPortalToken?: string;
+    clientPortalClientId?: number;
   }
 }
 
@@ -530,11 +539,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bank Module
   app.use('/api/bank', bankRouter);
   
-  // Chat Module
-  app.use('/api/chat', chatRouter);
-  
-  // Tasks Module
+  // TaxDome Module
+  app.use('/api/pipelines', pipelinesRouter);
+  app.use('/api/jobs', jobsRouter);
   app.use('/api/tasks', tasksRouter);
+  app.use('/api/calendar', calendarRouter);
+  app.use('/api/matrix', matrixRouter);
+  
+  // Communication Hub
+  app.use('/api/email', emailRouter);
+  
+  // Automation Engine
+  app.use('/api/automations', automationsRouter);
+  
+  // Client Portal
+  app.use('/api/client-portal', clientPortalRouter);
   
   // Other Modules
   // Main company endpoints
@@ -543,6 +562,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Client companies management
   app.use('/api/clients', clientsRouter);
+  app.use('/api/clients', clientManagementRouter); // Client Management (CRM) endpoints
   
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/home', homeRouter);

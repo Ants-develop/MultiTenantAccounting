@@ -1,0 +1,204 @@
+/* TaxDome Design System - Theme Variables and Styles */
+
+:root {
+  /* TaxDome Color Palette - Professional Blue & Gray Scale */
+  --taxdome-primary: #2563eb; /* Professional blue */
+  --taxdome-primary-dark: #1e40af;
+  --taxdome-primary-light: #3b82f6;
+  --taxdome-primary-lighter: #60a5fa;
+  
+  /* Gray Scale */
+  --taxdome-gray-50: #f9fafb;
+  --taxdome-gray-100: #f3f4f6;
+  --taxdome-gray-200: #e5e7eb;
+  --taxdome-gray-300: #d1d5db;
+  --taxdome-gray-400: #9ca3af;
+  --taxdome-gray-500: #6b7280;
+  --taxdome-gray-600: #4b5563;
+  --taxdome-gray-700: #374151;
+  --taxdome-gray-800: #1f2937;
+  --taxdome-gray-900: #111827;
+  
+  /* Status Colors */
+  --taxdome-success: #10b981;
+  --taxdome-success-light: #34d399;
+  --taxdome-warning: #f59e0b;
+  --taxdome-warning-light: #fbbf24;
+  --taxdome-error: #ef4444;
+  --taxdome-error-light: #f87171;
+  --taxdome-info: #3b82f6;
+  --taxdome-info-light: #60a5fa;
+  
+  /* Text Colors */
+  --taxdome-text-primary: #111827;
+  --taxdome-text-secondary: #6b7280;
+  --taxdome-text-tertiary: #9ca3af;
+  --taxdome-text-inverse: #ffffff;
+  
+  /* Background Colors */
+  --taxdome-bg-primary: #ffffff;
+  --taxdome-bg-secondary: #f9fafb;
+  --taxdome-bg-tertiary: #f3f4f6;
+  --taxdome-bg-hover: #f9fafb;
+  --taxdome-bg-active: #f3f4f6;
+  
+  /* Border Colors */
+  --taxdome-border-light: #e5e7eb;
+  --taxdome-border-medium: #d1d5db;
+  --taxdome-border-dark: #9ca3af;
+  
+  /* Shadows - Subtle elevation */
+  --taxdome-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --taxdome-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --taxdome-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --taxdome-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  
+  /* Border Radius */
+  --taxdome-radius-sm: 0.25rem; /* 4px */
+  --taxdome-radius-md: 0.5rem;  /* 8px */
+  --taxdome-radius-lg: 0.75rem; /* 12px */
+  --taxdome-radius-xl: 1rem;    /* 16px */
+  --taxdome-radius-full: 9999px;
+  
+  /* Spacing - 4px/8px grid system */
+  --taxdome-spacing-xs: 0.25rem;  /* 4px */
+  --taxdome-spacing-sm: 0.5rem;   /* 8px */
+  --taxdome-spacing-md: 1rem;     /* 16px */
+  --taxdome-spacing-lg: 1.5rem;   /* 24px */
+  --taxdome-spacing-xl: 2rem;     /* 32px */
+  --taxdome-spacing-2xl: 3rem;    /* 48px */
+  
+  /* Typography */
+  --taxdome-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --taxdome-font-size-xs: 0.75rem;   /* 12px */
+  --taxdome-font-size-sm: 0.875rem;  /* 14px */
+  --taxdome-font-size-base: 1rem;    /* 16px */
+  --taxdome-font-size-lg: 1.125rem;  /* 18px */
+  --taxdome-font-size-xl: 1.25rem;   /* 20px */
+  --taxdome-font-size-2xl: 1.5rem;   /* 24px */
+  --taxdome-font-size-3xl: 1.875rem; /* 30px */
+  
+  --taxdome-font-weight-normal: 400;
+  --taxdome-font-weight-medium: 500;
+  --taxdome-font-weight-semibold: 600;
+  --taxdome-font-weight-bold: 700;
+  
+  --taxdome-line-height-tight: 1.25;
+  --taxdome-line-height-normal: 1.5;
+  --taxdome-line-height-relaxed: 1.75;
+  
+  /* Transitions */
+  --taxdome-transition-fast: 150ms ease-in-out;
+  --taxdome-transition-base: 200ms ease-in-out;
+  --taxdome-transition-slow: 300ms ease-in-out;
+}
+
+/* Dark mode support (if needed) */
+.dark {
+  --taxdome-bg-primary: #1f2937;
+  --taxdome-bg-secondary: #111827;
+  --taxdome-bg-tertiary: #0f172a;
+  --taxdome-text-primary: #f9fafb;
+  --taxdome-text-secondary: #d1d5db;
+  --taxdome-text-tertiary: #9ca3af;
+  --taxdome-border-light: #374151;
+  --taxdome-border-medium: #4b5563;
+}
+
+/* TaxDome Component Base Styles */
+.taxdome-card {
+  background: var(--taxdome-bg-primary);
+  border: 1px solid var(--taxdome-border-light);
+  border-radius: var(--taxdome-radius-md);
+  box-shadow: var(--taxdome-shadow-sm);
+  padding: var(--taxdome-spacing-lg);
+  transition: box-shadow var(--taxdome-transition-base);
+}
+
+.taxdome-card:hover {
+  box-shadow: var(--taxdome-shadow-md);
+}
+
+.taxdome-button-primary {
+  background: var(--taxdome-primary);
+  color: var(--taxdome-text-inverse);
+  border: none;
+  border-radius: var(--taxdome-radius-md);
+  padding: var(--taxdome-spacing-sm) var(--taxdome-spacing-md);
+  font-weight: var(--taxdome-font-weight-medium);
+  transition: background var(--taxdome-transition-fast);
+  cursor: pointer;
+}
+
+.taxdome-button-primary:hover {
+  background: var(--taxdome-primary-dark);
+}
+
+.taxdome-button-secondary {
+  background: var(--taxdome-bg-secondary);
+  color: var(--taxdome-text-primary);
+  border: 1px solid var(--taxdome-border-medium);
+  border-radius: var(--taxdome-radius-md);
+  padding: var(--taxdome-spacing-sm) var(--taxdome-spacing-md);
+  font-weight: var(--taxdome-font-weight-medium);
+  transition: all var(--taxdome-transition-fast);
+  cursor: pointer;
+}
+
+.taxdome-button-secondary:hover {
+  background: var(--taxdome-bg-hover);
+  border-color: var(--taxdome-border-dark);
+}
+
+.taxdome-input {
+  width: 100%;
+  padding: var(--taxdome-spacing-sm) var(--taxdome-spacing-md);
+  border: 1px solid var(--taxdome-border-medium);
+  border-radius: var(--taxdome-radius-md);
+  font-size: var(--taxdome-font-size-base);
+  color: var(--taxdome-text-primary);
+  background: var(--taxdome-bg-primary);
+  transition: border-color var(--taxdome-transition-fast);
+}
+
+.taxdome-input:focus {
+  outline: none;
+  border-color: var(--taxdome-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.taxdome-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--taxdome-spacing-xs) var(--taxdome-spacing-sm);
+  border-radius: var(--taxdome-radius-full);
+  font-size: var(--taxdome-font-size-xs);
+  font-weight: var(--taxdome-font-weight-medium);
+  line-height: var(--taxdome-line-height-tight);
+}
+
+.taxdome-badge-success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--taxdome-success);
+}
+
+.taxdome-badge-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--taxdome-warning);
+}
+
+.taxdome-badge-error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--taxdome-error);
+}
+
+.taxdome-badge-info {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--taxdome-info);
+}
+
+.taxdome-badge-gray {
+  background: var(--taxdome-gray-100);
+  color: var(--taxdome-gray-700);
+}
+
