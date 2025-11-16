@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSetNode } from "flexlayout-react";
+import { useEffect, useRef, useState, useCallback, ReactNode } from "react";
+import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSetNode, Action, BorderNode } from "flexlayout-react";
 import "flexlayout-react/style/light.css";
 import { pageRegistry, getPageMetadata, resolvePath, extractParams } from "@/lib/pageRegistry";
 import { saveLayoutState, loadLayoutState, clearLayoutState } from "@/lib/flexLayoutStorage";
@@ -9,12 +9,61 @@ import { queryClient } from "@/lib/queryClient";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { RouteParamsProvider } from "@/contexts/RouteParamsContext";
 
+export interface FlexLayoutSettings {
+  /** Enable closing tabs (default: true) */
+  enableClose?: boolean;
+  /** Enable renaming tabs (default: false) */
+  enableRename?: boolean;
+  /** Enable reordering tabs (default: true) */
+  enableReorder?: boolean;
+  /** Enable tab popout (default: false) */
+  enablePopout?: boolean;
+  /** Enable tab maximize (default: true) */
+  enableMaximize?: boolean;
+  /** Show close icon on tabs (default: true) */
+  showCloseIcon?: boolean;
+  /** Show popout icon on tabs (default: false) */
+  showPopoutIcon?: boolean;
+  /** Show maximize icon on tabs (default: true) */
+  showMaximizeIcon?: boolean;
+  /** Tab class name prefix (default: "flexlayout__tab") */
+  tabClassName?: string;
+  /** TabSet class name prefix (default: "flexlayout__tabset") */
+  tabSetClassName?: string;
+  /** Root class name (default: "flexlayout__layout") */
+  rootClassName?: string;
+}
+
 interface FlexLayoutContainerProps {
   defaultPath?: string;
   onContextReady?: (context: GoldenLayoutContextValue) => void;
+  /** Custom settings for layout behavior */
+  settings?: FlexLayoutSettings;
+  /** Callback when an action is triggered (allows intercepting actions) */
+  onAction?: (action: Action) => Action | undefined;
+  /** Custom renderer for tabs */
+  onRenderTab?: (node: TabNode, renderValues: { leading: ReactNode; content: ReactNode; name: string }) => ReactNode;
+  /** Custom renderer for tabsets */
+  onRenderTabSet?: (node: TabSetNode | BorderNode, renderValues: any) => void;
+  /** Custom class name mapper for styling */
+  classNameMapper?: (defaultClassName: string) => string;
+  /** Additional CSS class name for the container */
+  className?: string;
+  /** Custom model factory (overrides default model creation) */
+  modelFactory?: () => IJsonModel;
 }
 
-export default function FlexLayoutContainer({ defaultPath = "/home", onContextReady }: FlexLayoutContainerProps) {
+export default function FlexLayoutContainer({ 
+  defaultPath = "/home", 
+  onContextReady,
+  settings,
+  onAction,
+  onRenderTab,
+  onRenderTabSet,
+  classNameMapper,
+  className,
+  modelFactory,
+}: FlexLayoutContainerProps) {
   const layoutRef = useRef<Layout | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [model, setModel] = useState<Model | null>(null);
@@ -125,12 +174,60 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
 
   // Create default model
   const createDefaultModel = useCallback((): IJsonModel => {
+    // Use custom model factory if provided
+    if (modelFactory) {
+      return modelFactory();
+    }
+
     const defaultPage = getPageMetadata(defaultPath);
     const resolvedPath = defaultPath;
     const componentName = `page_${resolvedPath.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
+    // Apply settings to model
+    const tabConfig: any = {
+      type: "tab",
+      id: `tab_${Date.now()}`,
+      name: defaultPage?.title || "Home",
+      component: componentName,
+      config: {
+        path: defaultPath,
+        params: {},
+        resolvedPath,
+      },
+    };
+
+    // Apply settings to tab
+    if (settings) {
+      if (settings.enableClose === false) {
+        tabConfig.enableClose = false;
+      }
+      if (settings.enableRename === true) {
+        tabConfig.enableRename = true;
+      }
+      if (settings.enableReorder === false) {
+        tabConfig.enableReorder = false;
+      }
+      if (settings.enablePopout === true) {
+        tabConfig.enablePopout = true;
+      }
+      if (settings.enableMaximize === false) {
+        tabConfig.enableMaximize = false;
+      }
+    }
+
     return {
-      global: {},
+      global: {
+        ...(settings && {
+          tabEnableClose: settings.enableClose !== false,
+          tabEnableRename: settings.enableRename === true,
+          tabEnableReorder: settings.enableReorder !== false,
+          tabEnableFloat: settings.enablePopout === true,
+          tabSetEnableMaximize: settings.enableMaximize !== false,
+          tabSetShowCloseIcon: settings.showCloseIcon !== false,
+          tabSetShowPopoutIcon: settings.showPopoutIcon === true,
+          tabSetShowMaximizeIcon: settings.showMaximizeIcon !== false,
+        }),
+      },
       borders: [],
       layout: {
         type: "row",
@@ -138,24 +235,12 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
           {
             type: "tabset",
             weight: 100,
-            children: [
-              {
-                type: "tab",
-                id: `tab_${Date.now()}`,
-                name: defaultPage?.title || "Home",
-                component: componentName,
-                config: {
-                  path: defaultPath,
-                  params: {},
-                  resolvedPath,
-                },
-              },
-            ],
+            children: [tabConfig],
           },
         ],
       },
     };
-  }, [defaultPath]);
+  }, [defaultPath, modelFactory, settings]);
 
   // Initialize layout
   useEffect(() => {
@@ -317,26 +402,48 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
     const componentName = `page_${resolvedPath.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+    // Build tab config with settings
+    const tabConfig: any = {
+      type: "tab",
+      id: tabId,
+      name: tabTitle,
+      component: componentName,
+      config: {
+        path: templatePath,
+        params: routeParams,
+        resolvedPath,
+      },
+    };
+
+    // Apply settings to new tab
+    if (settings) {
+      if (settings.enableClose === false) {
+        tabConfig.enableClose = false;
+      }
+      if (settings.enableRename === true) {
+        tabConfig.enableRename = true;
+      }
+      if (settings.enableReorder === false) {
+        tabConfig.enableReorder = false;
+      }
+      if (settings.enablePopout === true) {
+        tabConfig.enablePopout = true;
+      }
+      if (settings.enableMaximize === false) {
+        tabConfig.enableMaximize = false;
+      }
+    }
+
     // Use Actions.addNode to properly add the tab
     model.doAction(
       Actions.addNode(
-        {
-          type: "tab",
-          id: tabId,
-          name: tabTitle,
-          component: componentName,
-          config: {
-            path: templatePath,
-            params: routeParams,
-            resolvedPath,
-          },
-        },
+        tabConfig,
         targetTabsetId,
         DockLocation.CENTER,
         -1 // Add at the end
       )
     );
-  }, [tabs, setActiveTab, model]);
+  }, [tabs, setActiveTab, model, settings]);
 
   const contextValue: GoldenLayoutContextValue = {
     openTab,
@@ -366,6 +473,14 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
       console.error("Failed to save layout state:", error);
     }
   }, [updateTabsFromModel]);
+
+  // Handle actions (with optional interception)
+  const handleAction = useCallback((action: Action): Action | undefined => {
+    if (onAction) {
+      return onAction(action);
+    }
+    return action;
+  }, [onAction]);
 
   // Add middle mouse click to close tabs (like Chrome)
   useEffect(() => {
@@ -435,12 +550,16 @@ export default function FlexLayoutContainer({ defaultPath = "/home", onContextRe
   }
 
   return (
-    <div ref={containerRef} className="w-full h-full flexlayout-container">
+    <div ref={containerRef} className={`w-full h-full flexlayout-container ${className || ""}`}>
       <Layout
         ref={layoutRef}
         model={model}
         factory={factory}
         onModelChange={handleModelChange}
+        onAction={handleAction}
+        onRenderTab={onRenderTab}
+        onRenderTabSet={onRenderTabSet}
+        classNameMapper={classNameMapper}
       />
     </div>
   );
