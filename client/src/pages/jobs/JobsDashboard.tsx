@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import { jobsApi, Job, CreateJobPayload } from "@/api/jobs";
 import { pipelinesApi } from "@/api/pipelines";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Eye, Trash2, Edit } from "lucide-react";
 import { JobForm } from "./JobForm";
 import dayjs from "dayjs";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 export default function JobsDashboard() {
-  const [, setLocation] = useLocation();
+  const flexLayout = useFlexLayout();
   const queryClient = useQueryClient();
   const workspaceId = 1; // Default workspace
 
@@ -122,7 +122,11 @@ export default function JobsDashboard() {
         <Card>
           <CardContent className="text-center py-12">
             <p className="text-gray-500 mb-4">No jobs yet</p>
-            <Button onClick={() => setLocation("/jobs/new")}>
+            <Button onClick={() => {
+              if (flexLayout) {
+                flexLayout.openTab("/jobs/new");
+              }
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Create Your First Job
             </Button>
@@ -165,7 +169,11 @@ export default function JobsDashboard() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setLocation(`/jobs/${job.id}`)}
+                          onClick={() => {
+                            if (flexLayout) {
+                              flexLayout.openTab(`/jobs/${job.id}`, { id: job.id.toString() });
+                            }
+                          }}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTranslation } from "react-i18next";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useState } from "react";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 // Module definitions for navigation
 const MODULES = {
@@ -40,6 +41,7 @@ export default function TopBar() {
   const { toast } = useToast();
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
+  const flexLayout = useFlexLayout();
 
   const getUserInitials = (firstName: string, lastName: string) => {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -84,12 +86,12 @@ export default function TopBar() {
 
     // If no action was triggered or we're on a different page, navigate to journal entries
     if (!actionTriggered) {
-      if (location !== '/journal-entries') {
-        setLocation('/journal-entries');
-        toast({
-          title: t('topBar.redirecting'),
-          description: t('topBar.redirectMessage'),
-        });
+      if (location !== '/accounting/journal-entries') {
+        if (flexLayout) {
+          flexLayout.openTab('/accounting/journal-entries');
+        } else {
+          setLocation('/accounting/journal-entries');
+        }
       }
     }
   };
@@ -174,7 +176,13 @@ export default function TopBar() {
                   <User className="w-4 h-4 mr-2" />
                   {t('topBar.profile')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLocation('/company-profile')}>
+                <DropdownMenuItem onClick={() => {
+                  if (flexLayout) {
+                    flexLayout.openTab('/company-profile');
+                  } else {
+                    setLocation('/company-profile');
+                  }
+                }}>
                   <Building2 className="w-4 h-4 mr-2" />
                   Company Settings
                 </DropdownMenuItem>
@@ -202,19 +210,47 @@ export default function TopBar() {
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Pages">
-            <CommandItem onSelect={() => { setLocation('/home'); setSearchOpen(false); }}>
+            <CommandItem onSelect={() => { 
+              if (flexLayout) {
+                flexLayout.openTab('/home');
+              } else {
+                setLocation('/home');
+              }
+              setSearchOpen(false); 
+            }}>
               <BarChart3 className="mr-2 h-4 w-4" />
               <span>Dashboard</span>
             </CommandItem>
-            <CommandItem onSelect={() => { setLocation('/tasks'); setSearchOpen(false); }}>
+            <CommandItem onSelect={() => { 
+              if (flexLayout) {
+                flexLayout.openTab('/tasks');
+              } else {
+                setLocation('/tasks');
+              }
+              setSearchOpen(false); 
+            }}>
               <User className="mr-2 h-4 w-4" />
               <span>Tasks</span>
             </CommandItem>
-            <CommandItem onSelect={() => { setLocation('/accounting/journal-entries'); setSearchOpen(false); }}>
+            <CommandItem onSelect={() => { 
+              if (flexLayout) {
+                flexLayout.openTab('/accounting/journal-entries');
+              } else {
+                setLocation('/accounting/journal-entries');
+              }
+              setSearchOpen(false); 
+            }}>
               <User className="mr-2 h-4 w-4" />
               <span>Journal Entries</span>
             </CommandItem>
-            <CommandItem onSelect={() => { setLocation('/clients'); setSearchOpen(false); }}>
+            <CommandItem onSelect={() => { 
+              if (flexLayout) {
+                flexLayout.openTab('/clients');
+              } else {
+                setLocation('/clients');
+              }
+              setSearchOpen(false); 
+            }}>
               <Building2 className="mr-2 h-4 w-4" />
               <span>Clients</span>
             </CommandItem>

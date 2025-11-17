@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { clientManagementApi, OnboardingStatus } from "@/api/client-management";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ export const ClientOnboarding: React.FC<ClientOnboardingProps> = ({ clientId }) 
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const flexLayout = useFlexLayout();
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["/api/clients", clientId, "onboarding", "status"],
@@ -62,7 +64,13 @@ export const ClientOnboarding: React.FC<ClientOnboardingProps> = ({ clientId }) 
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-gray-500">Onboarding status not found</p>
-            <Button variant="outline" onClick={() => setLocation("/clients")} className="mt-4">
+            <Button variant="outline" onClick={() => {
+              if (flexLayout) {
+                flexLayout.openTab("/clients");
+              } else {
+                setLocation("/clients");
+              }
+            }} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Clients
             </Button>
@@ -89,7 +97,13 @@ export const ClientOnboarding: React.FC<ClientOnboardingProps> = ({ clientId }) 
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/clients")}>
+          <Button variant="ghost" onClick={() => {
+            if (flexLayout) {
+              flexLayout.openTab("/clients");
+            } else {
+              setLocation("/clients");
+            }
+          }}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

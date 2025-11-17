@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
 import { Table, Grid3x3, Palette, FormInput, BarChart3, Beaker, Database } from "lucide-react";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 interface DemoCard {
   title: string;
@@ -72,7 +72,7 @@ const demos: DemoCard[] = [
 ];
 
 export default function TestingDashboard() {
-  const [, setLocation] = useLocation();
+  const flexLayout = useFlexLayout();
 
   return (
     <div className="space-y-6">
@@ -108,7 +108,11 @@ export default function TestingDashboard() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => isAvailable && setLocation(demo.path)}
+                  onClick={() => {
+                    if (isAvailable && flexLayout) {
+                      flexLayout.openTab(demo.path);
+                    }
+                  }}
                   disabled={!isAvailable}
                   className="w-full"
                   variant={isAvailable ? "default" : "secondary"}

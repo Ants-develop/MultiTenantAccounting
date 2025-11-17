@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouteParams } from "@/contexts/RouteParamsContext";
-import { useGoldenLayout } from "@/hooks/useGoldenLayout";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 const pipelineSchema = z.object({
   name: z.string().min(1, "Pipeline name is required"),
@@ -28,7 +28,7 @@ interface PipelineBuilderProps {
 export default function PipelineBuilder({ pipelineId: propPipelineId }: PipelineBuilderProps = {}) {
   const queryClient = useQueryClient();
   const routeParams = useRouteParams();
-  const goldenLayout = useGoldenLayout();
+  const flexLayout = useFlexLayout();
   
   // Get pipelineId from props, route params, or URL (fallback)
   const pipelineId = propPipelineId || 
@@ -67,7 +67,7 @@ export default function PipelineBuilder({ pipelineId: propPipelineId }: Pipeline
     mutationFn: (data: any) => pipelinesApi.createPipeline(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      goldenLayout?.openTab("/pipelines");
+      flexLayout?.openTab("/pipelines");
     },
   });
 
@@ -75,7 +75,7 @@ export default function PipelineBuilder({ pipelineId: propPipelineId }: Pipeline
     mutationFn: (data: any) => pipelinesApi.updatePipeline(pipelineId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/pipelines"] });
-      goldenLayout?.openTab("/pipelines");
+      flexLayout?.openTab("/pipelines");
     },
   });
 
@@ -159,7 +159,7 @@ export default function PipelineBuilder({ pipelineId: propPipelineId }: Pipeline
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => goldenLayout?.openTab("/pipelines")}>
+          <Button variant="ghost" onClick={() => flexLayout?.openTab("/pipelines")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

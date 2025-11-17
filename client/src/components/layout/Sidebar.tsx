@@ -1,12 +1,12 @@
 import { useLocation } from "wouter";
-import { useGoldenLayout } from "@/hooks/useGoldenLayout";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Calculator, BarChart3, List, Book, File, Receipt, 
+import { BarChart3, List, Book, File, Receipt, 
          University, Edit, FileText, DollarSign, ChartBar, 
          Scale, PieChart, Users, Settings, Shield, Globe, 
          ChevronLeft, ChevronRight, Database, FileSearch, MessageSquare, 
          CheckSquare, User, Plus, KeyRound, Beaker, Table, Building2, Calendar,
-         Mail, CreditCard, FolderOpen, ChevronDown, ChevronUp, Zap } from "lucide-react";
+         Mail, CreditCard, FolderOpen, ChevronDown, ChevronUp, Zap, Building } from "lucide-react";
 // CompanySwitcher removed - no longer needed in single-company mode
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/hooks/useAuth";
@@ -346,7 +346,7 @@ const testingSection: NavigationItem[] = [
   {
     name: "Handsontable Demo",
     href: "/testing/handsontable",
-    icon: Calculator,
+    icon: Beaker,
     requiresGlobalAdmin: true,
   },
   {
@@ -386,15 +386,15 @@ const getCurrentModule = (path: string): string | null => {
 };
 
 export default function Sidebar() {
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { can, isGlobalAdministrator } = usePermissions();
   const { isCollapsed, toggleSidebar } = useSidebar();
   const { t } = useTranslation();
   const { mainCompany } = useAuth();
   const currentModule = getCurrentModule(location);
   
-  // Get Golden Layout context
-  const goldenLayoutContext = useGoldenLayout();
+  // Get FlexLayout context
+  const flexLayoutContext = useFlexLayout();
   
   // Track active tab path to only re-render when it actually changes
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
@@ -402,10 +402,10 @@ export default function Sidebar() {
   
   // Subscribe to active tab changes (poll every 500ms, but only update if changed)
   useEffect(() => {
-    if (!goldenLayoutContext) return;
+    if (!flexLayoutContext) return;
     
     const interval = setInterval(() => {
-      const activeTab = goldenLayoutContext.getActiveTab();
+      const activeTab = flexLayoutContext.getActiveTab();
       const currentPath = activeTab?.path || null;
       
       // Only update state if the path actually changed
@@ -416,7 +416,7 @@ export default function Sidebar() {
     }, 500);
     
     return () => clearInterval(interval);
-  }, [goldenLayoutContext]);
+  }, [flexLayoutContext]);
   
   // Track which modules are open (default: current module or first module with items)
   const [openModules, setOpenModules] = useState<Set<string>>(() => {
@@ -473,12 +473,13 @@ export default function Sidebar() {
 
     const handleClick = (e: React.MouseEvent) => {
       e.preventDefault();
-      if (!goldenLayoutContext) {
-        console.error("Golden Layout context not available");
-        return;
+      if (flexLayoutContext) {
+        // Use FlexLayout to open as tab
+        flexLayoutContext.openTab(item.href, undefined, t(item.name));
+      } else {
+        // Fallback to regular navigation when FlexLayout is not available (e.g., on profile/settings pages)
+        setLocation(item.href);
       }
-      // Always open as tab - check for existing tab and switch if found
-      goldenLayoutContext.openTab(item.href, undefined, t(item.name));
     };
 
     const navItem = (
@@ -572,8 +573,17 @@ export default function Sidebar() {
           <TooltipProvider delayDuration={500}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center cursor-pointer">
-                  <Calculator className="text-primary-foreground text-sm" />
+                <div 
+                  className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center cursor-pointer hover:bg-primary/90 transition-colors"
+                  onClick={() => {
+                    if (flexLayoutContext) {
+                      flexLayoutContext.openTab('/home');
+                    } else {
+                      setLocation('/home');
+                    }
+                  }}
+                >
+                  <Building className="text-primary-foreground text-sm" />
                 </div>
               </TooltipTrigger>
               <TooltipContent side="right">
@@ -583,7 +593,16 @@ export default function Sidebar() {
           </TooltipProvider>
           {!isCollapsed && (
             <>
-              <h1 className="text-lg font-semibold text-foreground ml-3 truncate">
+              <h1 
+                className="text-lg font-semibold text-foreground ml-3 truncate cursor-pointer hover:text-primary transition-colors"
+                onClick={() => {
+                  if (flexLayoutContext) {
+                    flexLayoutContext.openTab('/home');
+                  } else {
+                    setLocation('/home');
+                  }
+                }}
+              >
                 {mainCompany?.name || 'AccountFlow Pro'}
               </h1>
             </>

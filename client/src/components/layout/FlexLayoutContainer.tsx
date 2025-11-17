@@ -3,7 +3,7 @@ import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSet
 import "flexlayout-react/style/light.css";
 import { pageRegistry, getPageMetadata, resolvePath, extractParams } from "@/lib/pageRegistry";
 import { saveLayoutState, loadLayoutState, clearLayoutState } from "@/lib/flexLayoutStorage";
-import { GoldenLayoutProvider, TabState, GoldenLayoutContextValue } from "@/hooks/useGoldenLayout";
+import { FlexLayoutProvider, TabState, FlexLayoutContextValue } from "@/hooks/useFlexLayout";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import ErrorBoundary from "@/components/ErrorBoundary";
@@ -36,7 +36,7 @@ export interface FlexLayoutSettings {
 
 interface FlexLayoutContainerProps {
   defaultPath?: string;
-  onContextReady?: (context: GoldenLayoutContextValue) => void;
+  onContextReady?: (context: FlexLayoutContextValue) => void;
   /** Custom settings for layout behavior */
   settings?: FlexLayoutSettings;
   /** Callback when an action is triggered (allows intercepting actions) */
@@ -445,7 +445,7 @@ export default function FlexLayoutContainer({
     );
   }, [tabs, setActiveTab, model, settings]);
 
-  const contextValue: GoldenLayoutContextValue = {
+  const contextValue: FlexLayoutContextValue = {
     openTab,
     closeTab,
     getActiveTab,

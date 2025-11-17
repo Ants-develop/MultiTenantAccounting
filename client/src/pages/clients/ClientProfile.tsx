@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { clientManagementApi, ClientProfile as ClientProfileType } from "@/api/client-management";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({ clientId }) => {
   const [location, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const flexLayout = useFlexLayout();
   const [isEditing, setIsEditing] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
@@ -96,7 +98,13 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({ clientId }) => {
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-gray-500">Client not found</p>
-            <Button variant="outline" onClick={() => setLocation("/clients")} className="mt-4">
+            <Button variant="outline" onClick={() => {
+              if (flexLayout) {
+                flexLayout.openTab("/clients");
+              } else {
+                setLocation("/clients");
+              }
+            }} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Clients
             </Button>
@@ -110,7 +118,13 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({ clientId }) => {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setLocation("/clients")}>
+          <Button variant="ghost" onClick={() => {
+            if (flexLayout) {
+              flexLayout.openTab("/clients");
+            } else {
+              setLocation("/clients");
+            }
+          }}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

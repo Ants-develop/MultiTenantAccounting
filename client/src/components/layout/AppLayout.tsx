@@ -4,7 +4,7 @@ import TopBar from "./TopBar";
 import FlexLayoutContainer from "./FlexLayoutContainer";
 import { SidebarProvider, useSidebar } from "@/hooks/useSidebar";
 import { useLocation } from "wouter";
-import { GoldenLayoutProvider, GoldenLayoutContextValue, TabState } from "@/hooks/useGoldenLayout";
+import { FlexLayoutProvider, FlexLayoutContextValue, TabState } from "@/hooks/useFlexLayout";
 
 interface AppLayoutProps {
   hideSidebar?: boolean;
@@ -14,7 +14,7 @@ interface AppLayoutProps {
 function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLayoutProps) {
   const { isCollapsed } = useSidebar();
   const [location] = useLocation();
-  const goldenLayoutRef = useRef<GoldenLayoutContextValue | null>(null);
+  const flexLayoutRef = useRef<FlexLayoutContextValue | null>(null);
   
   // Use current location as default if provided, otherwise use prop
   // After initial load, URL should remain unchanged
@@ -22,33 +22,33 @@ function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLay
     ? location 
     : defaultPath;
   
-  // Create a proxy context value that forwards to the actual GoldenLayoutContainer
-  const proxyContextValue: GoldenLayoutContextValue = {
+  // Create a proxy context value that forwards to the actual FlexLayoutContainer
+  const proxyContextValue: FlexLayoutContextValue = {
     openTab: (path: string, params?: Record<string, string>, title?: string) => {
-      if (goldenLayoutRef.current) {
-        goldenLayoutRef.current.openTab(path, params, title);
+      if (flexLayoutRef.current) {
+        flexLayoutRef.current.openTab(path, params, title);
       }
     },
     closeTab: (tabId: string) => {
-      if (goldenLayoutRef.current) {
-        goldenLayoutRef.current.closeTab(tabId);
+      if (flexLayoutRef.current) {
+        flexLayoutRef.current.closeTab(tabId);
       }
     },
     getActiveTab: (): TabState | null => {
-      return goldenLayoutRef.current?.getActiveTab() || null;
+      return flexLayoutRef.current?.getActiveTab() || null;
     },
     getAllTabs: (): TabState[] => {
-      return goldenLayoutRef.current?.getAllTabs() || [];
+      return flexLayoutRef.current?.getAllTabs() || [];
     },
     setActiveTab: (tabId: string) => {
-      if (goldenLayoutRef.current) {
-        goldenLayoutRef.current.setActiveTab(tabId);
+      if (flexLayoutRef.current) {
+        flexLayoutRef.current.setActiveTab(tabId);
       }
     },
   };
   
   return (
-    <GoldenLayoutProvider value={proxyContextValue}>
+    <FlexLayoutProvider value={proxyContextValue}>
       <div className="w-screen h-screen overflow-hidden bg-background">
         <div className="flex h-screen overflow-hidden app-scale-75">
           {!hideSidebar && <Sidebar />}
@@ -58,14 +58,14 @@ function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLay
               <FlexLayoutContainer 
                 defaultPath={initialPath} 
                 onContextReady={(context) => {
-                  goldenLayoutRef.current = context;
+                  flexLayoutRef.current = context;
                 }}
               />
             </main>
           </div>
         </div>
       </div>
-    </GoldenLayoutProvider>
+    </FlexLayoutProvider>
   );
 }
 

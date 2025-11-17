@@ -11,7 +11,7 @@ import { ArrowLeft, Plus, CheckCircle2, Edit } from "lucide-react";
 import { JobForm } from "./JobForm";
 import dayjs from "dayjs";
 import { useRouteParams } from "@/contexts/RouteParamsContext";
-import { useGoldenLayout } from "@/hooks/useGoldenLayout";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 interface JobDetailProps {
   jobId?: number;
@@ -20,7 +20,7 @@ interface JobDetailProps {
 export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
   const queryClient = useQueryClient();
   const routeParams = useRouteParams();
-  const goldenLayout = useGoldenLayout();
+  const flexLayout = useFlexLayout();
   
   // Get jobId from props, route params, or URL (fallback)
   const jobId = propJobId || 
@@ -89,7 +89,7 @@ export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
         <TaxDomeCard>
           <div className="text-center py-8">
             <p className="text-gray-500">Job not found</p>
-            <TaxDomeButton variant="secondary" onClick={() => goldenLayout?.openTab("/jobs")} className="mt-4">
+            <TaxDomeButton variant="secondary" onClick={() => flexLayout?.openTab("/jobs")} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Jobs
             </TaxDomeButton>
@@ -112,7 +112,7 @@ export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <TaxDomeButton variant="ghost" onClick={() => goldenLayout?.openTab("/jobs")}>
+          <TaxDomeButton variant="ghost" onClick={() => flexLayout?.openTab("/jobs")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </TaxDomeButton>
@@ -196,7 +196,7 @@ export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
               <TaxDomeButton
                 variant="secondary"
                 size="sm"
-                onClick={() => goldenLayout?.openTab("/tasks/new", { jobId: job.id.toString() })}
+                onClick={() => flexLayout?.openTab("/tasks/new", { jobId: job.id.toString() })}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Task
@@ -240,7 +240,7 @@ export default function JobDetail({ jobId: propJobId }: JobDetailProps = {}) {
                       <TaxDomeTableRow
                         key={task.id}
                         className="cursor-pointer hover:bg-gray-50"
-                        onClick={() => goldenLayout?.openTab(`/tasks/${task.id}`, { id: task.id.toString() })}
+                        onClick={() => flexLayout?.openTab(`/tasks/${task.id}`, { id: task.id.toString() })}
                       >
                         <TaxDomeTableCell className="font-medium">{task.title}</TaxDomeTableCell>
                         <TaxDomeTableCell>

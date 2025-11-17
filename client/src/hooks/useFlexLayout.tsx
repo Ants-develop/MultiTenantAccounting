@@ -7,7 +7,7 @@ export interface TabState {
   params?: Record<string, string>;
 }
 
-export interface GoldenLayoutContextValue {
+export interface FlexLayoutContextValue {
   openTab: (path: string, params?: Record<string, string>, title?: string) => void;
   closeTab: (tabId: string) => void;
   getActiveTab: () => TabState | null;
@@ -15,23 +15,23 @@ export interface GoldenLayoutContextValue {
   setActiveTab: (tabId: string) => void;
 }
 
-const GoldenLayoutContext = createContext<GoldenLayoutContextValue | null>(null);
+const FlexLayoutContext = createContext<FlexLayoutContextValue | null>(null);
 
-export function GoldenLayoutProvider({
+export function FlexLayoutProvider({
   children,
   value,
 }: {
   children: ReactNode;
-  value: GoldenLayoutContextValue;
+  value: FlexLayoutContextValue;
 }) {
   return (
-    <GoldenLayoutContext.Provider value={value}>
+    <FlexLayoutContext.Provider value={value}>
       {children}
-    </GoldenLayoutContext.Provider>
+    </FlexLayoutContext.Provider>
   );
 }
 
-export function useGoldenLayout(): GoldenLayoutContextValue | null {
-  return useContext(GoldenLayoutContext);
+export function useFlexLayout(): FlexLayoutContextValue | null {
+  return useContext(FlexLayoutContext);
 }
 

@@ -8,7 +8,7 @@ import { TaskForm } from "@/components/tasks/TaskForm";
 import { ArrowLeft, Calendar, User, CheckCircle2, Clock, AlertCircle } from "lucide-react";
 import dayjs from "dayjs";
 import { useRouteParams } from "@/contexts/RouteParamsContext";
-import { useGoldenLayout } from "@/hooks/useGoldenLayout";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 interface TaskDetailProps {
   taskId?: number;
@@ -17,7 +17,7 @@ interface TaskDetailProps {
 export default function TaskDetail({ taskId: propTaskId }: TaskDetailProps = {}) {
   const queryClient = useQueryClient();
   const routeParams = useRouteParams();
-  const goldenLayout = useGoldenLayout();
+  const flexLayout = useFlexLayout();
   
   // Get taskId from props, route params, or URL (fallback)
   const taskId = propTaskId || 
@@ -57,7 +57,7 @@ export default function TaskDetail({ taskId: propTaskId }: TaskDetailProps = {})
         <Card>
           <CardContent className="text-center py-8">
             <p className="text-gray-500">Task not found</p>
-            <Button variant="outline" onClick={() => goldenLayout?.openTab("/tasks")} className="mt-4">
+            <Button variant="outline" onClick={() => flexLayout?.openTab("/tasks")} className="mt-4">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Tasks
             </Button>
@@ -89,7 +89,7 @@ export default function TaskDetail({ taskId: propTaskId }: TaskDetailProps = {})
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => goldenLayout?.openTab("/tasks")}>
+          <Button variant="ghost" onClick={() => flexLayout?.openTab("/tasks")}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back
           </Button>

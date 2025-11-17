@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Edit, Trash2, Play } from "lucide-react";
-import { useLocation } from "wouter";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 
 export default function PipelinesDashboard() {
-  const [, setLocation] = useLocation();
+  const flexLayout = useFlexLayout();
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
@@ -46,7 +46,11 @@ export default function PipelinesDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Pipelines</h1>
           <p className="text-sm text-gray-500 mt-1">Manage workflow templates</p>
         </div>
-        <Button onClick={() => setLocation("/pipelines/new")}>
+        <Button onClick={() => {
+          if (flexLayout) {
+            flexLayout.openTab("/pipelines/new");
+          }
+        }}>
           <Plus className="w-4 h-4 mr-2" />
           New Pipeline
         </Button>
@@ -56,7 +60,11 @@ export default function PipelinesDashboard() {
         <Card>
           <CardContent className="text-center py-12">
             <p className="text-gray-500 mb-4">No pipelines yet</p>
-            <Button onClick={() => setLocation("/pipelines/new")}>
+            <Button onClick={() => {
+              if (flexLayout) {
+                flexLayout.openTab("/pipelines/new");
+              }
+            }}>
               <Plus className="w-4 h-4 mr-2" />
               Create Your First Pipeline
             </Button>
@@ -95,14 +103,22 @@ export default function PipelinesDashboard() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setLocation(`/pipelines/${pipeline.id}`)}
+                            onClick={() => {
+                              if (flexLayout) {
+                                flexLayout.openTab(`/pipelines/${pipeline.id}`, { id: pipeline.id.toString() });
+                              }
+                            }}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setLocation(`/jobs/new?pipelineId=${pipeline.id}`)}
+                            onClick={() => {
+                              if (flexLayout) {
+                                flexLayout.openTab("/jobs/new", { pipelineId: pipeline.id.toString() });
+                              }
+                            }}
                           >
                             <Play className="w-4 h-4" />
                           </Button>

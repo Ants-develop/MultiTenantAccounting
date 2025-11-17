@@ -1,19 +1,19 @@
-import { useGoldenLayout } from "./useGoldenLayout";
+import { useFlexLayout } from "./useFlexLayout";
 
 /**
- * Hook that provides navigation that opens tabs in Golden Layout
+ * Hook that provides navigation that opens tabs in FlexLayout
  * Always uses tabs - no fallback to regular navigation
  */
 export function useTabNavigation() {
-  const goldenLayout = useGoldenLayout();
+  const flexLayout = useFlexLayout();
 
   const navigate = (path: string, params?: Record<string, string>, title?: string) => {
-    if (!goldenLayout) {
-      console.error("Golden Layout context not available for navigation");
+    if (!flexLayout) {
+      console.error("FlexLayout context not available for navigation");
       return;
     }
-    // Always open as tab in Golden Layout
-    goldenLayout.openTab(path, params, title);
+    // Always open as tab in FlexLayout
+    flexLayout.openTab(path, params, title);
   };
 
   return { navigate };

@@ -14,13 +14,14 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Role } from "@shared/permissions";
 import { ClientCompaniesGrid, ClientCompanyGridItem } from "@/components/admin/ClientCompaniesGrid";
-import { useLocation } from "wouter";
 
 interface CompanyUser {
   id: number;
@@ -54,7 +55,8 @@ const userAssignmentSchema = z.object({
 type UserAssignmentForm = z.infer<typeof userAssignmentSchema>;
 
 export default function Clients() {
-  const [location, setLocation] = useLocation();
+  const [location] = useLocation();
+  const flexLayout = useFlexLayout();
   const [managingCompany, setManagingCompany] = useState<ClientCompanyGridItem | null>(null);
   const [isAssignUserDialogOpen, setIsAssignUserDialogOpen] = useState(false);
   const [isEditRoleDialogOpen, setIsEditRoleDialogOpen] = useState(false);
@@ -211,8 +213,16 @@ export default function Clients() {
 
       <ClientCompaniesGrid 
         onManageUsers={handleManageCompanyUsers}
-        onViewProfile={(company) => setLocation(`/clients/${company.id}/profile`)}
-        onViewOnboarding={(company) => setLocation(`/clients/${company.id}/onboarding`)}
+        onViewProfile={(company) => {
+          if (flexLayout) {
+            flexLayout.openTab(`/clients/${company.id}/profile`, { id: company.id.toString() });
+          }
+        }}
+        onViewOnboarding={(company) => {
+          if (flexLayout) {
+            flexLayout.openTab(`/clients/${company.id}/onboarding`, { id: company.id.toString() });
+          }
+        }}
       />
 
       {/* Manage Company Users Dialog */}

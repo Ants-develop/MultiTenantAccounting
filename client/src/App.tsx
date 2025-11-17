@@ -10,7 +10,10 @@ import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
 import AppLayout from "@/components/layout/AppLayout";
+import SimplePageLayout from "@/components/layout/SimplePageLayout";
 import NotFound from "@/pages/not-found";
+import Profile from "@/pages/Profile";
+import CompanyProfile from "@/pages/CompanyProfile";
 import { ClientPortalLogin } from "@/pages/client-portal/ClientPortalLogin";
 import { ClientPortalDashboard } from "@/pages/client-portal/ClientPortalDashboard";
 import { ClientPortalDocuments } from "@/pages/client-portal/ClientPortalDocuments";
@@ -43,7 +46,28 @@ function ProtectedApp() {
     return <Setup />;
   }
 
-  // All protected routes are handled by Golden Layout tabs
+  // Profile and Settings pages should render outside FlexLayout
+  if (location === "/profile") {
+    return (
+      <SimplePageLayout>
+        <div className="p-6">
+          <Profile />
+        </div>
+      </SimplePageLayout>
+    );
+  }
+
+  if (location === "/settings") {
+    return (
+      <SimplePageLayout>
+        <div className="p-6">
+          <CompanyProfile />
+        </div>
+      </SimplePageLayout>
+    );
+  }
+
+  // All other protected routes are handled by FlexLayout tabs
   // Use current location as default path, or /home as fallback
   const defaultPath = location && location !== "/" && location !== "/login" && location !== "/setup"
     ? location

@@ -21,7 +21,10 @@ router.use(requireAuth);
  */
 router.get("/", async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const workspaceId = req.query.workspaceId ? parseInt(req.query.workspaceId as string) : undefined;
 
     let query = db.select().from(automations);
@@ -45,7 +48,10 @@ router.get("/", async (req: any, res: any) => {
  */
 router.post("/", async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const {
       workspaceId,
       name,
@@ -104,7 +110,10 @@ router.post("/", async (req: any, res: any) => {
  */
 router.put("/:id", async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const automationId = parseInt(req.params.id);
     const updates = req.body;
 
@@ -148,7 +157,10 @@ router.put("/:id", async (req: any, res: any) => {
  */
 router.delete("/:id", async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const automationId = parseInt(req.params.id);
 
     const [deleted] = await db
@@ -220,7 +232,10 @@ router.post("/:id/test", async (req: any, res: any) => {
  */
 router.post("/bulk-action", async (req: any, res: any) => {
   try {
-    const userId = req.user.id;
+    const userId = req.session.userId;
+    if (!userId) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
     const { actionType, targetIds, metadata } = req.body;
 
     if (!actionType || !targetIds || !Array.isArray(targetIds)) {
