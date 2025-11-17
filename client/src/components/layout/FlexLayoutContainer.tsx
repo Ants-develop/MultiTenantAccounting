@@ -119,7 +119,9 @@ export default function FlexLayoutContainer({
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           <RouteParamsProvider params={params} path={resolvedPath}>
-            <Component {...props} />
+            <div className="w-full h-full bg-background text-foreground">
+              <Component {...props} />
+            </div>
           </RouteParamsProvider>
         </ErrorBoundary>
       </QueryClientProvider>

@@ -13,11 +13,13 @@ import { Badge } from "@/components/ui/badge";
 import { 
   Settings as SettingsIcon, Building2, DollarSign, Shield, Users, Bell, 
   Calendar, Globe, Save, RotateCcw, AlertTriangle, CheckCircle,
-  FileText, Archive, Database, Lock, Eye, EyeOff, BarChart3
+  FileText, Archive, Database, Lock, Eye, EyeOff, BarChart3, Palette, Sun, Moon, Monitor
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
+import { useTheme, useThemeAnimation } from "@/contexts/ThemeContext";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -116,6 +118,8 @@ export default function CompanyProfile() {
   const { canEditSettings, canViewSettings } = usePermissions();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { theme, setTheme, resolvedTheme, customPrimaryColor, setCustomPrimaryColor } = useTheme();
+  const { ref: animationRef, toggleTheme, isDarkMode } = useThemeAnimation();
 
   // Queries
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
@@ -379,12 +383,13 @@ export default function CompanyProfile() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="company">Company Info</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="theme">Theme</TabsTrigger>
         </TabsList>
 
         {/* Company Information Tab */}
@@ -1138,6 +1143,191 @@ export default function CompanyProfile() {
                     >
                       <Lock className="w-4 h-4 mr-2" />
                       Archive
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Theme Settings Tab */}
+        <TabsContent value="theme" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Palette className="w-5 h-5 mr-2" />
+                Theme Customization
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-base font-semibold">Appearance</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Choose how the application looks. You can select a theme or let the system choose for you.
+                  </p>
+                </div>
+
+                {/* Animated Toggle Button */}
+                <div className="flex items-center justify-center p-6 border rounded-lg bg-muted/30">
+                  <div className="flex flex-col items-center space-y-3">
+                    <Label className="text-sm font-medium text-muted-foreground">Quick Toggle</Label>
+                    <button
+                      ref={animationRef as React.RefObject<HTMLButtonElement>}
+                      onClick={toggleTheme}
+                      className="relative w-16 h-8 rounded-full bg-primary/20 border-2 border-primary/30 transition-colors hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                      aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+                    >
+                      <div className="absolute inset-y-0 left-0 flex items-center justify-center w-8 h-8 transition-transform duration-300 rounded-full bg-background shadow-md"
+                        style={{
+                          transform: isDarkMode ? 'translateX(2rem)' : 'translateX(0)',
+                        }}
+                      >
+                        {isDarkMode ? (
+                          <Moon className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Sun className="w-4 h-4 text-primary" />
+                        )}
+                      </div>
+                    </button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Currently: <span className="font-medium">{isDarkMode ? 'Dark' : 'Light'}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <RadioGroup value={theme} onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}>
+                  <div className="space-y-3">
+                    {/* Light Theme Option */}
+                    <div className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => setTheme("light")}>
+                      <RadioGroupItem value="light" id="light" className="mt-1" />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <Sun className="w-5 h-5" />
+                          <Label htmlFor="light" className="text-base font-medium cursor-pointer">
+                            Light
+                          </Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Use light theme for the application
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Dark Theme Option */}
+                    <div className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => setTheme("dark")}>
+                      <RadioGroupItem value="dark" id="dark" className="mt-1" />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <Moon className="w-5 h-5" />
+                          <Label htmlFor="dark" className="text-base font-medium cursor-pointer">
+                            Dark
+                          </Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Use dark theme for the application
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* System Theme Option */}
+                    <div className="flex items-start space-x-4 p-4 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => setTheme("system")}>
+                      <RadioGroupItem value="system" id="system" className="mt-1" />
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <Monitor className="w-5 h-5" />
+                          <Label htmlFor="system" className="text-base font-medium cursor-pointer">
+                            System
+                          </Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Match your system's appearance settings
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </RadioGroup>
+
+                <Separator />
+
+                <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Current Theme</p>
+                    <p className="text-xs text-muted-foreground">
+                      {theme === "system" 
+                        ? `System (${resolvedTheme.charAt(0).toUpperCase() + resolvedTheme.slice(1)})`
+                        : theme.charAt(0).toUpperCase() + theme.slice(1)}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="flex items-center space-x-1">
+                    {resolvedTheme === "light" && <Sun className="w-3 h-3" />}
+                    {resolvedTheme === "dark" && <Moon className="w-3 h-3" />}
+                    <span>{resolvedTheme.charAt(0).toUpperCase() + resolvedTheme.slice(1)}</span>
+                  </Badge>
+                </div>
+
+                <Separator />
+
+                {/* Primary Color Customization */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Primary Color</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Customize the primary color used throughout the application.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center space-x-4 p-4 border rounded-lg">
+                    <div className="flex-1 space-y-2">
+                      <Label htmlFor="color-picker" className="text-sm font-medium">
+                        Choose Primary Color
+                      </Label>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="color"
+                          id="color-picker"
+                          value={customPrimaryColor || "#4f46e5"}
+                          onChange={(e) => setCustomPrimaryColor(e.target.value)}
+                          className="w-16 h-16 rounded-lg border-2 border-border cursor-pointer"
+                          style={{
+                            backgroundColor: customPrimaryColor || "#4f46e5",
+                          }}
+                        />
+                        <div className="flex-1">
+                          <Input
+                            type="text"
+                            value={customPrimaryColor || "#4f46e5"}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (/^#[0-9A-F]{6}$/i.test(value)) {
+                                setCustomPrimaryColor(value);
+                              }
+                            }}
+                            placeholder="#4f46e5"
+                            className="font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Current Primary Color</p>
+                      <p className="text-xs text-muted-foreground font-mono">
+                        {customPrimaryColor || "Default (#4f46e5)"}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCustomPrimaryColor(null)}
+                      disabled={!customPrimaryColor}
+                    >
+                      Reset to Default
                     </Button>
                   </div>
                 </div>
