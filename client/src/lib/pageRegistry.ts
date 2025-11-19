@@ -45,6 +45,9 @@ import TanStackTableDemo from "@/pages/testing/TanStackTableDemo";
 import AgGridDemo from "@/pages/testing/AgGridDemo";
 import SyncfusionGridDemo from "@/pages/testing/SyncfusionGridDemo";
 import TabulatorDemo from "@/pages/testing/TabulatorDemo";
+import CRM from "@/pages/CRM";
+import Messages from "@/pages/Messages";
+import Notifications from "@/pages/Notifications";
 
 export interface PageMetadata {
   title: string;
@@ -315,6 +318,21 @@ export const pageRegistry: PageConfig = {
     component: TabulatorDemo,
     path: "/testing/tabulator",
   },
+  "/crm": {
+    title: "CRM",
+    component: CRM,
+    path: "/crm",
+  },
+  "/messages": {
+    title: "Messages",
+    component: Messages,
+    path: "/messages",
+  },
+  "/notifications": {
+    title: "Notifications",
+    component: Notifications,
+    path: "/notifications",
+  },
 };
 
 /**
@@ -332,12 +350,12 @@ export function getPageMetadata(path: string, params?: Record<string, string>): 
       const routePattern = routePath.replace(/:(\w+)/g, (_, paramName) => {
         return params?.[paramName] || `:${paramName}`;
       });
-      
+
       // Simple pattern matching
       const routeRegex = new RegExp(
         "^" + routePath.replace(/:(\w+)/g, "([^/]+)") + "$"
       );
-      
+
       if (routeRegex.test(path)) {
         return metadata;
       }
@@ -367,17 +385,17 @@ export function extractParams(template: string, path: string): Record<string, st
     paramNames.push(paramName);
     return "([^/]+)";
   });
-  
+
   const regex = new RegExp("^" + regexPattern + "$");
   const match = path.match(regex);
-  
+
   if (!match) return null;
-  
+
   const params: Record<string, string> = {};
   paramNames.forEach((name, index) => {
     params[name] = match[index + 1];
   });
-  
+
   return params;
 }
 

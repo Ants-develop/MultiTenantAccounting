@@ -15,7 +15,7 @@ export default function TasksDashboard() {
   const queryClient = useQueryClient();
   const [isTaskFormOpen, setIsTaskFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | undefined>();
-  
+
   // Filters
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [priorityFilter, setPriorityFilter] = useState<string | undefined>();

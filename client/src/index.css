@@ -183,33 +183,33 @@
 
 /* Sidebar scroll area - ensure dark background */
 .accounting-sidebar [data-radix-scroll-area-viewport] {
-  background: var(--card) !important;
+  background: transparent !important;
   scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  scrollbar-color: var(--sidebar-border) transparent;
 }
 
 .accounting-sidebar [data-radix-scroll-area-viewport] > div {
-  background: var(--card) !important;
+  background: transparent !important;
 }
 
 .accounting-sidebar [data-radix-scroll-area-viewport] nav {
-  background: var(--card) !important;
-  color: var(--foreground) !important;
+  background: transparent !important;
+  color: var(--sidebar-foreground) !important;
 }
 
 /* Dark theme sidebar scroll area */
 .dark .accounting-sidebar [data-radix-scroll-area-viewport] {
-  background: var(--card) !important;
-  scrollbar-color: var(--border) transparent;
+  background: transparent !important;
+  scrollbar-color: var(--sidebar-border) transparent;
 }
 
 .dark .accounting-sidebar [data-radix-scroll-area-viewport] > div {
-  background: var(--card) !important;
+  background: transparent !important;
 }
 
 .dark .accounting-sidebar [data-radix-scroll-area-viewport] nav {
-  background: var(--card) !important;
-  color: var(--foreground) !important;
+  background: transparent !important;
+  color: var(--sidebar-foreground) !important;
 }
 
 /* Scrollbar styling - visible and themed */

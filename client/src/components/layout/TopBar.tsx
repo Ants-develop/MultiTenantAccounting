@@ -1,121 +1,82 @@
-import { Plus, Bell, User, Search, Settings, LogOut, Building2, ChevronDown, BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { useAuth } from "@/hooks/useAuth";
-import { useLocation } from "wouter";
-import { triggerPageAction } from "@/hooks/usePageActions";
-import { useToast } from "@/hooks/use-toast";
-import { useTranslation } from "react-i18next";
-import LanguageSwitcher from "@/components/LanguageSwitcher";
-import { useState } from "react";
-import { useFlexLayout } from "@/hooks/useFlexLayout";
-
-// Module definitions for navigation
-const MODULES = {
-  'client-management': { name: 'Client Management', icon: Building2, color: 'bg-blue-100 text-blue-800' },
-  'workflow-tasks': { name: 'Workflow & Tasks', icon: User, color: 'bg-green-100 text-green-800' },
-  'communication': { name: 'Communication', icon: Bell, color: 'bg-purple-100 text-purple-800' },
-  'accounting': { name: 'Accounting', icon: User, color: 'bg-indigo-100 text-indigo-800' },
-  'billing-payments': { name: 'Billing & Payments', icon: User, color: 'bg-yellow-100 text-yellow-800' },
-  'reporting-analytics': { name: 'Reporting & Analytics', icon: User, color: 'bg-pink-100 text-pink-800' },
-  'administration': { name: 'Administration', icon: Settings, color: 'bg-gray-100 text-gray-800' },
-};
-
-// Get current module from route
-const getCurrentModule = (path: string) => {
-  if (path.startsWith('/clients') || path.startsWith('/client')) return 'client-management';
-  if (path.startsWith('/tasks') || path.startsWith('/pipelines') || path.startsWith('/jobs') || path.startsWith('/calendar')) return 'workflow-tasks';
-  if (path.startsWith('/accounting')) return 'accounting';
-  if (path.startsWith('/audit') || path.startsWith('/financial-statements') || path.startsWith('/trial-balance') || path.startsWith('/custom-reports')) return 'reporting-analytics';
-  if (path.startsWith('/global-administration') || path.startsWith('/user-management') || path.startsWith('/permissions-management') || path.startsWith('/company-profile')) return 'administration';
-  return null;
-};
+import { useState } from 'react';
+import { useLocation } from 'wouter';
+import { useAuth } from '@/hooks/useAuth';
+import { useFlexLayout } from '@/hooks/useFlexLayout';
+import { useTranslation } from 'react-i18next';
+import {
+  Search,
+  Plus,
+  Bell,
+  User,
+  Building2,
+  Settings,
+  LogOut,
+  ChevronDown,
+  BarChart3,
+  Menu
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
+import { allNavigation } from "@/config/navigation";
+import { NotificationDropdown } from "@/components/notifications/NotificationDropdown";
 
 export default function TopBar() {
   const { user, logout, mainCompany } = useAuth();
   const [location, setLocation] = useLocation();
-  const { toast } = useToast();
+  const flexLayout = useFlexLayout();
   const { t } = useTranslation();
   const [searchOpen, setSearchOpen] = useState(false);
-  const flexLayout = useFlexLayout();
+  const { toggleSidebar, isMobile } = useSidebar();
 
   const getUserInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    return `${firstName.charAt(0)}${lastName.charAt(0)}`;
   };
 
-  const currentModule = getCurrentModule(location);
-  const moduleInfo = currentModule ? MODULES[currentModule] : null;
-
   const getPageTitle = () => {
-    if (location.includes('/dashboard')) return t('navigation.dashboard');
-    if (location.includes('/chart-of-accounts')) return t('navigation.chartOfAccounts');
-    if (location.includes('/general-ledger')) return t('navigation.generalLedger');
-    if (location.includes('/journal-entries')) return t('navigation.journalEntries');
-    if (location.includes('/invoices')) return t('navigation.invoices');
-    if (location.includes('/financial-statements')) return t('navigation.financialStatements');
-    if (location.includes('/user-management')) return t('navigation.userManagement');
-    if (location.includes('/role-management')) return t('navigation.roleManagement');
-    if (location.includes('/profile')) return t('navigation.profile');
-    if (location.includes('/tasks')) return 'Tasks';
-    if (location.includes('/pipelines')) return 'Pipelines';
-    if (location.includes('/jobs')) return 'Jobs';
-    if (location.includes('/calendar')) return 'Calendar';
-    if (location.includes('/clients')) return 'Clients';
-    return t('navigation.dashboard');
+    if (location === '/' || location === '/home') return 'Dashboard';
+    if (location.startsWith('/tasks')) return 'Tasks';
+    if (location.startsWith('/clients')) return 'Clients';
+    if (location.startsWith('/accounting')) return 'Accounting';
+    if (location.startsWith('/reports')) return 'Reports';
+    if (location.startsWith('/settings')) return 'Settings';
+    return 'AccountFlow';
   };
 
   const handleNewEntry = () => {
-    let actionTriggered = false;
-
-    // Try to trigger the appropriate action based on current page
-    if (location.includes('/journal-entries')) {
-      actionTriggered = triggerPageAction('newJournalEntry');
-    } else if (location.includes('/invoices')) {
-      actionTriggered = triggerPageAction('newInvoice');
-    } else if (location.includes('/chart-of-accounts')) {
-      actionTriggered = triggerPageAction('newAccount');
-    } else if (location.includes('/user-management')) {
-      actionTriggered = triggerPageAction('newUser');
-    } else if (location.includes('/role-management')) {
-      actionTriggered = triggerPageAction('newRole');
-    }
-
-    // If no action was triggered or we're on a different page, navigate to journal entries
-    if (!actionTriggered) {
-      if (location !== '/accounting/journal-entries') {
-        if (flexLayout) {
-          flexLayout.openTab('/accounting/journal-entries');
-        } else {
-          setLocation('/accounting/journal-entries');
-        }
-      }
-    }
+    // Logic for new entry based on context
+    console.log("New entry clicked");
   };
 
   const getNewEntryText = () => {
-    if (location.includes('/journal-entries')) return t('topBar.newEntry');
-    if (location.includes('/invoices')) return t('topBar.newInvoice');
-    if (location.includes('/chart-of-accounts')) return t('topBar.newAccount');
-    if (location.includes('/user-management')) return t('topBar.newUser');
-    if (location.includes('/role-management')) return t('topBar.newRole');
-    return t('topBar.newEntry');
+    return "New Entry";
   };
 
   return (
     <>
-      <header className="bg-card shadow-sm border-b border-border px-6 py-4">
+      <header className="bg-card/50 backdrop-blur-sm border-b border-border px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* Module Indicator */}
-            {moduleInfo && (
-              <Badge className={moduleInfo.color}>
-                {moduleInfo.name}
-              </Badge>
-            )}
+            <SidebarTrigger className="-ml-1" />
+
             <div>
               <h2 className="text-xl font-semibold text-foreground">{getPageTitle()}</h2>
               {mainCompany && (
@@ -123,7 +84,7 @@ export default function TopBar() {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-3">
             {/* Global Search */}
             <Button
@@ -135,21 +96,22 @@ export default function TopBar() {
               <Search className="h-5 w-5" />
             </Button>
 
-            {/* Quick Actions */}
-            <Button 
+            {/* New Tab Button */}
+            <Button
               className="bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={handleNewEntry}
+              onClick={() => setSearchOpen(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
-              {getNewEntryText()}
+              New Tab
             </Button>
-            
+
+
+
+            // ... inside TopBar component ...
+
             {/* Notifications */}
-            <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground relative">
-              <Bell className="h-5 w-5" />
-              <span className="absolute top-1 right-1 h-2 w-2 bg-red-500 rounded-full"></span>
-            </Button>
-            
+            <NotificationDropdown />
+
             {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -210,50 +172,22 @@ export default function TopBar() {
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
           <CommandGroup heading="Pages">
-            <CommandItem onSelect={() => { 
-              if (flexLayout) {
-                flexLayout.openTab('/home');
-              } else {
-                setLocation('/home');
-              }
-              setSearchOpen(false); 
-            }}>
-              <BarChart3 className="mr-2 h-4 w-4" />
-              <span>Dashboard</span>
-            </CommandItem>
-            <CommandItem onSelect={() => { 
-              if (flexLayout) {
-                flexLayout.openTab('/tasks');
-              } else {
-                setLocation('/tasks');
-              }
-              setSearchOpen(false); 
-            }}>
-              <User className="mr-2 h-4 w-4" />
-              <span>Tasks</span>
-            </CommandItem>
-            <CommandItem onSelect={() => { 
-              if (flexLayout) {
-                flexLayout.openTab('/accounting/journal-entries');
-              } else {
-                setLocation('/accounting/journal-entries');
-              }
-              setSearchOpen(false); 
-            }}>
-              <User className="mr-2 h-4 w-4" />
-              <span>Journal Entries</span>
-            </CommandItem>
-            <CommandItem onSelect={() => { 
-              if (flexLayout) {
-                flexLayout.openTab('/clients');
-              } else {
-                setLocation('/clients');
-              }
-              setSearchOpen(false); 
-            }}>
-              <Building2 className="mr-2 h-4 w-4" />
-              <span>Clients</span>
-            </CommandItem>
+            {allNavigation.map((item) => (
+              <CommandItem
+                key={item.href}
+                onSelect={() => {
+                  if (flexLayout) {
+                    flexLayout.openTab(item.href, undefined, item.name);
+                  } else {
+                    setLocation(item.href);
+                  }
+                  setSearchOpen(false);
+                }}
+              >
+                <item.icon className="mr-2 h-4 w-4" />
+                <span>{item.name}</span>
+              </CommandItem>
+            ))}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

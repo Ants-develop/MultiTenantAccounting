@@ -840,45 +840,45 @@ export const rawBankTransactions = pgTable("raw_bank_transactions", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }),
-  
+
   // Transaction identification
   movementId: text("movement_id").notNull(),
   uniqueTransactionId: text("unique_transaction_id").notNull(),
-  
+
   // Transaction details
   debitCredit: text("debit_credit").notNull(), // "DEBIT" or "CREDIT"
   description: text("description"),
   amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
   endBalance: decimal("end_balance", { precision: 15, scale: 2 }),
   currency: text("currency").notNull(),
-  
+
   // Account information
   accountNumber: text("account_number").notNull(),
   accountName: text("account_name"),
   additionalInformation: text("additional_information"),
-  
+
   // Document details
   documentDate: timestamp("document_date"),
   documentNumber: text("document_number"),
-  
+
   // Partner information
   partnerAccountNumber: text("partner_account_number"),
   partnerName: text("partner_name"),
   partnerTaxCode: text("partner_tax_code"),
   partnerBankCode: text("partner_bank_code"),
   partnerBank: text("partner_bank"),
-  
+
   // Intermediary bank
   intermediaryBankCode: text("intermediary_bank_code"),
   intermediaryBank: text("intermediary_bank"),
-  
+
   // Additional transaction details
   chargeDetail: text("charge_detail"),
   operationCode: text("operation_code"),
   additionalDescription: text("additional_description"),
   exchangeRate: decimal("exchange_rate", { precision: 15, scale: 6 }),
   transactionType: text("transaction_type"),
-  
+
   // Audit fields
   importedAt: timestamp("imported_at").defaultNow(),
   importedBy: integer("imported_by").references(() => users.id),
@@ -899,29 +899,29 @@ export const normalizedBankTransactions = pgTable("normalized_bank_transactions"
   clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }).notNull(),
   rawTransactionId: integer("raw_transaction_id").references(() => rawBankTransactions.id, { onDelete: 'cascade' }).notNull(),
-  
+
   // Sequence information
   sequenceNumber: integer("sequence_number").notNull(), // Position within bank account's transaction sequence
-  
+
   // Transaction details (denormalized for faster queries)
   movementId: text("movement_id").notNull(),
   documentDate: timestamp("document_date"),
   debitCredit: text("debit_credit").notNull(),
   amount: decimal("amount", { precision: 15, scale: 2 }).notNull(),
   description: text("description"),
-  
+
   // Balance validation
   previousBalance: decimal("previous_balance", { precision: 15, scale: 2 }),
   expectedBalance: decimal("expected_balance", { precision: 15, scale: 2 }), // Calculated: previous + credit - debit
   actualBalance: decimal("actual_balance", { precision: 15, scale: 2 }), // From transaction record
   balanceValid: boolean("balance_valid").default(true).notNull(),
-  
+
   // Sequence validation
   sequenceValid: boolean("sequence_valid").default(true).notNull(),
-  
+
   // Validation errors
   validationErrors: text("validation_errors").array(), // Array of error messages
-  
+
   // Audit fields
   normalizedAt: timestamp("normalized_at").defaultNow(),
   normalizedBy: integer("normalized_by").references(() => users.id),
@@ -1236,3 +1236,21 @@ export type Automation = typeof automations.$inferSelect;
 export type InsertAutomation = typeof automations.$inferInsert;
 export type TaxDomeActivityLog = typeof taxdomeActivityLog.$inferSelect;
 export type InsertTaxDomeActivityLog = typeof taxdomeActivityLog.$inferInsert;
+// Notifications
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  type: text("type").notNull(), // 'task_assigned', 'task_update', etc.
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  link: text("link"),
+  isRead: boolean("is_read").default(false),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, { fields: [notifications.userId], references: [users.id] }),
+}));
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });

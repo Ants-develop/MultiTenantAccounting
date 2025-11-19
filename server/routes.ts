@@ -39,6 +39,7 @@ import clientManagementRouter from "./api/client-management";
 import emailRouter from "./api/email";
 import automationsRouter from "./api/automations";
 import clientPortalRouter from "./api/client-portal";
+import notificationsRouter from "./routes/notifications";
 
 declare module "express-session" {
   interface SessionData {
@@ -51,12 +52,12 @@ declare module "express-session" {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Trust proxy if behind reverse proxy (nginx, etc.)
   app.set('trust proxy', 1);
-  
+
   // Session middleware
   // Determine if we should use secure cookies (only if actually using HTTPS)
-  const isSecure = process.env.SECURE_COOKIES === 'true' || 
-                   (process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true');
-  
+  const isSecure = process.env.SECURE_COOKIES === 'true' ||
+    (process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true');
+
   app.use(session({
     secret: process.env.SESSION_SECRET || 'accounting-app-secret',
     resave: false,
@@ -78,9 +79,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/login', async (req, res) => {
     try {
       const { username, password } = req.body;
-      
+
       console.log('Login attempt:', { username, hasPassword: !!password });
-      
+
       if (!username || !password) {
         return res.status(400).json({ message: 'Username and password are required' });
       }
@@ -136,7 +137,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ipAddress: req.ip,
             userAgent: req.get("User-Agent")
           },
-          { 
+          {
             username: user.username,
             mainCompanyConfigured: userWithCompanies?.mainCompany ? true : false
           }
@@ -146,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       console.error('Login error:', error);
-      
+
       // Log login system error
       await activityLogger.logError(
         ACTIVITY_ACTIONS.LOGIN,
@@ -160,7 +161,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         undefined,
         { attemptedUsername: req.body?.username }
       );
-      
+
       res.status(500).json({ message: 'Internal server error' });
     }
   });
@@ -168,18 +169,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/register', async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
-      const existingUser = await storage.getUserByUsername(userData.username) || 
-                          await storage.getUserByEmail(userData.email);
-      
+      const existingUser = await storage.getUserByUsername(userData.username) ||
+        await storage.getUserByEmail(userData.email);
+
       if (existingUser) {
         return res.status(400).json({ message: 'User already exists' });
       }
 
       // Hash password
       const hashedPassword = await hashPassword(userData.password);
-      
+
       // Create user
       const user = await storage.createUser({
         ...userData,
@@ -190,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Fetch user with companies data for response (will check main company setup)
       const userWithCompanies = await getUserWithCompanies(user.id);
-      
+
       res.json(userWithCompanies);
     } catch (error) {
       console.error('Register error:', error);
@@ -225,7 +226,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { firstName, lastName, email } = req.body;
       const userId = req.session.userId!;
-      
+
       if (!firstName || !lastName || !email) {
         return res.status(400).json({ message: 'All fields are required' });
       }
@@ -274,7 +275,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Remove password from response
       const { password, ...userResponse } = updatedUser;
-      res.json({ 
+      res.json({
         message: 'Profile updated successfully',
         user: userResponse
       });
@@ -288,7 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { currentPassword, newPassword } = req.body;
       const userId = req.session.userId!;
-      
+
       if (!currentPassword || !newPassword) {
         return res.status(400).json({ message: 'Current and new password are required' });
       }
@@ -344,7 +345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       let users;
-      
+
       // If global administrator, show all users
       if (currentUser.globalRole === 'global_administrator') {
         // Get all users in the system
@@ -384,18 +385,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/users', requireAuth, async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      
+
       // Check if user already exists
-      const existingUser = await storage.getUserByUsername(userData.username) || 
-                          await storage.getUserByEmail(userData.email);
-      
+      const existingUser = await storage.getUserByUsername(userData.username) ||
+        await storage.getUserByEmail(userData.email);
+
       if (existingUser) {
         return res.status(400).json({ message: 'User already exists' });
       }
 
       // Hash password
       const hashedPassword = await hashPassword(userData.password);
-      
+
       // Create user
       const user = await storage.createUser({
         ...userData,
@@ -434,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           .select({
             id: userCompaniesTable.id,
             userId: userCompaniesTable.userId,
-            companyId: userCompaniesTable.companyId,
+            clientId: userCompaniesTable.clientId,
             role: userCompaniesTable.role,
             isActive: userCompaniesTable.isActive,
             user: {
@@ -452,14 +453,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .from(userCompaniesTable)
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(clientsTable, eq(userCompaniesTable.companyId, clientsTable.id));
+          .innerJoin(clientsTable, eq(userCompaniesTable.clientId, clientsTable.id));
       } else {
         // For non-global admins in single-company model, show all assignments
         userCompanyAssignments = await db
           .select({
             id: userCompaniesTable.id,
             userId: userCompaniesTable.userId,
-            companyId: userCompaniesTable.companyId,
+            clientId: userCompaniesTable.clientId,
             role: userCompaniesTable.role,
             isActive: userCompaniesTable.isActive,
             user: {
@@ -477,7 +478,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           })
           .from(userCompaniesTable)
           .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(clientsTable, eq(userCompaniesTable.companyId, clientsTable.id));
+          .innerJoin(clientsTable, eq(userCompaniesTable.clientId, clientsTable.id));
       }
 
       res.json(userCompanyAssignments);
@@ -502,7 +503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/users/:id', requireAuth, async (req, res) => {
     try {
       const userId = parseInt(req.params.id);
-      
+
       if (userId === req.session.userId) {
         return res.status(400).json({ message: 'Cannot delete your own account' });
       }
@@ -520,50 +521,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Mount modular API routers
-  
+
   // Accounting Module
   app.use('/api/accounts', accountsRouter);
   app.use('/api/journal-entries', journalEntriesRouter);
-  
+
   // Audit Module
   app.use('/api/audit', auditRouter);
-  
+
   // RS Integration Module
   app.use('/api/rs-integration', rsIntegrationRouter);
   app.use('/api/rs-admin', requireAuth, requireGlobalAdmin, rsAdminRouter);
-  
+
   // Reporting Module
   app.use('/api/reports', reportsRouter); // Keep for backward compatibility
   app.use('/api/reporting', reportingRouter);
-  
+
   // Bank Module
   app.use('/api/bank', bankRouter);
-  
+
   // TaxDome Module
   app.use('/api/pipelines', pipelinesRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/tasks', tasksRouter);
   app.use('/api/calendar', calendarRouter);
   app.use('/api/matrix', matrixRouter);
-  
+
   // Communication Hub
   app.use('/api/email', emailRouter);
-  
+
   // Automation Engine
   app.use('/api/automations', automationsRouter);
-  
+
   // Client Portal
   app.use('/api/client-portal', clientPortalRouter);
-  
+
   // Other Modules
   // Main company endpoints
   app.use('/api/company', companyRouter);
   app.use('/api/companies', companyRouter); // Backward compatibility
-  
+
   // Client companies management
   app.use('/api/clients', clientsRouter);
   app.use('/api/clients', clientManagementRouter); // Client Management (CRM) endpoints
-  
+
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/home', homeRouter);
   app.use('/api', customersVendorsRouter);
@@ -572,6 +573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/permissions', permissionsRouter);
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
+  app.use('/api/notifications', requireAuth, notificationsRouter);
 
   // Start server
   const server = createServer(app);

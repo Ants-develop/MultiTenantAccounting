@@ -68,6 +68,8 @@ function ProtectedApp() {
     );
   }
 
+
+
   // All other protected routes are handled by FlexLayout tabs
   // Use current location as default path, or /home as fallback
   const defaultPath = location && location !== "/" && location !== "/login" && location !== "/setup"
@@ -83,7 +85,7 @@ function Router() {
       {/* Public routes */}
       <Route path="/login" component={Login} />
       <Route path="/setup" component={Setup} />
-      
+
       {/* Client Portal Routes (no auth required - uses client portal auth) */}
       <Route path="/client-portal/login" component={ClientPortalLogin} />
       <Route path="/client-portal/dashboard" component={ClientPortalDashboard} />
@@ -92,7 +94,7 @@ function Router() {
       <Route path="/client-portal/forms" component={ClientPortalForms} />
       <Route path="/client-portal/messages" component={ClientPortalMessages} />
       <Route path="/client-portal/invoices" component={ClientPortalInvoices} />
-      
+
       {/* All other routes are protected and handled by Golden Layout */}
       <Route path="/:rest*" component={ProtectedApp} />
       <Route component={ProtectedApp} />
