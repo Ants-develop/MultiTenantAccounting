@@ -157,7 +157,7 @@ router.post("/users", async (req, res) => {
       ACTIVITY_ACTIONS.USER_CREATE,
       RESOURCE_TYPES.USER,
       {
-        userId: (req as any).session?.userId || 0,
+        userId: (req as any).session?.userId || null,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -353,15 +353,11 @@ router.post("/clients", async (req, res) => {
       return res.status(400).json({ error: "Company code already exists" });
     }
 
-    // Parse tenantCode to integer if provided
-    let parsedTenantCode: number | null = null;
+    // Parse tenantCode to string (VARCHAR(50) in DB) - accept both string and number
+    let parsedTenantCode: string | null = null;
     if (tenantCode !== undefined && tenantCode !== null) {
-      if (typeof tenantCode === 'number') {
-        parsedTenantCode = Math.floor(tenantCode);
-      } else if (typeof tenantCode === 'string' && tenantCode.trim()) {
-        const parsed = parseInt(tenantCode.trim(), 10);
-        parsedTenantCode = isNaN(parsed) ? null : parsed;
-      }
+      // Convert to string for storage
+      parsedTenantCode = String(tenantCode).trim() || null;
     }
 
     const normalizedAddress = address ?? description ?? null;
@@ -941,20 +937,17 @@ router.put("/clients/:id", async (req, res) => {
     }
 
     // Check for tenant code uniqueness if tenant code is being updated
-    let parsedTenantCode: number | null = existingClient[0].tenantCode || null;
+    // Convert to string for storage (VARCHAR(50))
+    let parsedTenantCode: string | null = existingClient[0].tenantCode ? String(existingClient[0].tenantCode) : null;
     if (tenantCode !== undefined) {
       if (tenantCode !== null) {
-        if (typeof tenantCode === 'number') {
-          parsedTenantCode = Math.floor(tenantCode);
-        } else if (typeof tenantCode === 'string' && tenantCode.trim()) {
-          const parsed = parseInt(tenantCode.trim(), 10);
-          parsedTenantCode = isNaN(parsed) ? null : parsed;
-        }
+        // Accept both string and number, convert to string
+        parsedTenantCode = String(tenantCode).trim() || null;
       } else {
         parsedTenantCode = null;
       }
 
-      if (parsedTenantCode !== null && parsedTenantCode !== existingClient[0].tenantCode) {
+      if (parsedTenantCode !== null && parsedTenantCode !== String(existingClient[0].tenantCode || '')) {
         const tenantCodeExists = await db
           .select()
           .from(companies)

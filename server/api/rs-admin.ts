@@ -297,7 +297,7 @@ const handleError = async (
     ACTIVITY_ACTIONS.SETTINGS_UPDATE_SECURITY,
     RESOURCE_TYPES.SETTINGS,
     {
-      userId: req.session?.userId ?? 0,
+      userId: req.session?.userId ?? null,
       clientId: undefined,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent") || undefined,

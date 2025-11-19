@@ -100,7 +100,7 @@ export const RESOURCE_TYPES = {
 
 // Activity context interface
 interface ActivityContext {
-  userId: number;
+  userId?: number | null; // Optional to allow logging for unauthenticated users
   companyId?: number;
   ipAddress?: string;
   userAgent?: string;
@@ -130,9 +130,12 @@ class ActivityLogger {
     details: ActivityDetails
   ): Promise<void> {
     try {
+      // Normalize userId: use null for 0, undefined, or invalid values
+      const validUserId = context.userId && context.userId > 0 ? context.userId : null;
+
       // Get user and company information for better context
       const [user, company] = await Promise.all([
-        this.getUserInfo(context.userId),
+        validUserId ? this.getUserInfo(validUserId) : Promise.resolve(null),
         context.companyId ? this.getCompanyInfo(context.companyId) : null
       ]);
 
@@ -141,7 +144,7 @@ class ActivityLogger {
 
       // Insert the activity log
       await db.insert(activityLogs).values({
-        userId: context.userId,
+        userId: validUserId, // null for unauthenticated users
         companyId: context.companyId || null,
         action: details.action,
         resource: details.resource,

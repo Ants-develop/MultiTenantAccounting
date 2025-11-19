@@ -25,7 +25,7 @@ export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
-  tenantCode: integer("tenant_code").unique(), // MSSQL tenant code for data sync (integer, not text)
+  tenantCode: text("tenant_code").unique(), // MSSQL tenant code for data sync (VARCHAR(50) for flexibility, convert to INT in code when needed)
   address: text("address"),
   phone: text("phone"),
   email: text("email"),
@@ -303,8 +303,8 @@ export const journalEntries = accounting.table("journal_entries", {
   // Temporarily commented out - column doesn't exist in DB yet
   // mssqlRecordId: integer("mssql_record_id").references(() => generalLedger.id),
   // MSSQL parity fields (all optional/nullable)
-  // TenantCode numeric -> stored as integer (clean, no decimals)
-  tenantCode: integer("tenant_code"),
+  // TenantCode VARCHAR(50) for flexibility, convert to INT in code when needed
+  tenantCode: text("tenant_code"),
   // TenantName nvarchar(100)
   tenantName: text("tenant_name"),
   // Abonent nvarchar(64)
@@ -494,7 +494,8 @@ export const generalLedger = accounting.table("general_ledger", {
   clientId: integer("client_id").references(() => clients.id).notNull(),
   // MSSQL parity fields (all from MSSQL GeneralLedger table)
   // Tenant information
-  tenantCode: decimal("tenant_code", { precision: 18, scale: 0 }),
+  // TenantCode VARCHAR(50) for flexibility, convert to INT in code when needed
+  tenantCode: text("tenant_code"),
   tenantName: text("tenant_name"),
   abonent: text("abonent"),
   postingsPeriod: timestamp("postings_period"),
@@ -755,7 +756,11 @@ export const insertClientSchemaEnhanced = insertClientSchema.extend({
   name: z.string().min(1, "Client name is required").max(100, "Client name too long"),
   code: z.string().min(2, "Client code must be at least 2 characters").max(10, "Client code too long").regex(/^[A-Z0-9]+$/, "Client code must contain only uppercase letters and numbers"),
   email: z.string().email("Invalid email format").optional(),
-  tenantCode: z.number().optional(),
+  tenantCode: z.union([z.string(), z.number()]).optional().nullable().transform((val) => {
+    // Convert to string for storage (VARCHAR(50))
+    if (val === null || val === undefined) return null;
+    return String(val);
+  }),
   currency: z.string().length(3, "Currency must be 3 characters (ISO 4217)").default("GEL"),
   fiscalYearStart: z.number().min(1).max(12, "Fiscal year start must be between 1-12"),
   manager: z.string().max(100, "Manager name too long").optional(),
@@ -1172,7 +1177,7 @@ export const migrationHistory = pgTable("migration_history", {
   id: serial("id").primaryKey(),
   migrationId: text("migration_id").notNull().unique(),
   type: text("type").notNull(), // 'general-ledger', 'audit', 'rs', 'update'
-  tenantCode: integer("tenant_code"),
+  tenantCode: text("tenant_code"), // VARCHAR(50) for flexibility, convert to INT in code when needed
   tableName: text("table_name"),
   status: text("status").notNull(), // 'pending', 'running', 'completed', 'failed', 'stopped'
   totalRecords: integer("total_records").default(0),

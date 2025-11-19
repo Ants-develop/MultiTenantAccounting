@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { MessengerProvider } from "@/contexts/MessengerContext";
-import { ThemeProvider } from "@/contexts/ThemeContext";
+import { ThemeProvider } from "next-themes";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
@@ -51,9 +51,7 @@ function ProtectedApp() {
   if (location === "/profile") {
     return (
       <SimplePageLayout>
-        <div className="p-6">
-          <Profile />
-        </div>
+        <Profile />
       </SimplePageLayout>
     );
   }
@@ -61,9 +59,7 @@ function ProtectedApp() {
   if (location === "/settings") {
     return (
       <SimplePageLayout>
-        <div className="p-6">
-          <CompanyProfile />
-        </div>
+        <CompanyProfile />
       </SimplePageLayout>
     );
   }
@@ -105,7 +101,7 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <TooltipProvider>
           <MessengerProvider>
             <Toaster />

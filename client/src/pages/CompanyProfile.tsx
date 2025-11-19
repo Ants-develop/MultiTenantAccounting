@@ -17,8 +17,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useToast } from "@/hooks/use-toast";
-import { useTheme, useThemeAnimation } from "@/contexts/ThemeContext";
+import { toast } from "sonner";
+import { useTheme } from "next-themes";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
@@ -116,10 +116,19 @@ export default function CompanyProfile() {
   
   const { mainCompany } = useAuth();
   const { canEditSettings, canViewSettings } = usePermissions();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { theme, setTheme, resolvedTheme, customPrimaryColor, setCustomPrimaryColor } = useTheme();
-  const { ref: animationRef, toggleTheme, isDarkMode } = useThemeAnimation();
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  
+  // Helper function to toggle theme
+  const toggleTheme = () => {
+    const currentTheme = theme || "system";
+    const currentResolved = resolvedTheme || "light";
+    if (currentTheme === "system") {
+      setTheme(currentResolved === "dark" ? "light" : "dark");
+    } else {
+      setTheme(currentTheme === "dark" ? "light" : "dark");
+    }
+  };
 
   // Queries
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
@@ -218,16 +227,13 @@ export default function CompanyProfile() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
       queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
-      toast({
-        title: "Company information updated",
+      toast.success("Company information updated", {
         description: "Your company information has been successfully updated.",
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Failed to update company information",
-        variant: "destructive",
       });
     },
   });
@@ -237,16 +243,13 @@ export default function CompanyProfile() {
       apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
-      toast({
-        title: "Notification settings updated",
+      toast.success("Notification settings updated", {
         description: "Your notification preferences have been saved.",
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Failed to update notification settings",
-        variant: "destructive",
       });
     },
   });
@@ -256,16 +259,13 @@ export default function CompanyProfile() {
       apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
-      toast({
-        title: "Financial settings updated",
+      toast.success("Financial settings updated", {
         description: "Your financial preferences have been saved.",
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Failed to update financial settings",
-        variant: "destructive",
       });
     },
   });
@@ -275,16 +275,13 @@ export default function CompanyProfile() {
       apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
-      toast({
-        title: "Security settings updated",
+      toast.success("Security settings updated", {
         description: "Your security preferences have been saved.",
       });
     },
     onError: (error: any) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Failed to update security settings",
-        variant: "destructive",
       });
     },
   });
@@ -292,10 +289,8 @@ export default function CompanyProfile() {
   // Form handlers
   const onCompanyInfoSubmit = (data: CompanyInfoForm) => {
     if (!canEditSettings()) {
-      toast({
-        title: "Permission denied",
+      toast.error("Permission denied", {
         description: "You don't have permission to edit settings.",
-        variant: "destructive",
       });
       return;
     }
@@ -304,10 +299,8 @@ export default function CompanyProfile() {
 
   const onNotificationSubmit = (data: NotificationSettingsForm) => {
     if (!canEditSettings()) {
-      toast({
-        title: "Permission denied",
+      toast.error("Permission denied", {
         description: "You don't have permission to edit settings.",
-        variant: "destructive",
       });
       return;
     }
@@ -316,10 +309,8 @@ export default function CompanyProfile() {
 
   const onFinancialSubmit = (data: FinancialSettingsForm) => {
     if (!canEditSettings()) {
-      toast({
-        title: "Permission denied",
+      toast.error("Permission denied", {
         description: "You don't have permission to edit settings.",
-        variant: "destructive",
       });
       return;
     }
@@ -328,10 +319,8 @@ export default function CompanyProfile() {
 
   const onSecuritySubmit = (data: SecuritySettingsForm) => {
     if (!canEditSettings()) {
-      toast({
-        title: "Permission denied",
+      toast.error("Permission denied", {
         description: "You don't have permission to edit settings.",
-        variant: "destructive",
       });
       return;
     }
@@ -1085,16 +1074,13 @@ export default function CompanyProfile() {
                           window.URL.revokeObjectURL(url);
                           document.body.removeChild(a);
                           
-                          toast({
-                            title: "Export successful",
+                          toast.success("Export successful", {
                             description: "Company data has been exported successfully.",
                           });
                         } catch (error) {
                           console.error('Export error:', error);
-                          toast({
-                            title: "Export failed",
+                          toast.error("Export failed", {
                             description: "Failed to export company data. Please try again.",
-                            variant: "destructive",
                           });
                         }
                       }}
@@ -1124,18 +1110,15 @@ export default function CompanyProfile() {
                               throw new Error('Failed to archive company');
                             }
                             
-                            toast({
-                              title: "Company archived",
+                            toast.success("Company archived", {
                               description: "The company has been archived successfully.",
                             });
                             
                             // Refresh company data
                             queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
                           } catch (error) {
-                            toast({
-                              title: "Archive failed",
+                            toast.error("Archive failed", {
                               description: "Failed to archive company. Please try again.",
-                              variant: "destructive",
                             });
                           }
                         }
@@ -1174,17 +1157,16 @@ export default function CompanyProfile() {
                   <div className="flex flex-col items-center space-y-3">
                     <Label className="text-sm font-medium text-muted-foreground">Quick Toggle</Label>
                     <button
-                      ref={animationRef as React.RefObject<HTMLButtonElement>}
                       onClick={toggleTheme}
                       className="relative w-16 h-8 rounded-full bg-primary/20 border-2 border-primary/30 transition-colors hover:bg-primary/30 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                      aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+                      aria-label={`Switch to ${(resolvedTheme || 'light') === 'dark' ? 'light' : 'dark'} mode`}
                     >
                       <div className="absolute inset-y-0 left-0 flex items-center justify-center w-8 h-8 transition-transform duration-300 rounded-full bg-background shadow-md"
                         style={{
-                          transform: isDarkMode ? 'translateX(2rem)' : 'translateX(0)',
+                          transform: (resolvedTheme || 'light') === 'dark' ? 'translateX(2rem)' : 'translateX(0)',
                         }}
                       >
-                        {isDarkMode ? (
+                        {(resolvedTheme || 'light') === 'dark' ? (
                           <Moon className="w-4 h-4 text-primary" />
                         ) : (
                           <Sun className="w-4 h-4 text-primary" />
@@ -1192,7 +1174,7 @@ export default function CompanyProfile() {
                       </div>
                     </button>
                     <p className="text-xs text-muted-foreground text-center">
-                      Currently: <span className="font-medium">{isDarkMode ? 'Dark' : 'Light'}</span>
+                      Currently: <span className="font-medium">{(resolvedTheme || 'light') === 'dark' ? 'Dark' : 'Light'}</span>
                     </p>
                   </div>
                 </div>
@@ -1257,80 +1239,19 @@ export default function CompanyProfile() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Current Theme</p>
                     <p className="text-xs text-muted-foreground">
-                      {theme === "system" 
-                        ? `System (${resolvedTheme.charAt(0).toUpperCase() + resolvedTheme.slice(1)})`
-                        : theme.charAt(0).toUpperCase() + theme.slice(1)}
+                      {(theme || "system") === "system" 
+                        ? `System (${(resolvedTheme || "light").charAt(0).toUpperCase() + (resolvedTheme || "light").slice(1)})`
+                        : (theme || "light").charAt(0).toUpperCase() + (theme || "light").slice(1)}
                     </p>
                   </div>
                   <Badge variant="outline" className="flex items-center space-x-1">
-                    {resolvedTheme === "light" && <Sun className="w-3 h-3" />}
-                    {resolvedTheme === "dark" && <Moon className="w-3 h-3" />}
-                    <span>{resolvedTheme.charAt(0).toUpperCase() + resolvedTheme.slice(1)}</span>
+                    {(resolvedTheme || "light") === "light" && <Sun className="w-3 h-3" />}
+                    {(resolvedTheme || "light") === "dark" && <Moon className="w-3 h-3" />}
+                    <span>{((resolvedTheme || "light")).charAt(0).toUpperCase() + (resolvedTheme || "light").slice(1)}</span>
                   </Badge>
                 </div>
 
                 <Separator />
-
-                {/* Primary Color Customization */}
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-base font-semibold">Primary Color</Label>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Customize the primary color used throughout the application.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center space-x-4 p-4 border rounded-lg">
-                    <div className="flex-1 space-y-2">
-                      <Label htmlFor="color-picker" className="text-sm font-medium">
-                        Choose Primary Color
-                      </Label>
-                      <div className="flex items-center space-x-3">
-                        <input
-                          type="color"
-                          id="color-picker"
-                          value={customPrimaryColor || "#4f46e5"}
-                          onChange={(e) => setCustomPrimaryColor(e.target.value)}
-                          className="w-16 h-16 rounded-lg border-2 border-border cursor-pointer"
-                          style={{
-                            backgroundColor: customPrimaryColor || "#4f46e5",
-                          }}
-                        />
-                        <div className="flex-1">
-                          <Input
-                            type="text"
-                            value={customPrimaryColor || "#4f46e5"}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              if (/^#[0-9A-F]{6}$/i.test(value)) {
-                                setCustomPrimaryColor(value);
-                              }
-                            }}
-                            placeholder="#4f46e5"
-                            className="font-mono"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium">Current Primary Color</p>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {customPrimaryColor || "Default (#4f46e5)"}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCustomPrimaryColor(null)}
-                      disabled={!customPrimaryColor}
-                    >
-                      Reset to Default
-                    </Button>
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>

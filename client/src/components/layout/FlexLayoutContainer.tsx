@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, ReactNode } from "react";
 import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSetNode, Action, BorderNode } from "flexlayout-react";
 import "flexlayout-react/style/light.css";
+import "@/css/flexlayout-custom.css";
 import { pageRegistry, getPageMetadata, resolvePath, extractParams } from "@/lib/pageRegistry";
 import { saveLayoutState, loadLayoutState, clearLayoutState } from "@/lib/flexLayoutStorage";
 import { FlexLayoutProvider, TabState, FlexLayoutContextValue } from "@/hooks/useFlexLayout";
@@ -119,7 +120,7 @@ export default function FlexLayoutContainer({
       <QueryClientProvider client={queryClient}>
         <ErrorBoundary>
           <RouteParamsProvider params={params} path={resolvedPath}>
-            <div className="w-full h-full bg-background text-foreground">
+            <div className="w-full h-full bg-background text-foreground overflow-auto p-6">
               <Component {...props} />
             </div>
           </RouteParamsProvider>

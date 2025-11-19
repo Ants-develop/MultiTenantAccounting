@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS migration_history (
     id SERIAL PRIMARY KEY,
     migration_id TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL, -- 'general-ledger', 'audit', 'rs', 'update'
-    tenant_code INTEGER,
+    tenant_code VARCHAR(50), -- VARCHAR for flexibility, convert to INT in code when needed
     table_name TEXT,
     status TEXT NOT NULL, -- 'pending', 'running', 'completed', 'failed', 'stopped'
     total_records INTEGER DEFAULT 0,

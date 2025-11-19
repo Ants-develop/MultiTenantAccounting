@@ -27,7 +27,7 @@ export interface ClientCompanyGridItem {
   name: string;
   code: string;
   address: string | null;
-  tenantCode: number | null;
+  tenantCode: string | number | null; // VARCHAR(50) in DB, accepts string or number
   isActive: boolean;
   createdAt: string;
   userCount: number;
@@ -223,7 +223,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
       address: company.address || "",
       fiscalYearStart: (company as any).fiscalYearStart || 1,
       currency: (company as any).currency || "GEL",
-      tenantCode: company.tenantCode || undefined,
+      tenantCode: company.tenantCode !== null && company.tenantCode !== undefined ? String(company.tenantCode) : undefined,
       manager: company.manager || "",
       accountingSoftware: company.accountingSoftware || "",
       idCode: company.idCode || "",

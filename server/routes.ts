@@ -88,12 +88,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const user = await authenticateUser(username, password);
       if (!user) {
-        // Log failed login attempt
+        // Log failed login attempt (no userId since user doesn't exist)
         await activityLogger.logError(
           ACTIVITY_ACTIONS.LOGIN,
           RESOURCE_TYPES.USER,
           {
-            userId: 0, // Unknown user - system event placeholder
+            userId: null, // No user ID for failed login attempts
             ipAddress: req.ip,
             userAgent: req.get("User-Agent")
           },
@@ -153,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ACTIVITY_ACTIONS.LOGIN,
         RESOURCE_TYPES.SYSTEM,
         {
-          userId: 0,
+          userId: null, // No user ID for system errors during login
           ipAddress: req.ip,
           userAgent: req.get("User-Agent")
         },

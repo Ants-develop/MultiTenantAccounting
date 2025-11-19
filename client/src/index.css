@@ -1,131 +1,137 @@
-/* Import TaxDome theme - must be before @tailwind directives */
-@import './styles/taxdome-theme.css';
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Modern Color System Variables */
-  --bg: #ffffff;
-  --bg-secondary: #f5f7fa;
-  --text: #1a1a1a;
-  --text-muted: #6b7280;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --border: #e5e7eb;
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
 
-  /* Design Tokens - Spacing */
-  --space-s: 8px;
-  --space-m: 16px;
-  --space-l: 32px;
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
 
-  /* Design Tokens - Border Radius */
-  --radius-s: 8px;
-  --radius-m: 12px;
-  --radius-l: 16px;
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
 
-  /* User Customizable Primary Color (defaults to primary) */
-  --user-primary: var(--primary);
-  --user-primary-hover: var(--primary-hover);
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
 
-  /* Existing Tailwind Variables (mapped for backward compatibility) */
-  --background: hsl(0, 0%, 98%);
-  --foreground: hsl(0, 0%, 26%);
-  --muted: hsl(0, 0%, 94%);
-  --muted-foreground: hsl(0, 0%, 45%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(0, 0%, 26%);
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(0, 0%, 26%);
-  --input: hsl(0, 0%, 89%);
-  --primary: hsl(207, 90%, 54%);
-  --primary-foreground: hsl(211, 100%, 99%);
-  --secondary: hsl(0, 0%, 94%);
-  --secondary-foreground: hsl(0, 0%, 9%);
-  --accent: hsl(0, 0%, 94%);
-  --accent-foreground: hsl(0, 0%, 9%);
-  --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(0, 0%, 26%);
-  --radius: 0.5rem;
-  --chart-1: hsl(207, 90%, 54%);
-  --chart-2: hsl(156, 76%, 44%);
-  --chart-3: hsl(45, 93%, 47%);
-  --chart-4: hsl(0, 84%, 60%);
-  --chart-5: hsl(271, 81%, 56%);
-}
+    --primary: 210 85% 48%;
+    --primary-foreground: 0 0% 100%;
+    
+    --primary-light: 210 85% 90%;
+    --primary-dark: 210 85% 35%;
 
-.dark {
-  /* Modern Color System Variables - Dark Mode (Lighter, more balanced) */
-  --bg: #1a1d24;
-  --bg-secondary: #252932;
-  --text: #f9fafb;
-  --text-muted: #d1d5db;
-  --primary: #6366f1;
-  --primary-hover: #818cf8;
-  --border: #374151;
+    --secondary: 210 20% 96%;
+    --secondary-foreground: 215 25% 15%;
 
-  /* Existing Tailwind Variables (mapped for backward compatibility) */
-  --background: hsl(220, 13%, 18%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(220, 13%, 25%);
-  --muted-foreground: hsl(220, 9%, 65%);
-  --popover: hsl(220, 13%, 18%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(220, 13%, 20%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --input: hsl(220, 13%, 25%);
-  --primary: hsl(239, 84%, 67%);
-  --primary-foreground: hsl(0, 0%, 98%);
-  --secondary: hsl(220, 13%, 25%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(220, 13%, 25%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 72%, 51%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(239, 84%, 67%);
+    --muted: 210 20% 95%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 180 65% 48%;
+    --accent-foreground: 0 0% 100%;
+    
+    --success: 145 65% 45%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 35 95% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 25% 88%;
+    --input: 210 25% 88%;
+    --ring: 210 85% 48%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 215 30% 12%;
+    --sidebar-foreground: 210 20% 95%;
+    --sidebar-primary: 210 85% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 25% 18%;
+    --sidebar-ring: 210 85% 48%;
+    
+    --chart-1: 210 85% 48%;
+    --chart-2: 180 65% 48%;
+    --chart-3: 145 65% 45%;
+    --chart-4: 35 95% 55%;
+    --chart-5: 260 70% 55%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(210 85% 48%), hsl(210 85% 60%));
+    --gradient-accent: linear-gradient(135deg, hsl(180 65% 48%), hsl(180 65% 60%));
+    
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  }
+
+  .dark {
+    --background: 215 30% 10%;
+    --foreground: 210 20% 98%;
+
+    --card: 215 28% 14%;
+    --card-foreground: 210 20% 98%;
+
+    --popover: 215 28% 14%;
+    --popover-foreground: 210 20% 98%;
+
+    --primary: 210 85% 55%;
+    --primary-foreground: 0 0% 100%;
+    
+    --primary-light: 210 85% 25%;
+    --primary-dark: 210 85% 70%;
+
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 20% 98%;
+
+    --muted: 215 25% 18%;
+    --muted-foreground: 210 15% 60%;
+
+    --accent: 180 65% 50%;
+    --accent-foreground: 0 0% 100%;
+    
+    --success: 145 65% 48%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 35 95% 60%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 22%;
+    --input: 215 25% 22%;
+    --ring: 210 85% 55%;
+
+    --sidebar-background: 215 30% 12%;
+    --sidebar-foreground: 210 20% 95%;
+    --sidebar-primary: 210 85% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 25% 18%;
+    --sidebar-accent-foreground: 210 20% 95%;
+    --sidebar-border: 215 25% 18%;
+    --sidebar-ring: 210 85% 55%;
+    
+    --chart-1: 210 85% 55%;
+    --chart-2: 180 65% 50%;
+    --chart-3: 145 65% 48%;
+    --chart-4: 35 95% 60%;
+    --chart-5: 260 70% 60%;
+  }
 }
 
 @layer base {
   * {
     @apply border-border;
-    /* Smooth theme transitions - respect reduced motion preference */
-    transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    * {
-      transition: none !important;
-    }
-  }
-
-  html {
-    /* Fluid Typography */
-    font-size: clamp(14px, 1.1vw, 16px);
   }
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-    /* Smooth theme transitions for body */
-    transition: background 0.25s ease, color 0.25s ease;
-  }
-
-  /* Fluid Typography for Headings */
-  h1 {
-    font-size: clamp(26px, 3vw, 36px);
-    font-weight: 600;
-  }
-
-  h2 {
-    font-size: clamp(20px, 2.2vw, 28px);
-    font-weight: 600;
-  }
-
-  h3 {
-    font-size: clamp(18px, 1.8vw, 24px);
-    font-weight: 600;
   }
 
   /* Georgian font support */
@@ -150,796 +156,17 @@
   .language-ka * {
     font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
   }
-}
 
-/* Compact spacing for accounts tree table */
-.accounts-table.ant-table-small .ant-table-tbody>tr>td,
-.accounts-table.ant-table-small .ant-table-thead>tr>th {
-  padding-top: 6px;
-  padding-bottom: 6px;
-}
-
-/* Custom styles for accounting interface */
-.accounting-sidebar {
-  @apply bg-card border-r border-border;
-}
-
-/* Collapsed sidebar styles */
-.accounting-sidebar.collapsed {
-  @apply w-16;
-}
-
-.accounting-sidebar.expanded {
-  @apply w-64;
-}
-
-/* Application scaling */
-.app-scale-75 {
-  transform: scale(0.8);
-  transform-origin: top left;
-  width: 125%;
-  height: 125%;
-}
-
-/* Sidebar scroll area - ensure dark background */
-.accounting-sidebar [data-radix-scroll-area-viewport] {
-  background: transparent !important;
-  scrollbar-width: thin;
-  scrollbar-color: var(--sidebar-border) transparent;
-}
-
-.accounting-sidebar [data-radix-scroll-area-viewport]>div {
-  background: transparent !important;
-}
-
-.accounting-sidebar [data-radix-scroll-area-viewport] nav {
-  background: transparent !important;
-  color: var(--sidebar-foreground) !important;
-}
-
-/* Dark theme sidebar scroll area */
-.dark .accounting-sidebar [data-radix-scroll-area-viewport] {
-  background: transparent !important;
-  scrollbar-color: var(--sidebar-border) transparent;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]>div {
-  background: transparent !important;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport] nav {
-  background: transparent !important;
-  color: var(--sidebar-foreground) !important;
-}
-
-/* Scrollbar styling - visible and themed */
-.accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar {
-  width: 8px;
-}
-
-.accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
-  background: var(--muted);
-  border-radius: 4px;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
-  background: var(--muted);
-}
-
-.accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
-  background-color: var(--border);
-  border-radius: 4px;
-  border: 2px solid var(--muted);
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
-  background-color: var(--border);
-  border-color: var(--muted);
-}
-
-.accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
-  background-color: var(--muted-foreground);
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
-  background-color: var(--primary);
-}
-
-/* Radix ScrollArea scrollbar styling - make it visible */
-.accounting-sidebar [data-radix-scroll-area-scrollbar] {
-  background: var(--muted) !important;
-  border-radius: 4px !important;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-scrollbar] {
-  background: var(--muted) !important;
-}
-
-.accounting-sidebar [data-radix-scroll-area-thumb] {
-  background: var(--border) !important;
-  border-radius: 4px !important;
-  opacity: 0.8 !important;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-thumb] {
-  background: var(--border) !important;
-  opacity: 1 !important;
-}
-
-.accounting-sidebar [data-radix-scroll-area-thumb]:hover {
-  background: var(--muted-foreground) !important;
-  opacity: 1 !important;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-thumb]:hover {
-  background: var(--primary) !important;
-  opacity: 1 !important;
-}
-
-/* Ensure ScrollArea root has dark background */
-.dark .accounting-sidebar [data-radix-scroll-area-root] {
-  background: var(--card) !important;
-}
-
-/* Make scrollbar always visible when needed */
-.accounting-sidebar [data-radix-scroll-area-scrollbar] {
-  opacity: 1 !important;
-  transition: opacity 0.2s ease !important;
-}
-
-.accounting-sidebar:hover [data-radix-scroll-area-scrollbar] {
-  opacity: 1 !important;
-}
-
-/* Ensure all nested divs in scroll area have dark background */
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]>div>div {
-  background: var(--card) !important;
-}
-
-.dark .accounting-sidebar [data-radix-scroll-area-viewport]>div>div>nav {
-  background: var(--card) !important;
-}
-
-.accounting-nav-item {
-  @apply flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors;
-  will-change: background-color, color;
-  /* Prevent flickering during hover by using GPU acceleration */
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-.accounting-nav-item.collapsed {
-  @apply justify-center px-2;
-}
-
-.accounting-nav-item:hover {
-  @apply bg-accent text-accent-foreground;
-}
-
-.accounting-nav-item.active {
-  @apply bg-primary text-primary-foreground;
-}
-
-.accounting-nav-section {
-  @apply text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2;
-}
-
-/* Modern Card Styling */
-.card {
-  background: var(--bg-secondary);
-  padding: var(--space-m);
-  border-radius: var(--radius-m);
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.06);
-  border: 1px solid var(--border);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.card:hover {
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.06),
-    0 2px 4px rgba(0, 0, 0, 0.07);
-}
-
-.dark .card {
-  background: var(--bg-secondary);
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.3),
-    0 1px 2px rgba(0, 0, 0, 0.4);
-}
-
-.dark .card:hover {
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.metric-card {
-  @apply bg-card rounded-lg shadow-sm border border-border p-6;
-  /* Enhanced with modern styling */
-  box-shadow:
-    0 4px 10px rgba(0, 0, 0, 0.04),
-    0 1px 2px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.metric-card:hover {
-  box-shadow:
-    0 8px 20px rgba(0, 0, 0, 0.06),
-    0 2px 4px rgba(0, 0, 0, 0.07);
-  transform: translateY(-1px);
-}
-
-/* Modern Button Styling */
-button:not(:disabled),
-[role="button"]:not(:disabled) {
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-button:not(:disabled):hover,
-[role="button"]:not(:disabled):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
-}
-
-button:not(:disabled):active,
-[role="button"]:not(:disabled):active {
-  transform: translateY(0px) scale(0.98);
-}
-
-/* Respect reduced motion */
-@media (prefers-reduced-motion: reduce) {
-
-  button:not(:disabled),
-  [role="button"]:not(:disabled) {
-    transition: none;
+  /* Georgian text specific styles */
+  .language-ka {
+    line-height: 1.6;
   }
 
-  button:not(:disabled):hover,
-  [role="button"]:not(:disabled):hover {
-    transform: none;
+  /* Ensure proper font rendering for Georgian characters in buttons and inputs */
+  .language-ka button,
+  .language-ka input,
+  .language-ka textarea,
+  .language-ka select {
+    font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
   }
-
-  button:not(:disabled):active,
-  [role="button"]:not(:disabled):active {
-    transform: none;
-  }
-}
-
-/* Modern Input Fields */
-input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
-textarea,
-select {
-  width: 100%;
-  padding: 0.7rem 0.9rem;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-m);
-  border: 1px solid var(--border);
-  color: var(--text);
-  transition: border 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
-}
-
-input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
-textarea:focus,
-select:focus {
-  outline: none;
-  border-color: var(--user-primary);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
-  background: var(--bg);
-}
-
-.dark input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):focus,
-.dark textarea:focus,
-.dark select:focus {
-  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2);
-}
-
-/* Respect reduced motion for inputs */
-@media (prefers-reduced-motion: reduce) {
-
-  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
-  textarea,
-  select {
-    transition: none;
-  }
-}
-
-.metric-value {
-  @apply text-2xl font-bold text-foreground;
-}
-
-.metric-label {
-  @apply text-sm font-medium text-muted-foreground;
-}
-
-.metric-change {
-  @apply text-xs mt-1;
-}
-
-.metric-change.positive {
-  @apply text-green-600;
-}
-
-.metric-change.negative {
-  @apply text-red-600;
-}
-
-.metric-change.warning {
-  @apply text-yellow-600;
-}
-
-.metric-change.neutral {
-  @apply text-muted-foreground;
-}
-
-.quick-action-button {
-  @apply w-full flex items-center p-3 text-left hover:bg-accent rounded-lg transition-colors;
-}
-
-.quick-action-icon {
-  @apply w-10 h-10 rounded-lg flex items-center justify-center mr-3;
-}
-
-.transaction-table {
-  @apply w-full;
-}
-
-.transaction-table th {
-  @apply px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider;
-}
-
-.transaction-table td {
-  @apply px-6 py-4 whitespace-nowrap text-sm;
-}
-
-.transaction-table tbody tr:hover {
-  @apply bg-accent;
-}
-
-.status-badge {
-  @apply px-2 py-1 text-xs font-medium rounded-full;
-}
-
-.status-badge.income {
-  @apply bg-green-100 text-green-800;
-}
-
-.status-badge.expense {
-  @apply bg-red-100 text-red-800;
-}
-
-.status-badge.transfer {
-  @apply bg-blue-100 text-blue-800;
-}
-
-.company-switcher {
-  @apply w-full bg-accent border border-border rounded-lg px-3 py-2 text-left flex items-center justify-between hover:bg-muted transition-colors;
-}
-
-.company-avatar {
-  @apply w-6 h-6 rounded-full flex items-center justify-center mr-2 text-xs font-medium;
-}
-
-/* Georgian text specific styles */
-.language-ka {
-  line-height: 1.6;
-}
-
-.language-ka .accounting-nav-item {
-  letter-spacing: 0.025em;
-}
-
-.language-ka .metric-label,
-.language-ka .metric-value {
-  letter-spacing: 0.01em;
-}
-
-/* Ensure proper font rendering for Georgian characters in buttons and inputs */
-.language-ka button,
-.language-ka input,
-.language-ka textarea,
-.language-ka select {
-  font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
-}
-
-/* Modern ProTable Styling - Neutral Theme */
-.modern-table .ant-table {
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.modern-table .ant-table-thead>tr>th {
-  background: #374151 !important;
-  color: white !important;
-  font-weight: 600 !important;
-  border: none !important;
-  padding: 16px 12px !important;
-  font-size: 14px;
-}
-
-.modern-table .ant-table-tbody>tr>td {
-  border-bottom: 1px solid #f0f0f0 !important;
-  padding: 12px !important;
-  transition: all 0.2s ease;
-}
-
-.modern-table .ant-table-tbody>tr:hover>td {
-  background: #f9fafb !important;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.modern-table .ant-table-tbody>tr:nth-child(even)>td {
-  background: #fafafa;
-}
-
-.modern-table .ant-table-tbody>tr:nth-child(even):hover>td {
-  background: #f9fafb !important;
-}
-
-/* Custom Pagination Styling - Neutral */
-.custom-pagination .ant-pagination-item {
-  border-radius: 6px;
-  border: 1px solid #d9d9d9;
-  transition: all 0.2s ease;
-}
-
-.custom-pagination .ant-pagination-item:hover {
-  border-color: #374151;
-  transform: translateY(-1px);
-}
-
-.custom-pagination .ant-pagination-item-active {
-  background: #374151;
-  border-color: #374151;
-  color: white;
-}
-
-.custom-pagination .ant-pagination-item-active:hover {
-  background: #4b5563;
-}
-
-/* Search Form Enhancements - Neutral */
-.ant-pro-table-search {
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 16px;
-  border: 1px solid #e5e7eb;
-}
-
-.ant-pro-table-search .ant-form-item-label>label {
-  font-weight: 600;
-  color: #374151;
-}
-
-.ant-pro-table-search .ant-input,
-.ant-pro-table-search .ant-picker {
-  border-radius: 6px;
-  border: 1px solid #d1d5db;
-  transition: all 0.2s ease;
-}
-
-.ant-pro-table-search .ant-input:focus,
-.ant-pro-table-search .ant-picker:focus {
-  border-color: #374151;
-  box-shadow: 0 0 0 2px rgba(55, 65, 81, 0.2);
-}
-
-/* Toolbar Enhancements - Neutral */
-.ant-pro-table-list-toolbar {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* Row Selection Enhancements - Neutral */
-.ant-table-selection-column {
-  background: #f9fafb !important;
-}
-
-.ant-checkbox-wrapper {
-  transition: all 0.2s ease;
-}
-
-.ant-checkbox-wrapper:hover {
-  transform: scale(1.1);
-}
-
-/* Loading State Enhancement */
-.ant-spin-container {
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-/* Empty State Enhancement */
-.ant-empty {
-  padding: 40px 20px;
-}
-
-/* Responsive Enhancements */
-@media (max-width: 768px) {
-  .modern-table .ant-table-thead>tr>th {
-    padding: 12px 8px !important;
-    font-size: 12px;
-  }
-
-  .modern-table .ant-table-tbody>tr>td {
-    padding: 10px 8px !important;
-    font-size: 12px;
-  }
-}
-
-/* FlexLayout container styles - ensure it doesn't cover sidebar/topbar */
-.flexlayout-container {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  height: 100%;
-  background: var(--background);
-}
-
-.flexlayout-container .flexlayout__layout {
-  position: relative !important;
-  width: 100% !important;
-  height: 100% !important;
-  z-index: 0 !important;
-  background: var(--background);
-}
-
-/* Ensure FlexLayout doesn't use fixed positioning that covers other elements */
-.flexlayout__layout {
-  position: relative !important;
-  background: var(--background);
-}
-
-/* FlexLayout Dark Theme Overrides - Balanced Colors */
-.dark .flexlayout__tab {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  border-color: transparent !important;
-}
-
-.dark .flexlayout__tab--selected {
-  background: var(--card) !important;
-  color: var(--foreground) !important;
-  border-bottom: 2px solid var(--primary) !important;
-  border-top: 1px solid var(--border) !important;
-  border-left: 1px solid var(--border) !important;
-  border-right: 1px solid var(--border) !important;
-}
-
-.dark .flexlayout__tabset {
-  background: var(--background) !important;
-  border-color: var(--border) !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
-.dark .flexlayout__tabset_header {
-  background: var(--background) !important;
-  border-color: var(--border) !important;
-  border-bottom: 1px solid var(--border) !important;
-}
-
-/* Tabbar container - the main tab area */
-.dark .flexlayout__tabset_tabbar {
-  background: var(--background) !important;
-  border-color: var(--border) !important;
-}
-
-.dark .flexlayout__tabset_tabbar_inner {
-  background: var(--background) !important;
-}
-
-.dark .flexlayout__tabset_tabbar_inner_tab_container {
-  background: var(--background) !important;
-}
-
-.dark .flexlayout__tabset_tabbar_inner_tab_container_top {
-  background: var(--background) !important;
-}
-
-/* Tab buttons - all variants */
-.dark .flexlayout__tab_button {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-  border: 1px solid transparent !important;
-  border-radius: 6px 6px 0 0 !important;
-  transition: all 0.2s ease !important;
-}
-
-.dark .flexlayout__tab_button_top {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_button:hover {
-  background: var(--muted) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_button_top:hover {
-  background: var(--muted) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_button--selected {
-  background: var(--card) !important;
-  color: var(--foreground) !important;
-  border: 1px solid var(--border) !important;
-  border-bottom: 2px solid var(--primary) !important;
-  border-bottom-color: var(--primary) !important;
-  border-radius: 6px 6px 0 0 !important;
-}
-
-.dark .flexlayout__tab_button_top.flexlayout__tab_button--selected {
-  background: var(--card) !important;
-  color: var(--foreground) !important;
-  border: 1px solid var(--border) !important;
-  border-bottom: 2px solid var(--primary) !important;
-  border-top: 1px solid var(--border) !important;
-  border-left: 1px solid var(--border) !important;
-  border-right: 1px solid var(--border) !important;
-}
-
-.dark .flexlayout__tab_button--unselected {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_button_top.flexlayout__tab_button--unselected {
-  background: transparent !important;
-  color: var(--text-muted) !important;
-}
-
-/* Tab dividers */
-.dark .flexlayout__tabset_tab_divider {
-  background: var(--border) !important;
-  width: 1px !important;
-}
-
-/* SVG icons in tabs - ensure they use theme colors */
-.dark .flexlayout__tab_button_trailing svg {
-  color: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_button_trailing:hover svg {
-  color: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_button_trailing svg path {
-  stroke: var(--text-muted) !important;
-  fill: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_button_trailing:hover svg path {
-  stroke: var(--foreground) !important;
-  fill: var(--foreground) !important;
-}
-
-/* Override any CSS variables that FlexLayout might be using */
-.dark .flexlayout__tab_button_trailing {
-  --color-icon: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_button_trailing:hover {
-  --color-icon: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_button_text {
-  color: inherit !important;
-}
-
-.dark .flexlayout__tab_button_content {
-  color: inherit !important;
-}
-
-/* Tab close button styling - visible and properly styled */
-.dark .flexlayout__tab_button_trailing {
-  color: var(--text-muted) !important;
-  background: transparent !important;
-  border: none !important;
-  border-radius: 4px !important;
-  padding: 4px !important;
-  min-width: 20px !important;
-  min-height: 20px !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  opacity: 0.7 !important;
-  transition: all 0.2s ease !important;
-  cursor: pointer !important;
-  margin-left: 4px !important;
-}
-
-.dark .flexlayout__tab_button_trailing:hover {
-  color: var(--foreground) !important;
-  background: var(--muted) !important;
-  opacity: 1 !important;
-  border-radius: 4px !important;
-}
-
-.dark .flexlayout__tab_button_leading {
-  color: inherit !important;
-}
-
-/* Tab border and separator styling */
-.dark .flexlayout__tab_button_border {
-  border-color: var(--border) !important;
-}
-
-/* Tabset overflow button (when tabs overflow) */
-.dark .flexlayout__tabset_overflow_button {
-  background: var(--muted) !important;
-  color: var(--foreground) !important;
-  border-color: var(--border) !important;
-}
-
-.dark .flexlayout__tabset_overflow_button:hover {
-  background: var(--accent) !important;
-}
-
-/* Splitter styling */
-.dark .flexlayout__splitter {
-  background: var(--border) !important;
-}
-
-.dark .flexlayout__splitter:hover {
-  background: var(--primary) !important;
-  opacity: 0.8 !important;
-}
-
-/* Additional tab elements */
-.dark .flexlayout__tab_toolbar {
-  background: var(--background) !important;
-  border-color: var(--border) !important;
-}
-
-.dark .flexlayout__tab_toolbar_button {
-  color: var(--text-muted) !important;
-}
-
-.dark .flexlayout__tab_toolbar_button:hover {
-  background: var(--muted) !important;
-  color: var(--foreground) !important;
-}
-
-/* FlexLayout tab content area - ensure dark background */
-.dark .flexlayout__tab_content {
-  background: var(--background) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_content_inner {
-  background: var(--background) !important;
-  color: var(--foreground) !important;
-}
-
-/* Ensure all page content inside FlexLayout tabs uses dark theme */
-.dark .flexlayout__tab_content>* {
-  background: var(--background) !important;
-  color: var(--foreground) !important;
-}
-
-.dark .flexlayout__tab_content>div {
-  background: var(--background) !important;
-}
-
-/* Ensure sidebar and topbar stay on top */
-.accounting-sidebar {
-  position: relative;
-  z-index: 10;
-}
-
-/* TopBar should also stay visible */
-header,
-[class*="topbar"],
-[class*="TopBar"] {
-  position: relative;
-  z-index: 10;
 }

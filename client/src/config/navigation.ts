@@ -16,7 +16,11 @@ import {
     Globe,
     Users,
     Shield,
-    MessageSquare
+    MessageSquare,
+    Database,
+    Upload,
+    Bell,
+    Link
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -155,6 +159,36 @@ export const additionalPagesNavigation: NavigationItem[] = [
         name: "Email Inbox",
         href: "/email",
         icon: Mail,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "MSSQL Import",
+        href: "/mssql-import",
+        icon: Database,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "Bank Import",
+        href: "/bank/import",
+        icon: Upload,
+        permission: "BANK_VIEW",
+    },
+    {
+        name: "RS Integration",
+        href: "/rs-integration",
+        icon: Link,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "RS Admin",
+        href: "/rs-admin",
+        icon: Shield,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "Notifications",
+        href: "/notifications",
+        icon: Bell,
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
     },
     {

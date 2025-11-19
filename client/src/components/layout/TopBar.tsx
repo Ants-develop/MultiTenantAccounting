@@ -72,83 +72,81 @@ export default function TopBar() {
 
   return (
     <>
-      <header className="bg-card/50 backdrop-blur-sm border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <SidebarTrigger className="-ml-1" />
-
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">{getPageTitle()}</h2>
-              {mainCompany && (
-                <p className="text-xs text-muted-foreground mt-0.5">{mainCompany.name}</p>
-              )}
-            </div>
+      <header className="flex h-16 items-center justify-between border-b border-border bg-card px-6">
+        <div className="flex flex-1 items-center gap-4">
+          <SidebarTrigger />
+          
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">{getPageTitle()}</h2>
+            {mainCompany && (
+              <p className="text-xs text-muted-foreground mt-0.5">{mainCompany.name}</p>
+            )}
           </div>
+        </div>
 
-          <div className="flex items-center space-x-3">
-            {/* Global Search */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSearchOpen(true)}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Search className="h-5 w-5" />
-            </Button>
+        <div className="flex items-center gap-3">
+          {/* Global Search */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSearchOpen(true)}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <Search className="h-5 w-5" />
+          </Button>
 
-            {/* New Tab Button */}
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              New Tab
-            </Button>
+          {/* New Tab Button */}
+          <Button
+            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={() => setSearchOpen(true)}
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            New Tab
+          </Button>
 
-            {/* Notifications */}
-            <NotificationDropdown />
+          {/* Notifications */}
+          <NotificationDropdown />
 
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2 h-auto py-1.5 px-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-muted text-muted-foreground">
-                      {user ? getUserInitials(user.firstName, user.lastName) : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col items-start">
-                    <span className="text-sm font-medium text-foreground">
-                      {user ? `${user.firstName} ${user.lastName}` : 'User'}
-                    </span>
-                    {user?.globalRole && (
-                      <span className="text-xs text-muted-foreground capitalize">{user.globalRole}</span>
-                    )}
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setLocation('/profile')}>
-                  <User className="w-4 h-4 mr-2" />
-                  {t('topBar.profile')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setLocation('/settings')}>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => logout()}>
-                  <LogOut className="w-4 h-4 mr-2" />
-                  {t('auth.logout')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+          {/* User Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center space-x-2 h-auto py-1.5 px-2">
+                <Avatar className="w-8 h-8">
+                  <AvatarFallback className="bg-muted text-muted-foreground">
+                    {user ? getUserInitials(user.firstName, user.lastName) : 'U'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col items-start">
+                  <span className="text-sm font-medium text-foreground">
+                    {user ? `${user.firstName} ${user.lastName}` : 'User'}
+                  </span>
+                  {user?.globalRole && (
+                    <span className="text-xs text-muted-foreground capitalize">{user.globalRole}</span>
+                  )}
+                </div>
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuItem onClick={() => setLocation('/profile')}>
+                <User className="w-4 h-4 mr-2" />
+                {t('topBar.profile')}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocation('/settings')}>
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => logout()}>
+                <LogOut className="w-4 h-4 mr-2" />
+                {t('auth.logout')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-            {/* Language Switcher */}
-            <LanguageSwitcher />
-          </div>
+          {/* Language Switcher */}
+          <LanguageSwitcher />
         </div>
       </header>
 

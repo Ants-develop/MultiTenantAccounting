@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS accounting.general_ledger (
   id SERIAL PRIMARY KEY,
   client_id INTEGER NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
   -- Tenant information
-  tenant_code NUMERIC(18, 0),
+  tenant_code VARCHAR(50), -- VARCHAR for flexibility, convert to INT in code when needed
   tenant_name TEXT,
   abonent TEXT,
   postings_period TIMESTAMP,
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS accounting.journal_entries (
   -- Internal tracking: Link to general_ledger table for MSSQL import tracking
   mssql_record_id INTEGER REFERENCES accounting.general_ledger(id),
   -- MSSQL parity fields (all optional/nullable for legacy data import)
-  tenant_code INTEGER,
+  tenant_code VARCHAR(50), -- VARCHAR for flexibility, convert to INT in code when needed
   tenant_name TEXT,
   abonent TEXT,
   postings_period TIMESTAMP,

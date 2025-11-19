@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS clients (
   tax_id TEXT,
   fiscal_year_start INTEGER DEFAULT 1,
   currency TEXT DEFAULT 'GEL',
-  tenant_code INTEGER UNIQUE,
+  tenant_code VARCHAR(50) UNIQUE,
   manager TEXT,
   accounting_software TEXT,
   id_code TEXT,

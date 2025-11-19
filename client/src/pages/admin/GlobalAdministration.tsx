@@ -41,7 +41,7 @@ interface ClientCompany {
   name: string;
   code: string;
   address: string | null;
-  tenantCode: number | null;
+  tenantCode: string | number | null; // VARCHAR(50) in DB, accepts string or number
   isActive: boolean;
   createdAt: string;
   userCount: number;

@@ -20,7 +20,7 @@ interface JournalEntry {
   userId: number | null;
   isPosted: boolean;
   createdAt: string | null;
-  tenantCode: number | null;
+  tenantCode: string | number | null; // VARCHAR(50) in DB, accepts string or number
   tenantName: string | null;
   abonent: string | null;
   postingsPeriod: string | null;

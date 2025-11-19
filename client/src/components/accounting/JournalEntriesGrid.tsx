@@ -1,7 +1,7 @@
 import { useMemo, useCallback, useEffect, useRef } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { apiRequest } from "@/lib/queryClient";
 import { BaseHandsontableGrid } from "@/components/grid";
 import dayjs from 'dayjs';
@@ -20,7 +20,7 @@ interface JournalEntry {
   userId: number | null;
   isPosted: boolean;
   createdAt: string | null;
-  tenantCode: number | null;
+  tenantCode: string | number | null; // VARCHAR(50) in DB, accepts string or number
   tenantName: string | null;
   abonent: string | null;
   postingsPeriod: string | null;
@@ -84,7 +84,6 @@ export function JournalEntriesGrid({
   isFetching = false,
   onRefresh,
 }: JournalEntriesGridProps) {
-  const { toast } = useToast();
   const queryClient = useQueryClient();
   const hasShownLimitWarning = useRef(false);
 
@@ -99,10 +98,8 @@ export function JournalEntriesGrid({
     // Show warning when data is loaded and exceeds limit
     if (journalEntries && journalEntries.length > MAX_RECORDS_LIMIT) {
       if (!hasShownLimitWarning.current) {
-        toast({
-          title: "Performance Warning",
+        toast.error("Performance Warning", {
           description: `Only showing first ${MAX_RECORDS_LIMIT.toLocaleString()} of ${journalEntries.length.toLocaleString()} records for performance. Please use filters to reduce the dataset.`,
-          variant: "destructive",
           duration: 8000,
         });
         hasShownLimitWarning.current = true;
@@ -275,13 +272,11 @@ export function JournalEntriesGrid({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/journal-entries'] });
-      toast({ title: "Success", description: "Changes saved successfully" });
+      toast.success("Success", { description: "Changes saved successfully" });
     },
     onError: (error: Error) => {
-      toast({
-        title: "Error",
+      toast.error("Error", {
         description: error.message || "Failed to save changes",
-        variant: "destructive" 
       });
     },
   });
@@ -290,11 +285,10 @@ export function JournalEntriesGrid({
   const handleSave = useCallback(() => {
     // This would be called from the grid, but we'll keep it disabled for now
     // since saving is complex and needs proper implementation
-    toast({
-      title: "Info",
+    toast.info("Info", {
       description: "Save functionality is currently disabled",
     });
-  }, [toast]);
+  }, []);
 
   return (
     <BaseHandsontableGrid

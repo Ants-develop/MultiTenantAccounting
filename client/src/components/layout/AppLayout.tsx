@@ -1,8 +1,8 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef } from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import FlexLayoutContainer from "./FlexLayoutContainer";
-import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { useLocation } from "wouter";
 import { FlexLayoutProvider, FlexLayoutContextValue, TabState } from "@/hooks/useFlexLayout";
 
@@ -12,7 +12,6 @@ interface AppLayoutProps {
 }
 
 function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLayoutProps) {
-  const { open } = useSidebar();
   const [location] = useLocation();
   const flexLayoutRef = useRef<FlexLayoutContextValue | null>(null);
 
@@ -49,22 +48,18 @@ function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLay
 
   return (
     <FlexLayoutProvider value={proxyContextValue}>
-      <div className="w-screen h-screen overflow-hidden bg-background">
-        <div className="flex h-screen overflow-hidden app-scale-75">
-          {!hideSidebar && <Sidebar />}
-          <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${!open && !hideSidebar ? 'ml-0' : ''}`}>
-            <TopBar />
-            <main className="flex-1 overflow-hidden bg-background">
-              <FlexLayoutContainer
-                defaultPath={initialPath}
-                onContextReady={(context) => {
-                  flexLayoutRef.current = context;
-                }}
-              />
-            </main>
-          </div>
+      {!hideSidebar && <Sidebar />}
+      <SidebarInset className="overflow-hidden">
+        <TopBar />
+        <div className="flex-1 overflow-hidden border-t border-border">
+          <FlexLayoutContainer
+            defaultPath={initialPath}
+            onContextReady={(context) => {
+              flexLayoutRef.current = context;
+            }}
+          />
         </div>
-      </div>
+      </SidebarInset>
     </FlexLayoutProvider>
   );
 }
