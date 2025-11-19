@@ -21,11 +21,11 @@ const THEME_STORAGE_KEY = "theme-preference";
 const CUSTOM_PRIMARY_COLOR_KEY = "custom-primary-color";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Initialize theme from localStorage or default to "system"
+  // Initialize theme from localStorage or default to "light"
   const getInitialTheme = (): Theme => {
-    if (typeof window === "undefined") return "system";
+    if (typeof window === "undefined") return "light";
     const stored = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
-    return stored || "system";
+    return stored || "light";
   };
 
   const getInitialResolvedTheme = (theme: Theme): "light" | "dark" => {
@@ -37,10 +37,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   const [theme, setThemeState] = useState<Theme>(getInitialTheme);
-  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => 
+  const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() =>
     getInitialResolvedTheme(getInitialTheme())
   );
-  
+
   // Custom primary color state
   const [customPrimaryColor, setCustomPrimaryColorState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
@@ -61,7 +61,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     onDarkModeChange: (isDark: boolean) => {
       // Mark that update is coming from library to prevent loop
       isUpdatingFromLibraryRef.current = true;
-      
+
       // When library changes theme via toggle, update our state
       // Only update if we're not in system mode (or if we are, switch to explicit)
       if (theme === "system") {
@@ -74,7 +74,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         setResolvedTheme(isDark ? "dark" : "light");
         prevResolvedThemeRef.current = isDark ? "dark" : "light";
       }
-      
+
       // Reset flag after a brief delay to allow state updates to complete
       setTimeout(() => {
         isUpdatingFromLibraryRef.current = false;
@@ -89,12 +89,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const r = parseInt(hex.substring(0, 2), 16);
     const g = parseInt(hex.substring(2, 4), 16);
     const b = parseInt(hex.substring(4, 6), 16);
-    
+
     // Adjust brightness
     const newR = Math.max(0, Math.min(255, r + (r * percent / 100)));
     const newG = Math.max(0, Math.min(255, g + (g * percent / 100)));
     const newB = Math.max(0, Math.min(255, b + (b * percent / 100)));
-    
+
     // Convert back to hex
     return `#${Math.round(newR).toString(16).padStart(2, "0")}${Math.round(newG).toString(16).padStart(2, "0")}${Math.round(newB).toString(16).padStart(2, "0")}`;
   };
@@ -104,13 +104,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement;
     const initialTheme = getInitialTheme();
     const initialResolved = getInitialResolvedTheme(initialTheme);
-    
+
     if (initialResolved === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
-    
+
     // Apply custom primary color if set
     if (customPrimaryColor) {
       root.style.setProperty("--user-primary", customPrimaryColor);
@@ -119,7 +119,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       root.style.setProperty("--user-primary-hover", hoverColor);
     }
   }, [customPrimaryColor]);
-  
+
   // Set custom primary color
   const setCustomPrimaryColor = (color: string | null) => {
     setCustomPrimaryColorState(color);
@@ -152,12 +152,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const updateResolvedTheme = () => {
         const newResolved = mediaQuery.matches ? "dark" : "light";
         const prevResolved = prevResolvedThemeRef.current;
-        
+
         // Only update if changed
         if (newResolved !== prevResolved) {
           prevResolvedThemeRef.current = newResolved;
           setResolvedTheme(newResolved);
-          
+
           // If library state doesn't match, trigger animation
           if (libraryIsDarkMode !== (newResolved === "dark")) {
             toggleSwitchTheme();
@@ -172,10 +172,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           }
         }
       };
-      
+
       // Set initial value
       updateResolvedTheme();
-      
+
       // Listen for changes
       mediaQuery.addEventListener("change", updateResolvedTheme);
       return () => mediaQuery.removeEventListener("change", updateResolvedTheme);
@@ -184,12 +184,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       const shouldBeDark = theme === "dark";
       const newResolved = theme;
       const prevResolved = prevResolvedThemeRef.current;
-      
+
       // Only update if changed
       if (newResolved !== prevResolved) {
         prevResolvedThemeRef.current = newResolved;
         setResolvedTheme(newResolved);
-        
+
         // If library state doesn't match, trigger animation
         if (libraryIsDarkMode !== shouldBeDark) {
           toggleSwitchTheme();

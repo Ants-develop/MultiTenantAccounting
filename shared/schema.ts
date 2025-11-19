@@ -1254,3 +1254,62 @@ export const notificationsRelations = relations(notifications, ({ one }) => ({
 }));
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
+
+// Conversations table
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  title: text("title"),
+  type: text("type").notNull().default("direct"), // 'direct', 'group', 'client'
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  lastMessageAt: timestamp("last_message_at"),
+  isArchived: boolean("is_archived").default(false).notNull(),
+});
+
+export const conversationsRelations = relations(conversations, ({ one, many }) => ({
+  client: one(clients, { fields: [conversations.clientId], references: [clients.id] }),
+  createdByUser: one(users, { fields: [conversations.createdBy], references: [users.id] }),
+  participants: many(conversationParticipants),
+  messages: many(messages),
+}));
+
+// Conversation Participants table
+export const conversationParticipants = pgTable("conversation_participants", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  joinedAt: timestamp("joined_at").defaultNow().notNull(),
+  lastReadAt: timestamp("last_read_at"),
+  isMuted: boolean("is_muted").default(false).notNull(),
+});
+
+export const conversationParticipantsRelations = relations(conversationParticipants, ({ one }) => ({
+  conversation: one(conversations, { fields: [conversationParticipants.conversationId], references: [conversations.id] }),
+  user: one(users, { fields: [conversationParticipants.userId], references: [users.id] }),
+}));
+
+// Messages table
+export const messages = pgTable("messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "cascade" }).notNull(),
+  senderId: integer("sender_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  type: text("type").notNull().default("text"), // 'text', 'file', 'system'
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  isEdited: boolean("is_edited").default(false).notNull(),
+  isDeleted: boolean("is_deleted").default(false).notNull(),
+});
+
+export const messagesRelations = relations(messages, ({ one }) => ({
+  conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
+  sender: one(users, { fields: [messages.senderId], references: [users.id] }),
+}));
+
+// Insert schemas
+export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertConversationParticipantSchema = createInsertSchema(conversationParticipants).omit({ id: true, joinedAt: true });
+export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, updatedAt: true, isEdited: true, isDeleted: true });

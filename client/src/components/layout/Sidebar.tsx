@@ -92,9 +92,18 @@ export default function Sidebar() {
 
   const handleNavigation = (e: React.MouseEvent, href: string, title: string) => {
     e.preventDefault();
-    if (flexLayoutContext) {
+
+    // Pages that should navigate outside of FlexLayout (full page navigation)
+    const fullPageRoutes = ['/profile', '/settings', '/company-profile'];
+
+    if (fullPageRoutes.includes(href)) {
+      // Use wouter navigation for full-page routes
+      setLocation(href);
+    } else if (flexLayoutContext) {
+      // Use FlexLayout tab system for all other routes
       flexLayoutContext.openTab(href, undefined, title);
     } else {
+      // Fallback to wouter navigation
       setLocation(href);
     }
   };

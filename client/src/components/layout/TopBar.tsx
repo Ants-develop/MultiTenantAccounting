@@ -105,10 +105,6 @@ export default function TopBar() {
               New Tab
             </Button>
 
-
-
-            // ... inside TopBar component ...
-
             {/* Notifications */}
             <NotificationDropdown />
 
@@ -137,16 +133,6 @@ export default function TopBar() {
                 <DropdownMenuItem onClick={() => setLocation('/profile')}>
                   <User className="w-4 h-4 mr-2" />
                   {t('topBar.profile')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => {
-                  if (flexLayout) {
-                    flexLayout.openTab('/company-profile');
-                  } else {
-                    setLocation('/company-profile');
-                  }
-                }}>
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Company Settings
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setLocation('/settings')}>
                   <Settings className="w-4 h-4 mr-2" />

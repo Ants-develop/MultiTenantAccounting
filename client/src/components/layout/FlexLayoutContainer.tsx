@@ -53,8 +53,8 @@ interface FlexLayoutContainerProps {
   modelFactory?: () => IJsonModel;
 }
 
-export default function FlexLayoutContainer({ 
-  defaultPath = "/home", 
+export default function FlexLayoutContainer({
+  defaultPath = "/home",
   onContextReady,
   settings,
   onAction,
@@ -354,8 +354,8 @@ export default function FlexLayoutContainer({
 
     // Check if a tab with this path already exists
     const existingTab = Array.from(tabs.values()).find(
-      (tab) => tab.path === resolvedPath && 
-      JSON.stringify(tab.params || {}) === JSON.stringify(routeParams)
+      (tab) => tab.path === resolvedPath &&
+        JSON.stringify(tab.params || {}) === JSON.stringify(routeParams)
     );
 
     if (existingTab) {
@@ -365,7 +365,6 @@ export default function FlexLayoutContainer({
     }
 
     // Find the first tabset to add the new tab to
-    // FlexLayout pattern: tabs are always added to tabsets
     let targetTabsetId: string | null = null;
     model.visitNodes((node: Node) => {
       if (node.getType() === "tabset" && !targetTabsetId) {
@@ -373,12 +372,12 @@ export default function FlexLayoutContainer({
       }
     });
 
-    // If no tabset exists (shouldn't happen with our default model, but handle it)
+    // If no tabset exists, create one
     if (!targetTabsetId) {
       console.warn("No tabset found, creating one");
       const root = model.getRoot();
       if (root) {
-        // Create a tabset using Actions API
+        // Create a new tabset
         const newTabsetId = `tabset_${Date.now()}`;
         model.doAction(
           Actions.addNode(
@@ -396,7 +395,23 @@ export default function FlexLayoutContainer({
         targetTabsetId = newTabsetId;
       } else {
         console.error("Cannot find root node for new tab");
-        return;
+        // Last resort: recreate the entire layout with a default tabset
+        const defaultModel = createDefaultModel();
+        const newModel = Model.fromJson(defaultModel);
+        setModel(newModel);
+        updateTabsFromModel(newModel);
+
+        // Now try to find tabset again
+        newModel.visitNodes((node: Node) => {
+          if (node.getType() === "tabset" && !targetTabsetId) {
+            targetTabsetId = node.getId();
+          }
+        });
+
+        if (!targetTabsetId) {
+          console.error("Failed to create tabset even after model reset");
+          return;
+        }
       }
     }
 
@@ -445,7 +460,7 @@ export default function FlexLayoutContainer({
         -1 // Add at the end
       )
     );
-  }, [tabs, setActiveTab, model, settings]);
+  }, [tabs, setActiveTab, model, settings, createDefaultModel, updateTabsFromModel]);
 
   const contextValue: FlexLayoutContextValue = {
     openTab,
@@ -495,7 +510,7 @@ export default function FlexLayoutContainer({
       // Find the closest tab element - FlexLayout uses multiple possible selectors
       const target = event.target as HTMLElement;
       const tabElement = target.closest('.flexlayout__tab, [class*="flexlayout__tab"]') as HTMLElement | null;
-      
+
       if (!tabElement) return;
 
       // Prevent default behavior (scrolling, etc.)
@@ -504,10 +519,10 @@ export default function FlexLayoutContainer({
 
       // Try multiple ways to get the node ID
       let nodeId: string | null = null;
-      
+
       // Method 1: data-nodeid attribute
       nodeId = tabElement.getAttribute('data-nodeid');
-      
+
       // Method 2: Check parent elements for data-nodeid
       if (!nodeId) {
         let parent = tabElement.parentElement;
@@ -516,7 +531,7 @@ export default function FlexLayoutContainer({
           parent = parent.parentElement;
         }
       }
-      
+
       // Method 3: Try to find by tab title
       if (!nodeId) {
         const tabTitle = tabElement.textContent?.trim() || tabElement.querySelector('.flexlayout__tab_title')?.textContent?.trim();
@@ -529,7 +544,7 @@ export default function FlexLayoutContainer({
           }
         }
       }
-      
+
       if (nodeId) {
         // Verify it's a tab node and close it
         const node = model.getNodeById(nodeId);

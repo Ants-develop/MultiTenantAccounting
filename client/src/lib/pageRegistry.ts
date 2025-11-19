@@ -35,7 +35,7 @@ import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
 import JobsDashboard from "@/pages/jobs/JobsDashboard";
 import JobDetail from "@/pages/jobs/JobDetail";
-import CalendarPage from "@/pages/calendar/CalendarPage";
+import Calendar from "@/pages/Calendar";
 import { AutomationsDashboard } from "@/pages/automations/AutomationsDashboard";
 import { ClientProfile } from "@/pages/clients/ClientProfile";
 import { ClientOnboarding } from "@/pages/clients/ClientOnboarding";
@@ -280,7 +280,7 @@ export const pageRegistry: PageConfig = {
   },
   "/calendar": {
     title: "Calendar",
-    component: CalendarPage,
+    component: Calendar,
     path: "/calendar",
   },
   "/automations": {

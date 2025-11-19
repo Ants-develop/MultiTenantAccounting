@@ -79,100 +79,108 @@ export default function Dashboard() {
 
   if (!mainCompany) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <h3 className="text-lg font-medium text-foreground">Company Not Configured</h3>
-          <p className="text-muted-foreground">Please complete the setup wizard to configure your company.</p>
+      <div className="p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <h3 className="text-lg font-medium text-foreground">Company Not Configured</h3>
+            <p className="text-muted-foreground">Please complete the setup wizard to configure your company.</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500 mt-1">Welcome to your financial overview</p>
+      </div>
+
       {/* Key Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="metric-card">
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="metric-label">{t('dashboard.totalRevenue')}</p>
-                <p className="metric-value">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">{t('dashboard.totalRevenue')}</p>
+                <p className="text-2xl font-bold text-gray-900">
                   {metricsLoading ? "..." : formatCurrency(metrics?.totalRevenue || 0)}
                 </p>
-                <p className="metric-change positive">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
+                <p className="text-xs text-green-600 flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-1" />
                   +12.5% {t('dashboard.fromLastMonth')}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="text-green-600 text-xl" />
+                <DollarSign className="text-green-600 h-6 w-6" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="metric-label">{t('dashboard.outstandingInvoices')}</p>
-                <p className="metric-value">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">{t('dashboard.outstandingInvoices')}</p>
+                <p className="text-2xl font-bold text-gray-900">
                   {metricsLoading ? "..." : formatCurrency(metrics?.outstandingInvoices || 0)}
                 </p>
-                <p className="metric-change warning">
-                  <Clock className="w-3 h-3 inline mr-1" />
+                <p className="text-xs text-yellow-600 flex items-center">
+                  <Clock className="w-3 h-3 mr-1" />
                   {t('dashboard.invoicesPending')}
                 </p>
               </div>
               <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <File className="text-yellow-600 text-xl" />
+                <File className="text-yellow-600 h-6 w-6" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="metric-label">{t('dashboard.cashBalance')}</p>
-                <p className="metric-value">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">{t('dashboard.cashBalance')}</p>
+                <p className="text-2xl font-bold text-gray-900">
                   {metricsLoading ? "..." : formatCurrency(metrics?.cashBalance || 0)}
                 </p>
-                <p className="metric-change neutral">
+                <p className="text-xs text-gray-600">
                   {t('dashboard.acrossAccounts')}
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <University className="text-blue-600 text-xl" />
+                <University className="text-blue-600 h-6 w-6" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="metric-card">
+        <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="metric-label">{t('dashboard.monthlyExpenses')}</p>
-                <p className="metric-value">
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-muted-foreground">{t('dashboard.monthlyExpenses')}</p>
+                <p className="text-2xl font-bold text-gray-900">
                   {metricsLoading ? "..." : formatCurrency(metrics?.monthlyExpenses || 0)}
                 </p>
-                <p className="metric-change negative">
-                  <TrendingUp className="w-3 h-3 inline mr-1" />
+                <p className="text-xs text-red-600 flex items-center">
+                  <TrendingUp className="w-3 h-3 mr-1" />
                   +5.2% {t('dashboard.fromLastMonth')}
                 </p>
               </div>
               <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <Receipt className="text-red-600 text-xl" />
+                <Receipt className="text-red-600 h-6 w-6" />
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Charts and Tables Row */}
+      {/* Charts and Quick Actions Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue Chart Placeholder */}
         <Card>
@@ -212,13 +220,12 @@ export default function Dashboard() {
                   <Button
                     key={index}
                     variant="ghost"
-                    className="quick-action-button"
+                    className="w-full justify-start p-4 h-auto hover:bg-accent rounded-lg transition-colors"
                     onClick={() => {
-                      // Navigation will be implemented
                       console.log(`Navigate to ${action.href}`);
                     }}
                   >
-                    <div className={`quick-action-icon ${action.iconBg}`}>
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center mr-3 ${action.iconBg}`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div className="flex-1 text-left">
@@ -251,7 +258,7 @@ export default function Dashboard() {
               <p className="mt-2 text-sm text-muted-foreground">{t('dashboard.loadingTransactions')}</p>
             </div>
           ) : (
-            <Table className="transaction-table">
+            <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{t('common.date')}</TableHead>
@@ -270,7 +277,7 @@ export default function Dashboard() {
                       <TableCell className="font-medium">{transaction.entryNumber}</TableCell>
                       <TableCell>{transaction.description}</TableCell>
                       <TableCell>
-                        <Badge className={`status-badge ${transaction.isPosted ? 'income' : 'expense'}`}>
+                        <Badge variant={transaction.isPosted ? "default" : "secondary"}>
                           {transaction.isPosted ? t('dashboard.posted') : t('dashboard.draft')}
                         </Badge>
                       </TableCell>
