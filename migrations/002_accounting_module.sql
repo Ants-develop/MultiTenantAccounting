@@ -351,6 +351,7 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS trigger_update_general_ledger_updated_at ON accounting.general_ledger;
 CREATE TRIGGER trigger_update_general_ledger_updated_at
   BEFORE UPDATE ON accounting.general_ledger
   FOR EACH ROW

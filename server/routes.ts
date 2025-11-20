@@ -86,7 +86,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Username and password are required' });
       }
 
-      const user = await authenticateUser(username, password);
+      let user;
+      try {
+        user = await authenticateUser(username, password);
+      } catch (authError: any) {
+        console.error('Authentication error:', authError);
+        // Check if it's a table doesn't exist error
+        if (authError?.message?.includes('does not exist') || authError?.code === '42P01') {
+          return res.status(500).json({ 
+            message: 'Database not initialized. Please run migrations first.',
+            error: 'MISSING_TABLES'
+          });
+        }
+        throw authError;
+      }
       if (!user) {
         // Log failed login attempt (no userId since user doesn't exist)
         await activityLogger.logError(
@@ -109,7 +122,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.session.userId = user.id;
 
       // Fetch user with companies data for response
-      const userWithCompanies = await getUserWithCompanies(user.id);
+      let userWithCompanies;
+      try {
+        userWithCompanies = await getUserWithCompanies(user.id);
+      } catch (companiesError: any) {
+        console.error('Error fetching user companies:', companiesError);
+        // If it's a table error, return a helpful message
+        if (companiesError?.message?.includes('does not exist') || companiesError?.code === '42P01') {
+          return res.status(500).json({ 
+            message: 'Database not initialized. Please run migrations first.',
+            error: 'MISSING_TABLES'
+          });
+        }
+        throw companiesError;
+      }
 
       console.log('Session before save:', {
         userId: req.session.userId,

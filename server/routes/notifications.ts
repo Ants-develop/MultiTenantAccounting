@@ -8,7 +8,8 @@ const router = Router();
 
 // Get all notifications for the current user
 router.get("/", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -16,7 +17,7 @@ router.get("/", async (req, res) => {
         const userNotifications = await db
             .select()
             .from(notifications)
-            .where(eq(notifications.userId, req.session.userId))
+            .where(eq(notifications.userId, userId))
             .orderBy(desc(notifications.createdAt));
 
         res.json(userNotifications);
@@ -28,7 +29,8 @@ router.get("/", async (req, res) => {
 
 // Create a notification (Internal use or via API)
 router.post("/", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -51,7 +53,8 @@ router.post("/", async (req, res) => {
 
 // Mark a notification as read
 router.patch("/:id/read", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -67,7 +70,7 @@ router.patch("/:id/read", async (req, res) => {
             .where(
                 and(
                     eq(notifications.id, notificationId),
-                    eq(notifications.userId, req.session.userId)
+                    eq(notifications.userId, userId)
                 )
             )
             .returning();
@@ -85,7 +88,8 @@ router.patch("/:id/read", async (req, res) => {
 
 // Mark all notifications as read
 router.patch("/read-all", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -93,7 +97,7 @@ router.patch("/read-all", async (req, res) => {
         await db
             .update(notifications)
             .set({ isRead: true, readAt: new Date() })
-            .where(eq(notifications.userId, req.session.userId));
+            .where(eq(notifications.userId, userId));
 
         res.json({ message: "All notifications marked as read" });
     } catch (error) {
@@ -104,7 +108,8 @@ router.patch("/read-all", async (req, res) => {
 
 // Delete a notification
 router.delete("/:id", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -119,7 +124,7 @@ router.delete("/:id", async (req, res) => {
             .where(
                 and(
                     eq(notifications.id, notificationId),
-                    eq(notifications.userId, req.session.userId)
+                    eq(notifications.userId, userId)
                 )
             )
             .returning();
@@ -137,7 +142,8 @@ router.delete("/:id", async (req, res) => {
 
 // Delete all read notifications
 router.delete("/read", async (req, res) => {
-    if (!req.session.userId) {
+    const userId = (req.session as any)?.userId;
+    if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -146,7 +152,7 @@ router.delete("/read", async (req, res) => {
             .delete(notifications)
             .where(
                 and(
-                    eq(notifications.userId, req.session.userId),
+                    eq(notifications.userId, userId),
                     eq(notifications.isRead, true)
                 )
             );

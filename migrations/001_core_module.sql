@@ -7,9 +7,18 @@
 -- UP
 -- Create core module tables in public schema
 
+-- Ensure public schema exists (it's the default but may not exist after reset)
+CREATE SCHEMA IF NOT EXISTS public;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+-- Ensure we're using the public schema
+SET search_path = public;
+
 -- =====================================================
 -- Users Table
 -- =====================================================
+-- Note: Using 'users' instead of 'public.users' since public is in search_path
+-- Foreign keys use explicit 'public.users' for clarity
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
@@ -66,8 +75,8 @@ COMMENT ON COLUMN clients.tenant_code IS 'MSSQL tenant code for data synchroniza
 -- =====================================================
 CREATE TABLE IF NOT EXISTS user_companies (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) NOT NULL,
-  client_id INTEGER REFERENCES clients(id) NOT NULL,
+  user_id INTEGER REFERENCES public.users(id) NOT NULL,
+  client_id INTEGER REFERENCES public.clients(id) NOT NULL,
   role TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -85,8 +94,8 @@ COMMENT ON TABLE user_companies IS 'User-client relationships with roles';
 -- =====================================================
 CREATE TABLE IF NOT EXISTS user_client_modules (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
   module VARCHAR(50) NOT NULL,
   can_view BOOLEAN DEFAULT false,
   can_create BOOLEAN DEFAULT false,
@@ -108,8 +117,8 @@ COMMENT ON COLUMN user_client_modules.module IS 'Module name: accounting, bank, 
 -- =====================================================
 CREATE TABLE IF NOT EXISTS user_client_features (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
   module VARCHAR(50) NOT NULL,
   feature VARCHAR(100) NOT NULL,
   can_view BOOLEAN DEFAULT false,
@@ -132,7 +141,7 @@ COMMENT ON COLUMN user_client_features.feature IS 'Feature name: invoices, bills
 -- =====================================================
 CREATE TABLE IF NOT EXISTS company_settings (
   id SERIAL PRIMARY KEY,
-  client_id INTEGER NOT NULL UNIQUE REFERENCES clients(id) ON DELETE CASCADE,
+  client_id INTEGER NOT NULL UNIQUE REFERENCES public.clients(id) ON DELETE CASCADE,
   -- Notification settings
   email_notifications BOOLEAN DEFAULT TRUE,
   invoice_reminders BOOLEAN DEFAULT TRUE,
@@ -235,8 +244,8 @@ COMMENT ON TABLE main_company_settings IS 'System-wide main company settings (on
 -- =====================================================
 CREATE TABLE IF NOT EXISTS activity_logs (
   id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id),
-  client_id INTEGER REFERENCES clients(id),
+  user_id INTEGER REFERENCES public.users(id),
+  client_id INTEGER REFERENCES public.clients(id),
   action TEXT NOT NULL,
   resource TEXT NOT NULL,
   resource_id INTEGER,

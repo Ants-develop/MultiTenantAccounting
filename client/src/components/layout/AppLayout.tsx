@@ -48,16 +48,16 @@ function AppLayoutContent({ hideSidebar = false, defaultPath = "/home" }: AppLay
 
   return (
     <FlexLayoutProvider value={proxyContextValue}>
-      {!hideSidebar && <Sidebar />}
+          {!hideSidebar && <Sidebar />}
       <SidebarInset className="overflow-hidden">
-        <TopBar />
+            <TopBar />
         <div className="flex-1 overflow-hidden border-t border-border">
-          <FlexLayoutContainer
-            defaultPath={initialPath}
-            onContextReady={(context) => {
-              flexLayoutRef.current = context;
-            }}
-          />
+              <FlexLayoutContainer
+                defaultPath={initialPath}
+                onContextReady={(context) => {
+                  flexLayoutRef.current = context;
+                }}
+              />
         </div>
       </SidebarInset>
     </FlexLayoutProvider>

@@ -306,7 +306,6 @@ export function JournalEntriesGrid({
       showClearFilters={true}
       showRefresh={true}
       readOnly={false}
-      persistentState={true}
       autoColumnSize={{
         samplingRatio: 25,
         useHeaders: true,

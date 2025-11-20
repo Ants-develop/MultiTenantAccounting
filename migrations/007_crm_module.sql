@@ -155,18 +155,23 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS client_documents_updated_at ON crm.client_documents;
 CREATE TRIGGER client_documents_updated_at BEFORE UPDATE ON crm.client_documents
     FOR EACH ROW EXECUTE FUNCTION crm.update_crm_updated_at();
 
+DROP TRIGGER IF EXISTS client_service_packages_updated_at ON crm.client_service_packages;
 CREATE TRIGGER client_service_packages_updated_at BEFORE UPDATE ON crm.client_service_packages
     FOR EACH ROW EXECUTE FUNCTION crm.update_crm_updated_at();
 
+DROP TRIGGER IF EXISTS client_onboarding_forms_updated_at ON crm.client_onboarding_forms;
 CREATE TRIGGER client_onboarding_forms_updated_at BEFORE UPDATE ON crm.client_onboarding_forms
     FOR EACH ROW EXECUTE FUNCTION crm.update_crm_updated_at();
 
+DROP TRIGGER IF EXISTS client_onboarding_steps_updated_at ON crm.client_onboarding_steps;
 CREATE TRIGGER client_onboarding_steps_updated_at BEFORE UPDATE ON crm.client_onboarding_steps
     FOR EACH ROW EXECUTE FUNCTION crm.update_crm_updated_at();
 
+DROP TRIGGER IF EXISTS client_checklists_updated_at ON crm.client_checklists;
 CREATE TRIGGER client_checklists_updated_at BEFORE UPDATE ON crm.client_checklists
     FOR EACH ROW EXECUTE FUNCTION crm.update_crm_updated_at();
 

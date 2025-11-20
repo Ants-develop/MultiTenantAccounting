@@ -14,12 +14,14 @@
     "db:generate": "drizzle-kit generate",
     "db:reset": "tsx --env-file=.env scripts/reset-database.ts",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
+    "db:reset-migrate": "tsx --env-file=.env scripts/reset-and-migrate.ts",
     "db:status": "tsx --env-file=.env scripts/db-status.ts",
     "test:company-users": "tsx --env-file=.env scripts/test-company-users.ts",
     "db:test-queries": "tsx --env-file=.env scripts/run-test-queries.ts",
     "db:quick-check": "tsx --env-file=.env scripts/run-test-queries.ts --quick",
     "setup": "tsx --env-file=.env scripts/start-system.ts",
-    "create-admin": "tsx --env-file=.env scripts/create-admin-user.ts"
+    "create-admin": "tsx --env-file=.env scripts/create-admin-user.ts",
+    "create-admin:force": "tsx --env-file=.env scripts/create-admin-user.ts --force"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

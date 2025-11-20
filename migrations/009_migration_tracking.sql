@@ -89,6 +89,7 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS trigger_update_migration_history_updated_at ON migration_history;
 CREATE TRIGGER trigger_update_migration_history_updated_at
   BEFORE UPDATE ON migration_history
   FOR EACH ROW

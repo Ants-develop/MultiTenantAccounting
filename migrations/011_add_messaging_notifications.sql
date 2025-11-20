@@ -1,15 +1,20 @@
+-- =====================================================
 -- Migration: Add messaging and notifications tables
+-- Schema: public
 -- Description: Creates tables for conversations, messages, and notifications system
--- Author: System
 -- Date: 2025-11-19
+-- =====================================================
+
+-- UP
+-- Create messaging and notifications tables
 
 -- Create conversations table
 CREATE TABLE IF NOT EXISTS conversations (
   id SERIAL PRIMARY KEY,
   title TEXT,
   type TEXT NOT NULL DEFAULT 'direct' CHECK (type IN ('direct', 'group', 'client')),
-  client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
-  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE CASCADE,
+  created_by INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_message_at TIMESTAMP WITH TIME ZONE,
@@ -20,7 +25,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 CREATE TABLE IF NOT EXISTS conversation_participants (
   id SERIAL PRIMARY KEY,
   conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
   last_read_at TIMESTAMP WITH TIME ZONE,
   is_muted BOOLEAN NOT NULL DEFAULT FALSE,
@@ -31,7 +36,7 @@ CREATE TABLE IF NOT EXISTS conversation_participants (
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
   conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-  sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   type TEXT NOT NULL DEFAULT 'text' CHECK (type IN ('text', 'file', 'system')),
   metadata JSONB DEFAULT '{}'::jsonb,
@@ -41,36 +46,18 @@ CREATE TABLE IF NOT EXISTS messages (
   is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- Update notifications table if it exists, or create it
-DO $$
-BEGIN
-  -- Check if notifications table exists
-  IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'notifications') THEN
-    -- Add missing columns if they don't exist
-    IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'link') THEN
-      ALTER TABLE notifications ADD COLUMN link TEXT;
-    END IF;
-    
-    -- Update type column to support new types
-    ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_type_check;
-    ALTER TABLE notifications ADD CONSTRAINT notifications_type_check 
-      CHECK (type IN ('info', 'success', 'warning', 'error', 'task', 'message', 'document'));
-  ELSE
-    -- Create notifications table if it doesn't exist
-    CREATE TABLE notifications (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      type TEXT NOT NULL CHECK (type IN ('info', 'success', 'warning', 'error', 'task', 'message', 'document')),
-      link TEXT,
-      is_read BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      read_at TIMESTAMP WITH TIME ZONE
-    );
-  END IF;
-END
-$$;
+-- Create notifications table
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('info', 'success', 'warning', 'error', 'task', 'message', 'document')),
+  link TEXT,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at TIMESTAMP WITH TIME ZONE
+);
 
 -- Create indexes for performance
 CREATE INDEX IF NOT EXISTS idx_conversations_client_id ON conversations(client_id);
@@ -122,3 +109,32 @@ COMMENT ON TABLE conversations IS 'Stores conversation groups for messaging';
 COMMENT ON TABLE conversation_participants IS 'Tracks which users are part of which conversations';
 COMMENT ON TABLE messages IS 'Stores individual messages within conversations';
 COMMENT ON TABLE notifications IS 'System notifications for users';
+
+-- DOWN
+-- Drop messaging and notifications tables
+
+-- Drop triggers
+DROP TRIGGER IF EXISTS update_messages_updated_at ON messages;
+DROP TRIGGER IF EXISTS update_conversations_updated_at ON conversations;
+
+-- Drop indexes
+DROP INDEX IF EXISTS idx_notifications_is_read;
+DROP INDEX IF EXISTS idx_notifications_created_at;
+DROP INDEX IF EXISTS idx_notifications_user_id;
+DROP INDEX IF EXISTS idx_messages_created_at;
+DROP INDEX IF EXISTS idx_messages_sender_id;
+DROP INDEX IF EXISTS idx_messages_conversation_id;
+DROP INDEX IF EXISTS idx_conversation_participants_user_id;
+DROP INDEX IF EXISTS idx_conversation_participants_conversation_id;
+DROP INDEX IF EXISTS idx_conversations_last_message_at;
+DROP INDEX IF EXISTS idx_conversations_client_id;
+
+-- Drop tables (order matters due to foreign keys)
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS conversation_participants;
+DROP TABLE IF EXISTS conversations;
+DROP TABLE IF EXISTS notifications;
+
+-- Drop trigger function (only if not used by other tables)
+-- DROP FUNCTION IF EXISTS update_updated_at_column();
+

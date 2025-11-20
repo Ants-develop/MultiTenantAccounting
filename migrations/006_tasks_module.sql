@@ -282,27 +282,35 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS workspaces_updated_at ON tasks.workspaces;
 CREATE TRIGGER workspaces_updated_at BEFORE UPDATE ON tasks.workspaces
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS pipelines_updated_at ON tasks.pipelines;
 CREATE TRIGGER pipelines_updated_at BEFORE UPDATE ON tasks.pipelines
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS jobs_updated_at ON tasks.jobs;
 CREATE TRIGGER jobs_updated_at BEFORE UPDATE ON tasks.jobs
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS tasks_updated_at ON tasks.tasks;
 CREATE TRIGGER tasks_updated_at BEFORE UPDATE ON tasks.tasks
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS subtasks_updated_at ON tasks.subtasks;
 CREATE TRIGGER subtasks_updated_at BEFORE UPDATE ON tasks.subtasks
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS events_updated_at ON tasks.events;
 CREATE TRIGGER events_updated_at BEFORE UPDATE ON tasks.events
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS automations_updated_at ON tasks.automations;
 CREATE TRIGGER automations_updated_at BEFORE UPDATE ON tasks.automations
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 
+DROP TRIGGER IF EXISTS checklist_templates_updated_at ON tasks.checklist_templates;
 CREATE TRIGGER checklist_templates_updated_at BEFORE UPDATE ON tasks.checklist_templates
     FOR EACH ROW EXECUTE FUNCTION tasks.update_updated_at_column();
 

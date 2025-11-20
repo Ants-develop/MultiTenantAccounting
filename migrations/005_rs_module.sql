@@ -23,21 +23,12 @@ CREATE TABLE IF NOT EXISTS rs.users (
   main_password_hash VARCHAR(255),
   user_id VARCHAR(50),
   un_id VARCHAR(50),
-  client_id INTEGER,
+  client_id INTEGER REFERENCES public.clients(id) ON DELETE SET NULL,
   company_tin VARCHAR(20),
-  created_by_user_id INTEGER,
+  created_by_user_id INTEGER REFERENCES public.users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
-
--- Add foreign key constraints
-ALTER TABLE rs.users
-  ADD CONSTRAINT rs_users_client_id_fkey
-  FOREIGN KEY (client_id) REFERENCES public.clients(id) ON DELETE SET NULL;
-
-ALTER TABLE rs.users
-  ADD CONSTRAINT rs_users_created_by_user_id_fkey
-  FOREIGN KEY (created_by_user_id) REFERENCES public.users(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS idx_rs_users_company_name ON rs.users(company_name);
 CREATE INDEX IF NOT EXISTS idx_rs_users_client_id ON rs.users(client_id);
@@ -75,9 +66,9 @@ CREATE TABLE IF NOT EXISTS rs.seller_invoices (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_seller_invoices_invoice_id ON rs.seller_invoices("INVOICE_ID");
-CREATE INDEX idx_seller_invoices_company_tin ON rs.seller_invoices("COMPANY_TIN");
-CREATE INDEX idx_seller_invoices_updated_at ON rs.seller_invoices("UPDATED_AT");
+CREATE INDEX IF NOT EXISTS idx_seller_invoices_invoice_id ON rs.seller_invoices("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_seller_invoices_company_tin ON rs.seller_invoices("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_seller_invoices_updated_at ON rs.seller_invoices("UPDATED_AT");
 
 COMMENT ON TABLE rs.seller_invoices IS 'Sales invoices issued by clients';
 
@@ -107,9 +98,9 @@ CREATE TABLE IF NOT EXISTS rs.buyer_invoices (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_buyer_invoices_invoice_id ON rs.buyer_invoices("INVOICE_ID");
-CREATE INDEX idx_buyer_invoices_company_tin ON rs.buyer_invoices("COMPANY_TIN");
-CREATE INDEX idx_buyer_invoices_updated_at ON rs.buyer_invoices("UPDATED_AT");
+CREATE INDEX IF NOT EXISTS idx_buyer_invoices_invoice_id ON rs.buyer_invoices("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_buyer_invoices_company_tin ON rs.buyer_invoices("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_buyer_invoices_updated_at ON rs.buyer_invoices("UPDATED_AT");
 
 COMMENT ON TABLE rs.buyer_invoices IS 'Purchase invoices received by clients';
 
@@ -133,8 +124,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_seller_invoices (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_spec_seller_invoices_invoice_id ON rs.spec_seller_invoices("INVOICE_ID");
-CREATE INDEX idx_spec_seller_invoices_company_tin ON rs.spec_seller_invoices("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_spec_seller_invoices_invoice_id ON rs.spec_seller_invoices("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_spec_seller_invoices_company_tin ON rs.spec_seller_invoices("COMPANY_TIN");
 
 COMMENT ON TABLE rs.spec_seller_invoices IS 'Special seller invoices (NSAF API)';
 
@@ -158,8 +149,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_buyer_invoices (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_spec_buyer_invoices_invoice_id ON rs.spec_buyer_invoices("INVOICE_ID");
-CREATE INDEX idx_spec_buyer_invoices_company_tin ON rs.spec_buyer_invoices("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_spec_buyer_invoices_invoice_id ON rs.spec_buyer_invoices("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_spec_buyer_invoices_company_tin ON rs.spec_buyer_invoices("COMPANY_TIN");
 
 COMMENT ON TABLE rs.spec_buyer_invoices IS 'Special buyer invoices (NSAF API)';
 
@@ -197,9 +188,9 @@ CREATE TABLE IF NOT EXISTS rs.sellers_waybills (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_sellers_waybills_external_id ON rs.sellers_waybills("EXTERNAL_ID");
-CREATE INDEX idx_sellers_waybills_company_tin ON rs.sellers_waybills("COMPANY_TIN");
-CREATE INDEX idx_sellers_waybills_updated_at ON rs.sellers_waybills("UPDATED_AT");
+CREATE INDEX IF NOT EXISTS idx_sellers_waybills_external_id ON rs.sellers_waybills("EXTERNAL_ID");
+CREATE INDEX IF NOT EXISTS idx_sellers_waybills_company_tin ON rs.sellers_waybills("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_sellers_waybills_updated_at ON rs.sellers_waybills("UPDATED_AT");
 
 COMMENT ON TABLE rs.sellers_waybills IS 'Outgoing waybills';
 
@@ -237,9 +228,9 @@ CREATE TABLE IF NOT EXISTS rs.buyers_waybills (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_buyers_waybills_external_id ON rs.buyers_waybills("EXTERNAL_ID");
-CREATE INDEX idx_buyers_waybills_company_tin ON rs.buyers_waybills("COMPANY_TIN");
-CREATE INDEX idx_buyers_waybills_updated_at ON rs.buyers_waybills("UPDATED_AT");
+CREATE INDEX IF NOT EXISTS idx_buyers_waybills_external_id ON rs.buyers_waybills("EXTERNAL_ID");
+CREATE INDEX IF NOT EXISTS idx_buyers_waybills_company_tin ON rs.buyers_waybills("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_buyers_waybills_updated_at ON rs.buyers_waybills("UPDATED_AT");
 
 COMMENT ON TABLE rs.buyers_waybills IS 'Incoming waybills';
 
@@ -263,8 +254,8 @@ CREATE TABLE IF NOT EXISTS rs.sellers_waybill_goods (
   UNIQUE ("WAYBILL_ID", "A_ID", "BAR_CODE")
 );
 
-CREATE INDEX idx_sellers_waybill_goods_waybill_id ON rs.sellers_waybill_goods("WAYBILL_ID");
-CREATE INDEX idx_sellers_waybill_goods_company_tin ON rs.sellers_waybill_goods("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_sellers_waybill_goods_waybill_id ON rs.sellers_waybill_goods("WAYBILL_ID");
+CREATE INDEX IF NOT EXISTS idx_sellers_waybill_goods_company_tin ON rs.sellers_waybill_goods("COMPANY_TIN");
 
 COMMENT ON TABLE rs.sellers_waybill_goods IS 'Seller waybill line items';
 
@@ -288,8 +279,8 @@ CREATE TABLE IF NOT EXISTS rs.buyers_waybill_goods (
   UNIQUE ("WAYBILL_ID", "A_ID", "BAR_CODE")
 );
 
-CREATE INDEX idx_buyers_waybill_goods_waybill_id ON rs.buyers_waybill_goods("WAYBILL_ID");
-CREATE INDEX idx_buyers_waybill_goods_company_tin ON rs.buyers_waybill_goods("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_buyers_waybill_goods_waybill_id ON rs.buyers_waybill_goods("WAYBILL_ID");
+CREATE INDEX IF NOT EXISTS idx_buyers_waybill_goods_company_tin ON rs.buyers_waybill_goods("COMPANY_TIN");
 
 COMMENT ON TABLE rs.buyers_waybill_goods IS 'Buyer waybill line items';
 
@@ -318,8 +309,8 @@ CREATE TABLE IF NOT EXISTS rs.sellers_invoice_goods (
   UNIQUE ("INVOICE_ID", "ID_GOODS")
 );
 
-CREATE INDEX idx_sellers_invoice_goods_invoice_id ON rs.sellers_invoice_goods("INVOICE_ID");
-CREATE INDEX idx_sellers_invoice_goods_company_tin ON rs.sellers_invoice_goods("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_sellers_invoice_goods_invoice_id ON rs.sellers_invoice_goods("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_sellers_invoice_goods_company_tin ON rs.sellers_invoice_goods("COMPANY_TIN");
 
 COMMENT ON TABLE rs.sellers_invoice_goods IS 'Seller invoice line items';
 
@@ -348,8 +339,8 @@ CREATE TABLE IF NOT EXISTS rs.buyers_invoice_goods (
   UNIQUE ("INVOICE_ID", "ID_GOODS")
 );
 
-CREATE INDEX idx_buyers_invoice_goods_invoice_id ON rs.buyers_invoice_goods("INVOICE_ID");
-CREATE INDEX idx_buyers_invoice_goods_company_tin ON rs.buyers_invoice_goods("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_buyers_invoice_goods_invoice_id ON rs.buyers_invoice_goods("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_buyers_invoice_goods_company_tin ON rs.buyers_invoice_goods("COMPANY_TIN");
 
 COMMENT ON TABLE rs.buyers_invoice_goods IS 'Buyer invoice line items';
 
@@ -369,8 +360,8 @@ CREATE TABLE IF NOT EXISTS rs.spec_invoice_goods (
   "UPDATED_AT" TIMESTAMP
 );
 
-CREATE INDEX idx_spec_invoice_goods_invoice_id ON rs.spec_invoice_goods("INVOICE_ID");
-CREATE INDEX idx_spec_invoice_goods_company_tin ON rs.spec_invoice_goods("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_spec_invoice_goods_invoice_id ON rs.spec_invoice_goods("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_spec_invoice_goods_company_tin ON rs.spec_invoice_goods("COMPANY_TIN");
 
 COMMENT ON TABLE rs.spec_invoice_goods IS 'Special invoice goods (NSAF)';
 
@@ -388,9 +379,9 @@ CREATE TABLE IF NOT EXISTS rs.waybill_invoices (
   UNIQUE ("WAYBILL_EXTERNAL_ID", "INVOICE_ID")
 );
 
-CREATE INDEX idx_waybill_invoices_waybill_id ON rs.waybill_invoices("WAYBILL_EXTERNAL_ID");
-CREATE INDEX idx_waybill_invoices_invoice_id ON rs.waybill_invoices("INVOICE_ID");
-CREATE INDEX idx_waybill_invoices_company_tin ON rs.waybill_invoices("COMPANY_TIN");
+CREATE INDEX IF NOT EXISTS idx_waybill_invoices_waybill_id ON rs.waybill_invoices("WAYBILL_EXTERNAL_ID");
+CREATE INDEX IF NOT EXISTS idx_waybill_invoices_invoice_id ON rs.waybill_invoices("INVOICE_ID");
+CREATE INDEX IF NOT EXISTS idx_waybill_invoices_company_tin ON rs.waybill_invoices("COMPANY_TIN");
 
 COMMENT ON TABLE rs.waybill_invoices IS 'Waybill-invoice associations';
 
@@ -408,6 +399,7 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS rs_users_set_updated_at ON rs.users;
 CREATE TRIGGER rs_users_set_updated_at
 BEFORE UPDATE ON rs.users
 FOR EACH ROW

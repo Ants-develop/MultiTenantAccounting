@@ -11,11 +11,11 @@ interface SimplePageLayoutProps {
 function SimplePageLayoutContent({ children, hideSidebar = false }: SimplePageLayoutProps) {
   return (
     <>
-      {!hideSidebar && <Sidebar />}
+        {!hideSidebar && <Sidebar />}
       <SidebarInset>
-        <TopBar />
+          <TopBar />
         <div className="flex-1 overflow-auto border-t border-border p-6">
-          {children}
+            {children}
         </div>
       </SidebarInset>
     </>

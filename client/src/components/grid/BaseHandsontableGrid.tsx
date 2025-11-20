@@ -57,7 +57,6 @@ export interface BaseHandsontableGridProps {
   comments?: boolean;
   multiColumnSorting?: boolean;
   manualColumnResize?: boolean;
-  persistentState?: boolean;
   stretchH?: "none" | "all" | "last";
   wordWrap?: boolean;
   autoColumnSize?: any;
@@ -102,7 +101,6 @@ export const BaseHandsontableGrid: React.FC<BaseHandsontableGridProps> = ({
   comments = false,
   multiColumnSorting = true,
   manualColumnResize = true,
-  persistentState = false,
   stretchH = "none",
   wordWrap = false,
   autoColumnSize,
@@ -452,7 +450,6 @@ export const BaseHandsontableGrid: React.FC<BaseHandsontableGridProps> = ({
               comments={comments}
               multiColumnSorting={multiColumnSorting}
               manualColumnResize={manualColumnResize}
-              persistentState={persistentState}
               licenseKey="non-commercial-and-evaluation"
               stretchH={stretchH}
               wordWrap={wordWrap}

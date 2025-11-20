@@ -28,9 +28,9 @@ CREATE TABLE IF NOT EXISTS bank.bank_accounts (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_bank_accounts_client_id ON bank.bank_accounts(client_id);
-CREATE INDEX idx_bank_accounts_is_default ON bank.bank_accounts(is_default);
-CREATE INDEX idx_bank_accounts_is_active ON bank.bank_accounts(is_active);
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_client_id ON bank.bank_accounts(client_id);
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_is_default ON bank.bank_accounts(is_default);
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_is_active ON bank.bank_accounts(is_active);
 
 COMMENT ON TABLE bank.bank_accounts IS 'Stores bank account information for companies';
 
@@ -90,10 +90,10 @@ CREATE TABLE IF NOT EXISTS bank.raw_bank_transactions (
   UNIQUE(client_id, unique_transaction_id)
 );
 
-CREATE INDEX idx_raw_bank_transactions_client_id ON bank.raw_bank_transactions(client_id);
-CREATE INDEX idx_raw_bank_transactions_bank_account_id ON bank.raw_bank_transactions(bank_account_id);
-CREATE INDEX idx_raw_bank_transactions_document_date ON bank.raw_bank_transactions(document_date);
-CREATE INDEX idx_raw_bank_transactions_movement_id ON bank.raw_bank_transactions(movement_id);
+CREATE INDEX IF NOT EXISTS idx_raw_bank_transactions_client_id ON bank.raw_bank_transactions(client_id);
+CREATE INDEX IF NOT EXISTS idx_raw_bank_transactions_bank_account_id ON bank.raw_bank_transactions(bank_account_id);
+CREATE INDEX IF NOT EXISTS idx_raw_bank_transactions_document_date ON bank.raw_bank_transactions(document_date);
+CREATE INDEX IF NOT EXISTS idx_raw_bank_transactions_movement_id ON bank.raw_bank_transactions(movement_id);
 
 COMMENT ON TABLE bank.raw_bank_transactions IS 'Stores raw bank transactions imported from bank statements';
 
@@ -138,10 +138,10 @@ CREATE TABLE IF NOT EXISTS bank.normalized_bank_transactions (
   UNIQUE(raw_transaction_id)
 );
 
-CREATE INDEX idx_normalized_bank_transactions_client_id ON bank.normalized_bank_transactions(client_id);
-CREATE INDEX idx_normalized_bank_transactions_bank_account_id ON bank.normalized_bank_transactions(bank_account_id);
-CREATE INDEX idx_normalized_bank_transactions_raw_transaction_id ON bank.normalized_bank_transactions(raw_transaction_id);
-CREATE INDEX idx_bank_account_sequence_idx ON bank.normalized_bank_transactions(bank_account_id, sequence_number);
+CREATE INDEX IF NOT EXISTS idx_normalized_bank_transactions_client_id ON bank.normalized_bank_transactions(client_id);
+CREATE INDEX IF NOT EXISTS idx_normalized_bank_transactions_bank_account_id ON bank.normalized_bank_transactions(bank_account_id);
+CREATE INDEX IF NOT EXISTS idx_normalized_bank_transactions_raw_transaction_id ON bank.normalized_bank_transactions(raw_transaction_id);
+CREATE INDEX IF NOT EXISTS idx_bank_account_sequence_idx ON bank.normalized_bank_transactions(bank_account_id, sequence_number);
 
 COMMENT ON TABLE bank.normalized_bank_transactions IS 'Stores validated and normalized bank transactions with sequence and balance validation';
 
@@ -159,16 +159,19 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS trigger_update_bank_accounts_updated_at ON bank.bank_accounts;
 CREATE TRIGGER trigger_update_bank_accounts_updated_at
   BEFORE UPDATE ON bank.bank_accounts
   FOR EACH ROW
   EXECUTE FUNCTION bank.update_bank_updated_at();
 
+DROP TRIGGER IF EXISTS trigger_update_raw_bank_transactions_updated_at ON bank.raw_bank_transactions;
 CREATE TRIGGER trigger_update_raw_bank_transactions_updated_at
   BEFORE UPDATE ON bank.raw_bank_transactions
   FOR EACH ROW
   EXECUTE FUNCTION bank.update_bank_updated_at();
 
+DROP TRIGGER IF EXISTS trigger_update_normalized_bank_transactions_updated_at ON bank.normalized_bank_transactions;
 CREATE TRIGGER trigger_update_normalized_bank_transactions_updated_at
   BEFORE UPDATE ON bank.normalized_bank_transactions
   FOR EACH ROW

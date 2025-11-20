@@ -141,15 +141,19 @@ $$ LANGUAGE plpgsql;
 -- =====================================================
 -- Triggers
 -- =====================================================
+DROP TRIGGER IF EXISTS email_accounts_updated_at ON email.email_accounts;
 CREATE TRIGGER email_accounts_updated_at BEFORE UPDATE ON email.email_accounts
     FOR EACH ROW EXECUTE FUNCTION email.update_email_updated_at();
 
+DROP TRIGGER IF EXISTS email_messages_updated_at ON email.email_messages;
 CREATE TRIGGER email_messages_updated_at BEFORE UPDATE ON email.email_messages
     FOR EACH ROW EXECUTE FUNCTION email.update_email_updated_at();
 
+DROP TRIGGER IF EXISTS email_templates_updated_at ON email.email_templates;
 CREATE TRIGGER email_templates_updated_at BEFORE UPDATE ON email.email_templates
     FOR EACH ROW EXECUTE FUNCTION email.update_email_updated_at();
 
+DROP TRIGGER IF EXISTS email_routing_rules_updated_at ON email.email_routing_rules;
 CREATE TRIGGER email_routing_rules_updated_at BEFORE UPDATE ON email.email_routing_rules
     FOR EACH ROW EXECUTE FUNCTION email.update_email_updated_at();
 

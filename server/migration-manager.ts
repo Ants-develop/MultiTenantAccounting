@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db, pool } from "./db";
 import { sql } from "drizzle-orm";
 import { DatabaseValidationService } from "./db-validation";
 import fs from "fs/promises";
@@ -33,15 +33,12 @@ export class MigrationManager {
    */
   static async initialize(): Promise<void> {
     try {
-      // First, test basic connection
-      console.log('Testing database connection...');
-      await db.execute(sql`SELECT 1`);
-      console.log('✅ Database connection successful');
+      // Ensure public schema exists first
+      await db.execute(sql.raw('CREATE SCHEMA IF NOT EXISTS public;'));
+      await db.execute(sql.raw('GRANT ALL ON SCHEMA public TO PUBLIC;'));
       
-      // Create table using sql.identifier() for proper escaping
-      console.log(`Creating migrations table: ${this.MIGRATIONS_TABLE}...`);
-      await db.execute(sql.raw(`
-        CREATE TABLE IF NOT EXISTS "${this.MIGRATIONS_TABLE}" (
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS ${sql.identifier(this.MIGRATIONS_TABLE)} (
           id VARCHAR(255) PRIMARY KEY,
           name VARCHAR(255) NOT NULL,
           version INTEGER NOT NULL,
@@ -50,45 +47,9 @@ export class MigrationManager {
           execution_time_ms INTEGER,
           UNIQUE(version)
         )
-      `));
-      console.log('✅ Migrations table initialized');
-    } catch (error: any) {
-      // Comprehensive error extraction
-      console.error('❌ Error caught in initialize():', error);
-      console.error('Error type:', typeof error);
-      console.error('Error constructor:', error?.constructor?.name);
-      console.error('Error keys:', error ? Object.keys(error) : 'N/A');
-      
-      let errorMessage = 'Unknown error';
-      let errorDetails = '';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-        errorDetails = error.stack || '';
-      } else if (error && typeof error === 'object') {
-        // Try to extract message from various possible properties
-        errorMessage = error.message || error.msg || error.error || error.toString?.() || 'Error object';
-        if (error.code) errorDetails += `Code: ${error.code}\n`;
-        if (error.detail) errorDetails += `Detail: ${error.detail}\n`;
-        if (error.hint) errorDetails += `Hint: ${error.hint}\n`;
-        if (error.stack) errorDetails += `Stack: ${error.stack}\n`;
-        if (error.cause) errorDetails += `Cause: ${error.cause}\n`;
-        
-        // Try JSON.stringify as last resort (but be careful with circular refs)
-        try {
-          const errorJson = JSON.stringify(error, null, 2);
-          if (errorJson && errorJson !== '{}' && !errorDetails) {
-            errorDetails = `Error object: ${errorJson}`;
-          }
-        } catch (e) {
-          // Ignore JSON.stringify errors (circular refs)
-        }
-      } else {
-        errorMessage = String(error);
-      }
-      
-      const fullError = `Failed to initialize migrations table: ${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`;
-      throw new Error(fullError);
+      `);
+    } catch (error) {
+      throw new Error(`Failed to initialize migrations table: ${error}`);
     }
   }
 
@@ -109,6 +70,9 @@ export class MigrationManager {
    */
   static async getAppliedMigrations(): Promise<Migration[]> {
     try {
+      // Ensure migrations table exists first
+      await this.initialize();
+      
       const result = await db.execute(sql`
         SELECT id, name, version, checksum, applied_at
         FROM ${sql.identifier(this.MIGRATIONS_TABLE)}
@@ -120,12 +84,18 @@ export class MigrationManager {
         name: row.name as string,
         version: row.version as number,
         checksum: row.checksum as string,
-        appliedAt: row.applied_at as Date,
+        appliedAt: row.applied_at ? (row.applied_at instanceof Date ? row.applied_at : new Date(row.applied_at as string)) : undefined,
         up: "", // Not stored in DB
         down: "" // Not stored in DB
       }));
     } catch (error) {
-      // Table might not exist yet
+      // Table might not exist yet - this is OK for fresh databases
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('does not exist')) {
+        return [];
+      }
+      // For other errors, log but don't fail
+      console.warn('⚠️  Warning: Could not read applied migrations:', errorMessage);
       return [];
     }
   }
@@ -175,7 +145,7 @@ export class MigrationManager {
         
         // Check if required tables exist - if not, we should re-run relevant migrations
         const requiredTables = [
-          "users", "clients", "user_companies", "accounts",
+          "users", "companies", "user_companies", "accounts",
           "journal_entries", "journal_entry_lines", "customers",
           "vendors", "invoices", "bills", "activity_logs",
           "company_settings", "general_ledger"
@@ -263,9 +233,8 @@ export class MigrationManager {
           result.migrationsApplied.push(migration.id);
           console.log(`✓ Applied migration: ${migration.name}`);
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`✗ Failed to apply migration ${migration.name}:`, error);
-          result.errors.push(`${migration.name}: ${errorMessage}`);
+          result.errors.push(`${migration.name}: ${error}`);
           result.success = false;
           
           // Attempt rollback
@@ -274,9 +243,8 @@ export class MigrationManager {
             result.rollbacksPerformed.push(migration.id);
             console.log(`✓ Rolled back migration: ${migration.name}`);
           } catch (rollbackError) {
-            const rollbackMessage = rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
             console.error(`✗ Failed to rollback ${migration.name}:`, rollbackError);
-            result.errors.push(`Rollback failed for ${migration.name}: ${rollbackMessage}`);
+            result.errors.push(`Rollback failed for ${migration.name}: ${rollbackError}`);
           }
           
           break; // Stop on first failure
@@ -284,10 +252,8 @@ export class MigrationManager {
       }
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
       result.success = false;
-      result.errors.push(`Migration process failed: ${errorMessage}${errorStack ? `\n${errorStack}` : ''}`);
+      result.errors.push(`Migration process failed: ${error}`);
     }
 
     return result;
@@ -295,55 +261,165 @@ export class MigrationManager {
 
   /**
    * Apply a single migration
+   * Uses pool.connect() for proper multi-statement SQL execution
    */
   private static async applyMigration(migration: Migration): Promise<void> {
     const startTime = Date.now();
+    const client = await pool.connect();
     
-    await db.transaction(async (tx) => {
+    try {
+      await client.query('BEGIN');
+      
       try {
-        // Execute the migration SQL
-        await tx.execute(sql.raw(migration.up));
+        // Set search_path to ensure public schema is used
+        await client.query('SET search_path = public, pg_catalog');
         
-        // Record the migration (use ON CONFLICT to handle duplicate key)
+        // Ensure migrations table exists (in case initialize() wasn't called or failed)
+        await client.query(`
+          CREATE SCHEMA IF NOT EXISTS public;
+          GRANT ALL ON SCHEMA public TO PUBLIC;
+        `);
+        
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS "${this.MIGRATIONS_TABLE}" (
+            id VARCHAR(255) PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            version INTEGER NOT NULL,
+            checksum VARCHAR(64) NOT NULL,
+            applied_at TIMESTAMP DEFAULT NOW(),
+            execution_time_ms INTEGER,
+            UNIQUE(version)
+          )
+        `);
+        
+        // Extract only the UP section (before -- DOWN)
+        const upSection = migration.up.split('-- DOWN')[0].trim();
+        
+        if (!upSection || upSection.length === 0) {
+          throw new Error('Migration UP section is empty');
+        }
+        
+        // Execute multi-statement SQL using client.query()
+        // This properly handles multiple statements separated by semicolons
+        try {
+          await client.query(upSection);
+        } catch (sqlError: any) {
+          // Extract table/column information from error
+          const errorMessage = sqlError instanceof Error ? sqlError.message : String(sqlError);
+          const errorCode = (sqlError as any)?.code || 'UNKNOWN';
+          const errorDetail = (sqlError as any)?.detail || '';
+          const errorHint = (sqlError as any)?.hint || '';
+          
+          // Try to extract table/column from error message
+          let tableName = '';
+          let columnName = '';
+          
+          // Extract table name
+          const tableMatch = errorMessage.match(/relation\s+["']?([\w.]+)["']?\s+does not exist/i) ||
+                            errorMessage.match(/relation\s+["']?public\.([\w]+)["']?\s+does not exist/i) ||
+                            errorMessage.match(/table\s+["']?([\w.]+)["']?/i) ||
+                            errorMessage.match(/column\s+["']?([\w]+)["']?\s+of relation\s+["']?([\w.]+)["']?/i);
+          if (tableMatch) {
+            if (tableMatch[2]) {
+              tableName = tableMatch[2];
+              columnName = tableMatch[1];
+            } else {
+              tableName = tableMatch[1];
+            }
+          }
+          
+          // Extract column name if not already found
+          if (!columnName) {
+            const columnMatch = errorMessage.match(/column\s+["']?([\w]+)["']?\s+does not exist/i);
+            if (columnMatch) {
+              columnName = columnMatch[1];
+            }
+          }
+          
+          // Build enhanced error message
+          let enhancedError = `Migration ${migration.name} (${migration.version}) failed:\n`;
+          enhancedError += `  Error: ${errorMessage}\n`;
+          enhancedError += `  Code: ${errorCode}\n`;
+          if (tableName) {
+            enhancedError += `  Table: ${tableName}\n`;
+          }
+          if (columnName) {
+            enhancedError += `  Column: ${columnName}\n`;
+          }
+          if (errorDetail) {
+            enhancedError += `  Detail: ${errorDetail}\n`;
+          }
+          if (errorHint) {
+            enhancedError += `  Hint: ${errorHint}`;
+          }
+          
+          throw new Error(enhancedError.trim());
+        }
+        
+        // Record the migration
         const executionTime = Date.now() - startTime;
-        await tx.execute(sql`
-          INSERT INTO ${sql.identifier(this.MIGRATIONS_TABLE)} 
+        await client.query(
+          `INSERT INTO "${this.MIGRATIONS_TABLE}" 
           (id, name, version, checksum, execution_time_ms)
-          VALUES (${migration.id}, ${migration.name}, ${migration.version}, ${migration.checksum}, ${executionTime})
+          VALUES ($1, $2, $3, $4, $5)
           ON CONFLICT (version) DO UPDATE SET
             name = EXCLUDED.name,
             checksum = EXCLUDED.checksum,
             execution_time_ms = EXCLUDED.execution_time_ms,
-            applied_at = NOW()
-        `);
+            applied_at = NOW()`,
+          [migration.id, migration.name, migration.version, migration.checksum, executionTime]
+        );
         
+        await client.query('COMMIT');
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        throw new Error(`Migration execution failed: ${errorMessage}`);
+        await client.query('ROLLBACK');
+        throw error;
       }
-    });
+    } finally {
+      client.release();
+    }
   }
 
   /**
    * Rollback a migration
+   * Uses pool.connect() for proper multi-statement SQL execution
    */
   private static async rollbackMigration(migration: Migration): Promise<void> {
-    await db.transaction(async (tx) => {
+    const client = await pool.connect();
+    
+    try {
+      await client.query('BEGIN');
+      
       try {
-        // Execute rollback SQL
-        await tx.execute(sql.raw(migration.down));
+        // Set search_path to ensure public schema is used
+        await client.query('SET search_path = public, pg_catalog');
+        
+        // Extract only the DOWN section (after -- DOWN)
+        const downMatch = migration.down.match(/-- DOWN\s*\n([\s\S]*)/);
+        const downSection = downMatch ? downMatch[1].trim() : migration.down.trim();
+        
+        if (!downSection || downSection.length === 0) {
+          console.warn(`  ⚠️  Migration ${migration.name} has no DOWN section, skipping rollback SQL`);
+        } else {
+          // Execute multi-statement SQL using client.query()
+          await client.query(downSection);
+        }
         
         // Remove migration record
-        await tx.execute(sql`
-          DELETE FROM ${sql.identifier(this.MIGRATIONS_TABLE)}
-          WHERE id = ${migration.id}
-        `);
+        await client.query(
+          `DELETE FROM "${this.MIGRATIONS_TABLE}" WHERE id = $1`,
+          [migration.id]
+        );
         
+        await client.query('COMMIT');
       } catch (error) {
+        await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : String(error);
         throw new Error(`Migration rollback failed: ${errorMessage}`);
       }
-    });
+    } finally {
+      client.release();
+    }
   }
 
   /**
@@ -394,13 +470,19 @@ export class MigrationManager {
       const name = match[2].replace(/_/g, ' ');
 
       // Split UP and DOWN sections
-      const sections = content.split('-- DOWN');
-      if (sections.length !== 2) {
-        throw new Error(`Migration ${filename} must have both UP and DOWN sections`);
+      // Try to find -- DOWN marker (case insensitive, with optional whitespace)
+      const downMatch = content.match(/--\s*DOWN\s*\n?/i);
+      if (!downMatch) {
+        throw new Error(`Migration ${filename} must have a -- DOWN section`);
       }
-
-      const up = sections[0].replace('-- UP', '').trim();
-      const down = sections[1].trim();
+      
+      const downIndex = downMatch.index!;
+      const up = content.substring(0, downIndex).replace(/--\s*UP\s*\n?/i, '').trim();
+      const down = content.substring(downIndex + downMatch[0].length).trim();
+      
+      if (!up || up.length === 0) {
+        throw new Error(`Migration ${filename} must have a non-empty UP section`);
+      }
 
       // Generate checksum
       const checksum = this.generateChecksum(content);
@@ -501,6 +583,13 @@ export class MigrationManager {
 export class MigrationCLI {
   static async status(): Promise<void> {
     console.log("🔍 Checking migration status...\n");
+    
+    // Ensure migrations table exists before checking status
+    try {
+      await MigrationManager.initialize();
+    } catch (error) {
+      console.error("⚠️  Failed to initialize migrations table:", error);
+    }
     
     const status = await MigrationManager.getStatus();
     

@@ -1,4 +1,5 @@
-// Load environment variables from .env file (for production)
+// Load environment variables from .env file FIRST, before any other imports
+// This is critical because db.ts is imported by routes.ts and needs DATABASE_URL
 import { config } from 'dotenv';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
@@ -9,22 +10,51 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Load .env file - try multiple paths
+// IMPORTANT: This must run before any imports that use process.env
 const envPaths = [
   resolve(process.cwd(), '.env'),
+  resolve(process.cwd(), '.env.development'),
   resolve(process.cwd(), '.env.production'),
   resolve(__dirname, '../.env'),
+  resolve(__dirname, '../.env.development'),
   resolve(__dirname, '../.env.production'),
 ];
 
 // Try each path - dotenv will only load if file exists
+// Note: tsx --env-file should already load .env, but we load it here too
+// to ensure it's available before any imports that need it
+// Use override: false to not override values already set by tsx --env-file
+let envLoaded = false;
 for (const envPath of envPaths) {
-  const result = config({ path: envPath });
-  if (!result.error) {
-    console.log(`✓ Loaded environment from: ${envPath}`);
-    break;
+  try {
+    const result = config({ path: envPath, override: false });
+    if (!result.error) {
+      console.log(`✓ Loaded environment from: ${envPath}`);
+      envLoaded = true;
+      break;
+    }
+  } catch (error) {
+    // Continue to next path
   }
 }
 
+if (!envLoaded) {
+  console.warn('⚠️  No .env file found in any of the expected locations');
+  console.warn('   Tried:', envPaths.join(', '));
+  console.warn('   Current working directory:', process.cwd());
+} else {
+  // Verify DATABASE_URL was loaded
+  if (process.env.DATABASE_URL) {
+    const urlParts = process.env.DATABASE_URL.split('@');
+    const dbInfo = urlParts.length > 1 ? `@${urlParts[1]}` : 'database';
+    console.log(`✓ DATABASE_URL is set: ${dbInfo}`);
+  } else {
+    console.error('❌ .env file loaded but DATABASE_URL is not set!');
+    console.error('   Please check your .env file contains DATABASE_URL');
+  }
+}
+
+// Now import other modules - they will have access to process.env
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
