@@ -79,7 +79,19 @@ export default function TopBar() {
           <div>
             <h2 className="text-xl font-semibold text-foreground">{getPageTitle()}</h2>
             {mainCompany && (
-              <p className="text-xs text-muted-foreground mt-0.5">{mainCompany.name}</p>
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (flexLayout) {
+                    flexLayout.openTab('/home', undefined, 'Dashboard');
+                  } else {
+                    setLocation('/home');
+                  }
+                }}
+                className="text-xs text-muted-foreground mt-0.5 hover:text-foreground hover:underline transition-colors cursor-pointer text-left"
+              >
+                {mainCompany.name}
+              </button>
             )}
           </div>
         </div>

@@ -63,10 +63,32 @@ export default function Sidebar() {
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
   const prevActiveTabPathRef = useRef<string | null>(null);
 
-  // Collapsible states
-  const [practiceManagementOpen, setPracticeManagementOpen] = useState(true);
-  const [dataWarehouseOpen, setDataWarehouseOpen] = useState(true);
-  const [additionalPagesOpen, setAdditionalPagesOpen] = useState(false);
+  // Collapsible states - load from localStorage on mount
+  const [practiceManagementOpen, setPracticeManagementOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_practiceManagementOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+  const [dataWarehouseOpen, setDataWarehouseOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_dataWarehouseOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+  const [additionalPagesOpen, setAdditionalPagesOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_additionalPagesOpen');
+    return stored !== null ? JSON.parse(stored) : false;
+  });
+
+  // Persist collapsible states to localStorage
+  useEffect(() => {
+    localStorage.setItem('sidebar_practiceManagementOpen', JSON.stringify(practiceManagementOpen));
+  }, [practiceManagementOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_dataWarehouseOpen', JSON.stringify(dataWarehouseOpen));
+  }, [dataWarehouseOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_additionalPagesOpen', JSON.stringify(additionalPagesOpen));
+  }, [additionalPagesOpen]);
 
   // Subscribe to active tab changes
   useEffect(() => {
@@ -133,7 +155,7 @@ export default function Sidebar() {
   const visibleAdditionalPages = filterItems(additionalPagesNavigation);
 
   return (
-    <SidebarRoot collapsible="icon" className="border-r border-sidebar-border bg-sidebar">
+    <SidebarRoot collapsible="offcanvas" className="border-r border-sidebar-border bg-sidebar">
       {/* Header with Logo */}
       <SidebarHeader>
         <div className="flex h-16 items-center gap-3 px-4 border-b border-sidebar-border">
