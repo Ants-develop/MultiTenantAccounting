@@ -1,10 +1,11 @@
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useRef } from "react";
 import { AgGridReact } from "ag-grid-react";
 import { ModuleRegistry, AllCommunityModule, type ColDef, type GetContextMenuItemsParams } from "ag-grid-community";
 // Register all community modules (required since v34)
 ModuleRegistry.registerModules([AllCommunityModule]);
 import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
+import "@/css/ag-grid-custom.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { sampleUserData } from "./data/handsontable-sample-data";
@@ -12,6 +13,7 @@ import { Copy, Trash2, Eye } from "lucide-react";
 
 export default function AgGridDemo() {
   const [quickFilter, setQuickFilter] = useState("");
+  const gridContainerRef = useRef<HTMLDivElement>(null);
 
   const getContextMenuItems = useCallback((params: GetContextMenuItemsParams) => {
     return [
@@ -79,7 +81,11 @@ export default function AgGridDemo() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="ag-theme-quartz" style={{ width: "100%", height: 600, fontSize: "12px" }}>
+          <div 
+            ref={gridContainerRef}
+            className="ag-theme-quartz" 
+            style={{ width: "100%", height: 600, fontSize: "12px" }}
+          >
             <AgGridReact
               rowData={sampleUserData}
               columnDefs={columnDefs}

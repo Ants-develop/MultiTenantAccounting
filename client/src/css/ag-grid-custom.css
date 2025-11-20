@@ -1,0 +1,76 @@
+/* AG Grid Custom Styles - Z-Index and Popup Management */
+
+/* AG Grid popups (filters, context menus, dropdowns) should appear above grid content
+   but below modals and other critical UI elements */
+.ag-popup,
+.ag-menu,
+.ag-filter,
+.ag-picker-field-display,
+.ag-popup-child {
+  /* Use z-40 (z-index: 40) to be above content but below modals (z-50) */
+  z-index: 40 !important;
+}
+
+/* AG Grid context menu */
+.ag-menu {
+  z-index: 40 !important;
+}
+
+/* AG Grid filter popup */
+.ag-filter {
+  z-index: 40 !important;
+}
+
+/* AG Grid column menu */
+.ag-column-menu {
+  z-index: 40 !important;
+}
+
+/* AG Grid tooltip */
+.ag-tooltip {
+  z-index: 50 !important;
+}
+
+/* AG Grid floating filter */
+.ag-floating-filter {
+  z-index: 1 !important;
+}
+
+/* Ensure AG Grid popups are positioned correctly */
+.ag-popup {
+  position: fixed !important;
+}
+
+/* AG Grid overlay (for loading states, etc.) */
+.ag-overlay {
+  z-index: 30 !important;
+}
+
+/* AG Grid header menu button popup */
+.ag-header-menu-button-popup {
+  z-index: 40 !important;
+}
+
+/* AG Grid set filter list */
+.ag-set-filter-list {
+  z-index: 40 !important;
+}
+
+/* AG Grid date picker popup */
+.ag-date-picker-popup {
+  z-index: 40 !important;
+}
+
+/* AG Grid rich select popup */
+.ag-rich-select-popup {
+  z-index: 40 !important;
+}
+
+/* Ensure AG Grid popups don't interfere with sidebar, topbar, or modals */
+/* Sidebar typically uses z-40, TopBar uses z-30, Modals use z-50 */
+/* So AG Grid popups at z-40 will be above content but below modals */
+
+/* Prevent AG Grid popups from appearing over critical UI elements */
+/* If you need AG Grid popups to appear above modals, increase to z-60 */
+/* But typically, modals should be on top, so keep at z-40 */
+
