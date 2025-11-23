@@ -31,6 +31,13 @@ router.use(requireAuth);
 router.get("/:id/profile", async (req: any, res: any) => {
   try {
     const clientId = parseInt(req.params.id);
+
+    // Check if user is authenticated
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // User is authenticated, proceed with fetching profile
     const userId = req.user.id;
 
     // Get client
@@ -143,9 +150,9 @@ router.get("/:id/documents", async (req: any, res: any) => {
 
     const whereConditions = category
       ? and(
-          eq(clientDocuments.clientId, clientId),
-          eq(clientDocuments.category, category)
-        )
+        eq(clientDocuments.clientId, clientId),
+        eq(clientDocuments.category, category)
+      )
       : eq(clientDocuments.clientId, clientId);
 
     const documents = await db

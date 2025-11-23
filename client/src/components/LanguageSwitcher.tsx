@@ -5,8 +5,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Globe } from 'lucide-react';
 
 const languages = [
-  { code: 'en', name: 'English', flag: '🇺🇸' },
-  { code: 'ka', name: 'ქართული', flag: '🇬🇪' },
+  { code: 'en', name: 'English', countryCode: 'US', flag: '🇺🇸' },
+  { code: 'ka', name: 'ქართული', countryCode: 'GE', flag: '🇬🇪' },
 ];
 
 export default function LanguageSwitcher() {
@@ -16,7 +16,7 @@ export default function LanguageSwitcher() {
   const changeLanguage = (languageCode: string) => {
     i18n.changeLanguage(languageCode);
     setIsOpen(false);
-    
+
     // Debug: Log font change
     console.log(`Language changed to: ${languageCode}`);
     console.log(`Document language class: ${document.documentElement.className}`);
@@ -27,25 +27,25 @@ export default function LanguageSwitcher() {
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+        <Button variant="ghost" size="sm" className="flex items-center gap-1.5 px-2">
           <Globe className="h-4 w-4" />
-          <span className="hidden sm:inline">{currentLanguage.flag}</span>
-          <span className="hidden md:inline text-sm">{currentLanguage.name}</span>
+          <span className="text-sm font-medium">{currentLanguage.countryCode}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" className="min-w-[120px]">
         {languages.map((language) => (
           <DropdownMenuItem
             key={language.code}
             onClick={() => changeLanguage(language.code)}
-            className={`flex items-center space-x-2 ${
-              i18n.language === language.code ? 'bg-accent' : ''
-            }`}
+            className={`flex items-center justify-between ${i18n.language === language.code ? 'bg-accent' : ''
+              }`}
           >
-            <span>{language.flag}</span>
-            <span>{language.name}</span>
+            <div className="flex items-center gap-2">
+              <span>{language.flag}</span>
+              <span className="text-sm">{language.countryCode}</span>
+            </div>
             {i18n.language === language.code && (
-              <span className="ml-auto text-xs text-muted-foreground">✓</span>
+              <span className="text-xs text-muted-foreground">✓</span>
             )}
           </DropdownMenuItem>
         ))}

@@ -22,7 +22,7 @@ All colors MUST be HSL.
 
     --primary: 210 85% 48%;
     --primary-foreground: 0 0% 100%;
-    
+
     --primary-light: 210 85% 90%;
     --primary-dark: 210 85% 35%;
 
@@ -34,10 +34,10 @@ All colors MUST be HSL.
 
     --accent: 180 65% 48%;
     --accent-foreground: 0 0% 100%;
-    
+
     --success: 145 65% 45%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 35 95% 55%;
     --warning-foreground: 0 0% 100%;
 
@@ -58,16 +58,16 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 210 20% 95%;
     --sidebar-border: 215 25% 18%;
     --sidebar-ring: 210 85% 48%;
-    
+
     --chart-1: 210 85% 48%;
     --chart-2: 180 65% 48%;
     --chart-3: 145 65% 45%;
     --chart-4: 35 95% 55%;
     --chart-5: 260 70% 55%;
-    
+
     --gradient-primary: linear-gradient(135deg, hsl(210 85% 48%), hsl(210 85% 60%));
     --gradient-accent: linear-gradient(135deg, hsl(180 65% 48%), hsl(180 65% 60%));
-    
+
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
@@ -85,7 +85,7 @@ All colors MUST be HSL.
 
     --primary: 210 85% 55%;
     --primary-foreground: 0 0% 100%;
-    
+
     --primary-light: 210 85% 25%;
     --primary-dark: 210 85% 70%;
 
@@ -97,10 +97,10 @@ All colors MUST be HSL.
 
     --accent: 180 65% 50%;
     --accent-foreground: 0 0% 100%;
-    
+
     --success: 145 65% 48%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 35 95% 60%;
     --warning-foreground: 0 0% 100%;
 
@@ -119,7 +119,7 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 210 20% 95%;
     --sidebar-border: 215 25% 18%;
     --sidebar-ring: 210 85% 55%;
-    
+
     --chart-1: 210 85% 55%;
     --chart-2: 180 65% 50%;
     --chart-3: 145 65% 48%;
@@ -135,6 +135,7 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-size: 14px;
   }
 
   /* Georgian font support */
@@ -172,4 +173,61 @@ All colors MUST be HSL.
   .language-ka select {
     font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
   }
+}
+
+@layer utilities {
+
+  /* Hide scrollbar while maintaining scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    /* IE and Edge */
+    scrollbar-width: none;
+    /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+  }
+}
+
+/* Modern custom scrollbar styling for the entire application */
+* {
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--muted-foreground) / 0.6);
+}
+
+/* Scrollbar corner (where horizontal and vertical scrollbars meet) */
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }

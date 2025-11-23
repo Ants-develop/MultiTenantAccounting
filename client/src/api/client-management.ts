@@ -9,10 +9,20 @@ export interface ClientProfile {
     id: number;
     name: string;
     code: string;
-    email?: string;
-    phone?: string;
-    address?: string;
-    taxId?: string;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+    taxId?: string | null;
+    tenantCode?: string | number | null;
+    fiscalYearStart?: number;
+    currency?: string;
+    isActive: boolean;
+    manager?: string | null;
+    accountingSoftware?: string | null;
+    idCode?: string | null;
+    verificationStatus?: string;
+    createdAt?: string;
+    updatedAt?: string;
   };
   teamAssignments: Array<{
     id: number;
@@ -203,14 +213,14 @@ export const clientManagementApi = {
   // Profile
   fetchClientProfile,
   updateClientProfile,
-  
+
   // Documents
   fetchClientDocuments,
   uploadClientDocument,
   downloadClientDocument,
   deleteClientDocument,
   fetchExpiringDocuments,
-  
+
   // Onboarding
   startClientOnboarding,
   fetchOnboardingStatus,

@@ -11,11 +11,15 @@ export const requireAuth = (req: any, res: any, next: any) => {
     sessionId: req.sessionID,
     cookies: req.headers.cookie
   });
-  
+
   if (!req.session.userId) {
     console.log('Authentication failed - no userId in session');
     return res.status(401).json({ message: 'Authentication required' });
   }
+
+  // Set req.user for compatibility with APIs that expect it
+  req.user = { id: req.session.userId };
+
   next();
 };
 
@@ -25,7 +29,7 @@ export const requireGlobalAdmin = (req: any, res: any, next: any) => {
   if (!req.session.userId) {
     return res.status(401).json({ message: 'Authentication required' });
   }
-  
+
   // Check if user is global administrator
   storage.getUser(req.session.userId).then(user => {
     if (!user || user.globalRole !== 'global_administrator') {

@@ -333,6 +333,199 @@ pm2 restart accountflow-pro
 - **Authentication**: Session-based with bcrypt
 - **Build**: Vite for frontend, esbuild for backend
 
+### Database Schema Organization
+
+This application uses a **schema-based approach** to organize the PostgreSQL database. Instead of putting all tables in the default `public` schema, we logically separate tables into multiple schemas based on their functional domain.
+
+#### Why Schema-Based Architecture?
+
+1. **Logical Separation**: Each module has its own namespace, making the database structure clearer
+2. **Better Organization**: Related tables are grouped together, improving maintainability
+3. **Permission Control**: PostgreSQL schemas allow fine-grained access control per module
+4. **Naming Clarity**: Reduces naming conflicts and makes table purposes obvious
+5. **Migration Management**: Easier to manage and rollback module-specific changes
+
+#### Schema Structure
+
+```
+PostgreSQL Database
+├── public (default schema)
+│   ├── users
+│   ├── clients (client companies)
+│   ├── company_users (user-company assignments)
+│   └── user_permissions
+│
+├── accounting
+│   ├── accounts (chart of accounts)
+│   ├── journal_entries
+│   ├── journal_entry_lines
+│   ├── invoices
+│   ├── invoice_lines
+│   ├── bills
+│   └── bill_lines
+│
+├── rs (Revenue Service Integration)
+│   ├── rs_users
+│   ├── rs_companies
+│   ├── rs_invoices
+│   └── rs_sync_logs
+│
+├── crm (Client Relationship Management)
+│   ├── client_documents
+│   ├── client_service_packages
+│   ├── client_team_assignments
+│   ├── client_onboarding_forms
+│   ├── client_onboarding_steps
+│   └── client_checklists
+│
+└── tasks
+    ├── tasks
+    ├── task_assignments
+    ├── checklist_templates
+    └── task_comments
+```
+
+#### Schema Definitions
+
+**`public` Schema** (Core System)
+- Contains fundamental system tables: users, clients, permissions
+- Accessed by all modules
+- Managed by migration: `001_core_module.sql`
+
+**`accounting` Schema** (Financial Data)
+- All accounting-related tables
+- Chart of accounts, journal entries, invoices, bills
+- Managed by migration: `002_accounting_module.sql`
+
+**`rs` Schema** (Revenue Service)
+- Integration with Georgian Revenue Service (RS.GE)
+- Stores synced data from external tax system
+- Managed by migration: `005_rs_module.sql`
+
+**`crm` Schema** (Client Management)
+- Client documents, service packages, team assignments
+- Onboarding workflows and checklists
+- Managed by migration: `007_crm_module.sql`
+
+**`tasks` Schema** (Task Management)
+- Task tracking, assignments, templates
+- Shared across all modules
+- Managed by migration: `006_tasks_module.sql`
+
+#### Working with Schemas in Code
+
+**Drizzle ORM Schema Definition** (`shared/schema.ts`):
+```typescript
+import { pgSchema } from "drizzle-orm/pg-core";
+
+// Define schemas
+const accounting = pgSchema("accounting");
+const rs = pgSchema("rs");
+const crm = pgSchema("crm");
+
+// Use schema in table definitions
+export const accounts = accounting.table("accounts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  // ...
+});
+
+export const rsInvoices = rs.table("rs_invoices", {
+  id: serial("id").primaryKey(),
+  // ...
+});
+```
+
+**Querying Across Schemas**:
+```typescript
+// Drizzle automatically handles schema prefixes
+const accounts = await db.select().from(accountingAccounts);
+// Generates: SELECT * FROM accounting.accounts
+
+// Join across schemas
+const result = await db
+  .select()
+  .from(clients)  // public.clients
+  .leftJoin(clientDocuments, eq(clients.id, clientDocuments.clientId))  // crm.client_documents
+```
+
+#### Migration Management
+
+Migrations are organized by module in the `migrations/` directory:
+
+```
+migrations/
+├── 001_core_module.sql          # public schema
+├── 002_accounting_module.sql    # accounting schema
+├── 003_audit_module.sql         # audit tables
+├── 004_bank_module.sql          # bank integration
+├── 005_rs_module.sql            # rs schema
+├── 006_tasks_module.sql         # tasks schema
+├── 007_crm_module.sql           # crm schema
+├── 008_email_module.sql         # email integration
+└── 009_migration_tracking.sql   # migration history
+```
+
+**Running Migrations**:
+```bash
+# Apply all migrations
+npm run db:push
+
+# Or manually run specific migration
+psql $DATABASE_URL -f migrations/007_crm_module.sql
+```
+
+#### Best Practices
+
+1. **Schema Naming**: Use lowercase, descriptive names (e.g., `accounting`, `crm`)
+2. **Table References**: Always use schema-qualified names in migrations
+3. **Cross-Schema Foreign Keys**: Fully qualify table names when referencing across schemas
+4. **Migration Order**: Core modules first, dependent modules later
+5. **Rollback Strategy**: Each migration includes a `-- DOWN` section for rollback
+
+#### Example Migration Structure
+
+```sql
+-- =====================================================
+-- CRM Module Migration
+-- Schema: crm
+-- =====================================================
+
+-- UP
+CREATE SCHEMA IF NOT EXISTS crm;
+
+CREATE TABLE IF NOT EXISTS crm.client_documents (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES public.clients(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    -- ...
+);
+
+-- DOWN
+DROP SCHEMA IF EXISTS crm CASCADE;
+```
+
+#### Troubleshooting Schema Issues
+
+**Table Not Found Error**:
+```
+ERROR: relation "client_team_assignments" does not exist
+```
+**Solution**: The table exists in `crm` schema, not `public`. Ensure:
+1. Migration `007_crm_module.sql` has been run
+2. Drizzle schema definition uses `pgSchema("crm")`
+3. API queries reference the correct schema
+
+**Check Existing Schemas**:
+```sql
+-- List all schemas
+SELECT schema_name FROM information_schema.schemata;
+
+-- List tables in a schema
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'crm';
+```
+
 ### Module/Submodule Navigation
 
 The UI is organized by modules with submodules. The first module implemented is `Accounting` with the following submodules. A dedicated home page at `/accounting` gives quick access tiles similar to ERP dashboards.

@@ -2,7 +2,7 @@ import { useLocation, Link } from "wouter";
 import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
-  FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database
+  FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database, User, Settings
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/hooks/useAuth";
@@ -167,7 +167,7 @@ export default function Sidebar() {
       </SidebarHeader>
 
       {/* Main Navigation Content */}
-      <SidebarContent>
+      <SidebarContent className="[&>[data-radix-scroll-area-viewport]]:!overflow-y-auto [&>[data-radix-scroll-area-viewport]]:scrollbar-hide">
         {/* Top-level: Dashboard */}
         <SidebarGroup>
           <SidebarMenu>
@@ -412,24 +412,14 @@ export default function Sidebar() {
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="h-8 w-8 rounded-lg">
-                      <AvatarImage src={undefined} />
-                      <AvatarFallback className="rounded-lg">
-                        {user?.firstName && user?.lastName ? getInitials(user.firstName + " " + user.lastName) : "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="grid flex-1 text-left text-sm leading-tight">
-                      <span className="truncate font-semibold">
-                        {user?.firstName ? (user.firstName + " " + user.lastName) : "User"}
-                      </span>
-                      <span className="truncate text-xs">
-                        {user?.globalRole || "Staff"}
-                      </span>
-                    </div>
-                  </div>
-                </DropdownMenuLabel>
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleNavigation(e as any, '/profile', 'Profile'); }}>
+                  <User className="mr-2 h-4 w-4" />
+                  Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.preventDefault(); handleNavigation(e as any, '/settings', 'Settings'); }}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  Settings
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => logout()}>
                   <LogOut className="mr-2 h-4 w-4" />

@@ -5,6 +5,7 @@ import { relations } from "drizzle-orm";
 
 const rs = pgSchema("rs");
 const accounting = pgSchema("accounting");
+const crm = pgSchema("crm");
 
 // Users table
 export const users = pgTable("users", {
@@ -45,7 +46,7 @@ export const clients = pgTable("clients", {
 export const companies = clients;
 
 // Client Management (CRM) Tables
-export const clientDocuments = pgTable("client_documents", {
+export const clientDocuments = crm.table("client_documents", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
@@ -60,7 +61,7 @@ export const clientDocuments = pgTable("client_documents", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const clientServicePackages = pgTable("client_service_packages", {
+export const clientServicePackages = crm.table("client_service_packages", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   packageName: text("package_name").notNull(),
@@ -72,7 +73,7 @@ export const clientServicePackages = pgTable("client_service_packages", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const clientTeamAssignments = pgTable("client_team_assignments", {
+export const clientTeamAssignments = crm.table("client_team_assignments", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
@@ -81,7 +82,7 @@ export const clientTeamAssignments = pgTable("client_team_assignments", {
   assignedBy: integer("assigned_by").references(() => users.id),
 });
 
-export const clientOnboardingForms = pgTable("client_onboarding_forms", {
+export const clientOnboardingForms = crm.table("client_onboarding_forms", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   formType: text("form_type").notNull(), // intake, tax_questionnaire, payroll_setup
@@ -92,7 +93,7 @@ export const clientOnboardingForms = pgTable("client_onboarding_forms", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const clientOnboardingSteps = pgTable("client_onboarding_steps", {
+export const clientOnboardingSteps = crm.table("client_onboarding_steps", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   stepName: text("step_name").notNull(),
@@ -126,7 +127,7 @@ export const checklistTemplates = pgTable("checklist_templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const clientChecklists = pgTable("client_checklists", {
+export const clientChecklists = crm.table("client_checklists", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
   templateId: integer("template_id").references(() => checklistTemplates.id),

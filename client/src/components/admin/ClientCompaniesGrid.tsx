@@ -6,10 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
-import { 
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
 import {
@@ -21,6 +21,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertClientSchemaEnhanced } from "@shared/schema";
 import { z } from "zod";
+import { ClientProfileDialog } from "@/pages/clients/ClientProfileDialog";
 
 export interface ClientCompanyGridItem {
   id: number;
@@ -72,6 +73,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<ClientCompanyGridItem | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<ClientCompanyFormData>({
     resolver: zodResolver(insertClientSchemaEnhanced),
@@ -99,21 +101,21 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
           "GET",
           `/api/global-admin/clients?search=${encodeURIComponent(searchTerm)}&status=${statusFilter}&verification=${verificationFilter}`
         );
-        
+
         if (!response) {
           throw new Error("No response from server");
         }
 
         // Parse JSON from Response object
         const json = await response.json();
-        
+
         // Handle both { data: [...] } and direct array responses
         const result = json?.data || json;
         if (!Array.isArray(result)) {
           console.error("Unexpected response format:", json);
           throw new Error("Invalid response format");
         }
-        
+
         return result;
       } catch (err) {
         console.error("Failed to fetch client companies:", err);
@@ -126,7 +128,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: (formData: ClientCompanyFormData) => 
+    mutationFn: (formData: ClientCompanyFormData) =>
       apiRequest("POST", "/api/global-admin/clients", formData).then(r => r.json()),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["clientCompanies"] });
@@ -264,8 +266,8 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
           </p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={() => refetch()}
             disabled={isLoading}
@@ -291,7 +293,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
             className="pl-10"
           />
         </div>
-        
+
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="Status" />
@@ -359,13 +361,18 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
                         {company.id}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{company.name}</div>
+                        <div
+                          className="font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
+                          onClick={() => setSelectedClientId(company.id)}
+                        >
+                          {company.name}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{company.code}</Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge 
+                        <Badge
                           className={company.tenantCode ? "bg-blue-100 text-blue-800" : ""}
                           variant={company.tenantCode ? "default" : "outline"}
                         >
@@ -457,7 +464,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
               {editingCompany ? 'Edit Client Company' : 'Create New Client Company'}
             </DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Name */}
             <div className="space-y-2">
@@ -662,6 +669,15 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Client Profile Dialog */}
+      {selectedClientId && (
+        <ClientProfileDialog
+          open={!!selectedClientId}
+          onOpenChange={(open) => !open && setSelectedClientId(null)}
+          clientId={selectedClientId}
+        />
       )}
     </div>
   );
