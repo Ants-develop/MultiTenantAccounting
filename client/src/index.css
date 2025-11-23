@@ -5,6 +5,170 @@
 /* Import AG Grid custom styles for z-index management */
 @import "./css/ag-grid-custom.css";
 
+/* FlexLayout Custom Styles and Overrides */
+/* These styles ensure FlexLayout matches the app's theme:
+   - Light mode: White tabsets (--card: 0 0% 100%) with dark text
+   - Dark mode: Dark tabsets (--card: 215 28% 14%) with white text (--foreground: 210 20% 98%)
+*/
+
+/* Ensure FlexLayout respects container boundaries */
+.flexlayout-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Override FlexLayout's default styles to match our theme */
+.flexlayout__layout {
+  width: 100% !important;
+  height: 100% !important;
+  background: hsl(var(--background)) !important;
+}
+
+/* Tab styling to match theme - uses CSS variables for automatic theme switching */
+.flexlayout__tab {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0 !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-bottom: none !important;
+  margin-right: 2px !important;
+}
+
+.flexlayout__tab--selected {
+  background: hsl(var(--background)) !important;
+  border-bottom: 2px solid hsl(var(--primary)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-top: 1px solid hsl(var(--border)) !important;
+  border-left: 1px solid hsl(var(--border)) !important;
+  border-right: 1px solid hsl(var(--border)) !important;
+  z-index: 2 !important;
+}
+
+.flexlayout__tab:hover {
+  background: hsl(var(--muted)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Tabset styling - white in light mode, dark in dark mode with white text */
+.flexlayout__tabset {
+  background: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-radius: var(--radius) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: var(--shadow-sm) !important;
+  overflow: hidden !important;
+}
+
+.flexlayout__tabset_header {
+  background: hsl(var(--card)) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-radius: var(--radius) var(--radius) 0 0 !important;
+  padding: 0.5rem !important;
+}
+
+/* Main tab bar wrapper - fixes white strip behind tabs */
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_tabbar_inner {
+  background: hsl(var(--card)) !important;
+}
+
+/* Remove any leftover border or shadow from tab bar wrappers */
+.flexlayout__tabset_tabbar_outer,
+.flexlayout__tabset_tabbar_inner {
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Tab container spacer element - fixes white space on right side of tabs */
+.flexlayout__tabset_tabbar_inner_tab_container {
+  background: transparent !important;
+}
+
+/* Toolbar area - fixes white space in toolbar area */
+.flexlayout__tab_toolbar {
+  background: transparent !important;
+}
+
+/* Tabset content area - fixes white strip below tabs */
+.flexlayout__tabset_content {
+  background: hsl(var(--card)) !important;
+}
+
+/* Tab content area */
+.flexlayout__tab_content {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-radius: 0 0 var(--radius) var(--radius) !important;
+  padding: 1rem !important;
+}
+
+/* Ensure tabs are clickable and not blocked by other elements */
+.flexlayout__tab,
+.flexlayout__tabset_header {
+  z-index: 1 !important;
+  pointer-events: auto !important;
+}
+
+/* Border styling */
+.flexlayout__border {
+  background: hsl(var(--card)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-radius: var(--radius) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+/* Splitter styling */
+.flexlayout__splitter {
+  background: hsl(var(--border)) !important;
+}
+
+.flexlayout__splitter:hover {
+  background: hsl(var(--primary)) !important;
+}
+
+/* Ensure page content respects padding */
+.flexlayout__tab_content > div {
+  width: 100%;
+  height: 100%;
+}
+
+/* Additional FlexLayout elements for complete theme consistency */
+.flexlayout__tab_button {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+  border-radius: calc(var(--radius) - 2px) !important;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.flexlayout__tab_button:hover {
+  background: hsl(var(--muted)) !important;
+}
+
+.flexlayout__tab_button--selected {
+  background: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+  border-bottom: 2px solid hsl(var(--primary)) !important;
+}
+
+/* Toolbar and button styling */
+.flexlayout__toolbar_button {
+  background: transparent !important;
+  color: hsl(var(--foreground)) !important;
+  border-color: hsl(var(--border)) !important;
+}
+
+.flexlayout__toolbar_button:hover {
+  background: hsl(var(--muted)) !important;
+}
+
 /* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
 All colors MUST be HSL.
 */

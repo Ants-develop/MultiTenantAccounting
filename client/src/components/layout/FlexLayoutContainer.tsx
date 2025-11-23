@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback, ReactNode } from "react";
 import { Layout, Model, IJsonModel, TabNode, Actions, DockLocation, Node, TabSetNode, Action, BorderNode } from "flexlayout-react";
 import "flexlayout-react/style/light.css";
-import "@/css/flexlayout-custom.css";
 import { pageRegistry, getPageMetadata, resolvePath, extractParams } from "@/lib/pageRegistry";
 import { saveLayoutState, loadLayoutState, clearLayoutState } from "@/lib/flexLayoutStorage";
 import { FlexLayoutProvider, TabState, FlexLayoutContextValue } from "@/hooks/useFlexLayout";

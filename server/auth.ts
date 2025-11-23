@@ -46,17 +46,33 @@ export async function getUserWithCompanies(userId: number) {
     const user = await storage.getUser(userId);
     if (!user) return null;
 
+    // Get user's companies
+    const companies = await storage.getCompaniesByUser(userId);
+
     // Check if main company is configured
+    // Use Drizzle ORM to ensure proper column name mapping (taxId -> tax_id)
     let mainCompany = null;
     let needsSetup = true;
-
     try {
-      const mainCompanyResult = await db.select().from(mainCompanySettings).limit(1);
+      const mainCompanyResult = await db
+        .select()
+        .from(mainCompanySettings)
+        .limit(1);
+      
       mainCompany = mainCompanyResult[0] || null;
       // Setup is needed if main company doesn't exist or has no name
       needsSetup = !mainCompany || !mainCompany.name;
-    } catch (error) {
-      console.warn('Could not query main company settings (table may not exist):', error);
+    } catch (error: any) {
+      // If table doesn't exist or column error, log but don't fail
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        console.warn('Could not query main company settings (table may not exist):', error);
+      } else if (error?.code === '42703' || error?.message?.includes('column') || error?.message?.includes('taxId')) {
+        // Column name mismatch error - this should not happen with Drizzle ORM
+        console.error('Column name error in main company settings query:', error);
+        console.error('This suggests a schema mismatch. Verify the database table matches the Drizzle schema.');
+      } else {
+        console.error('Error querying main company settings:', error);
+      }
       // If table doesn't exist, setup is definitely needed
       needsSetup = true;
     }
@@ -70,6 +86,7 @@ export async function getUserWithCompanies(userId: number) {
         lastName: user.lastName,
         globalRole: user.globalRole,
       },
+      companies,
       mainCompany: mainCompany,
       needsSetup,
     };
@@ -78,3 +95,4 @@ export async function getUserWithCompanies(userId: number) {
     throw error;
   }
 }
+

@@ -209,6 +209,8 @@ The storage layer handles:
 
 ## Styling
 
+**For comprehensive theming documentation, see: [`FLEXLAYOUT_THEMING.md`](./FLEXLAYOUT_THEMING.md)**
+
 ### CSS Classes
 
 - `.flexlayout-container` - Main container wrapper
@@ -233,6 +235,15 @@ FlexLayout is constrained to not cover sidebar/topbar:
   z-index: 0 !important;
 }
 ```
+
+### Theme Integration
+
+FlexLayout uses CSS variables for theming, ensuring automatic light/dark mode support. All styles are located in `client/src/index.css`. See [`FLEXLAYOUT_THEMING.md`](./FLEXLAYOUT_THEMING.md) for:
+- How CSS variables work
+- Theme switching mechanism
+- Debugging white strip issues
+- Adding new element styles
+- Best practices
 
 ## Dynamic Routes
 

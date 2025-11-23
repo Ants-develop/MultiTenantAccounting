@@ -3,7 +3,6 @@ import fs from "fs";
 import path from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
@@ -20,6 +19,10 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
+  const projectRoot = path.resolve(import.meta.dirname, "..");
+  const clientRoot = path.resolve(projectRoot, "client");
+  const viteConfigPath = path.resolve(projectRoot, "vite.config.ts");
+  
   const serverOptions = {
     middlewareMode: true,
     hmr: { 
@@ -32,22 +35,30 @@ export async function setupVite(app: Express, server: Server) {
       : (true as const), // Allow all hosts in development for LAN access
   };
 
+  // Use Vite's native config loading - simpler approach like tax-suite
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    configFile: viteConfigPath,
+    root: clientRoot, // Override root to client directory
+    server: serverOptions,
+    appType: "custom",
     customLogger: {
       ...viteLogger,
-      error: (msg, options) => {
+      error: (msg: string, options?: any) => {
         viteLogger.error(msg, options);
         process.exit(1);
       },
     },
-    server: serverOptions,
-    appType: "custom",
   });
 
   app.use(vite.middlewares);
+  
+  // Catch-all route for frontend - only handle non-API routes
   app.use("*", async (req, res, next) => {
+    // Skip if it's an API route
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    
     const url = req.originalUrl;
 
     try {
