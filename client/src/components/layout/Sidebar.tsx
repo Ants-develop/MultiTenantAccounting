@@ -1,5 +1,6 @@
 import { useLocation, Link } from "wouter";
 import { useFlexLayout } from "@/hooks/useFlexLayout";
+import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
   FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database, User, Settings
@@ -58,6 +59,7 @@ export default function Sidebar() {
 
   // Get FlexLayout context
   const flexLayoutContext = useFlexLayout();
+  const { useFlexLayout: flexLayoutEnabled } = useLayoutPreference();
 
   // Track active tab path
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null);
@@ -118,11 +120,11 @@ export default function Sidebar() {
     // Pages that should navigate outside of FlexLayout (full page navigation)
     const fullPageRoutes = ['/profile', '/settings', '/company-profile'];
 
-    if (fullPageRoutes.includes(href)) {
-      // Use wouter navigation for full-page routes
+    // If FlexLayout is disabled by user preference, always use simple navigation
+    if (!flexLayoutEnabled || fullPageRoutes.includes(href)) {
       setLocation(href);
     } else if (flexLayoutContext) {
-      // Use FlexLayout tab system for all other routes
+      // Use FlexLayout tab system for all other routes when enabled
       flexLayoutContext.openTab(href, undefined, title);
     } else {
       // Fallback to wouter navigation

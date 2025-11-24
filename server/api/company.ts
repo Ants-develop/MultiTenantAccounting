@@ -4,8 +4,8 @@
 import express from "express";
 import { db } from "../db";
 import { sql, eq, and } from "drizzle-orm";
-import { 
-  insertCompanySchema, 
+import {
+  insertCompanySchema,
   insertUserCompanySchema,
   companies as companiesTable,
   companySettings,
@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
   try {
     const companyData = insertCompanySchema.parse(req.body);
     const company = await storage.createCompany(companyData);
-    
+
     // Assign user as manager of the new company
     await storage.createUserCompany({
       userId: req.session.userId!,
@@ -103,7 +103,7 @@ router.delete('/:id', async (req, res) => {
 router.get('/settings/:id', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -118,7 +118,7 @@ router.get('/settings/:id', async (req, res) => {
 
     // Get company settings from database
     let settings = await getCompanySettings(companyId);
-    
+
     // If no settings exist, create default ones
     if (!settings) {
       const defaultSettings = {
@@ -150,7 +150,7 @@ router.get('/settings/:id', async (req, res) => {
         retentionDays: 30,
         backupLocation: "cloud",
       };
-      
+
       try {
         settings = await createCompanySettings(defaultSettings);
       } catch (error) {
@@ -212,7 +212,7 @@ router.get('/settings/:id', async (req, res) => {
 router.put('/settings/:id/info', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company and permission to edit
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -246,7 +246,7 @@ router.put('/settings/:id/info', async (req, res) => {
 router.put('/settings/:id/notifications', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -263,7 +263,7 @@ router.put('/settings/:id/notifications', async (req, res) => {
     };
 
     const updatedSettings = await updateCompanySettings(companyId, updateData);
-    
+
     if (!updatedSettings) {
       return res.status(404).json({ message: 'Company settings not found' });
     }
@@ -294,7 +294,7 @@ router.put('/settings/:id/notifications', async (req, res) => {
 router.put('/settings/:id/financial', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -314,7 +314,7 @@ router.put('/settings/:id/financial', async (req, res) => {
     };
 
     const updatedSettings = await updateCompanySettings(companyId, updateData);
-    
+
     if (!updatedSettings) {
       return res.status(404).json({ message: 'Company settings not found' });
     }
@@ -345,7 +345,7 @@ router.put('/settings/:id/financial', async (req, res) => {
 router.put('/settings/:id/security', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -362,7 +362,7 @@ router.put('/settings/:id/security', async (req, res) => {
     };
 
     const updatedSettings = await updateCompanySettings(companyId, updateData);
-    
+
     if (!updatedSettings) {
       return res.status(404).json({ message: 'Company settings not found' });
     }
@@ -393,7 +393,7 @@ router.put('/settings/:id/security', async (req, res) => {
 router.get('/:id/export', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -451,7 +451,7 @@ router.get('/:id/export', async (req, res) => {
 router.put('/:id/archive', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -490,7 +490,7 @@ router.put('/:id/archive', async (req, res) => {
 router.put('/:id/restore', async (req, res) => {
   try {
     const companyId = parseInt(req.params.id);
-    
+
     // Verify user has access to this company
     const userCompany = await storage.getUserCompany(req.session.userId!, companyId);
     if (!userCompany) {
@@ -515,12 +515,63 @@ router.put('/:id/restore', async (req, res) => {
 router.get('/profile', async (req, res) => {
   try {
     const [mainCompany] = await db.select().from(mainCompanySettings).limit(1);
-    
+
     if (!mainCompany) {
       return res.status(404).json({ message: 'Main company not configured' });
     }
 
-    res.json(mainCompany);
+    // Transform flat structure to nested structure expected by frontend
+    const response = {
+      id: mainCompany.id,
+      name: mainCompany.name,
+      code: mainCompany.code,
+      address: mainCompany.address,
+      phone: mainCompany.phone,
+      email: mainCompany.email,
+      taxId: mainCompany.taxId,
+      fiscalYearStart: mainCompany.fiscalYearStart,
+      currency: mainCompany.currency,
+      settings: {
+        notifications: {
+          emailNotifications: mainCompany.emailNotifications,
+          invoiceReminders: mainCompany.invoiceReminders,
+          paymentAlerts: mainCompany.paymentAlerts,
+          reportReminders: mainCompany.reportReminders,
+          systemUpdates: mainCompany.systemUpdates,
+        },
+        financial: {
+          autoNumbering: mainCompany.autoNumbering,
+          invoicePrefix: mainCompany.invoicePrefix,
+          billPrefix: mainCompany.billPrefix,
+          journalPrefix: mainCompany.journalPrefix,
+          decimalPlaces: mainCompany.decimalPlaces,
+          negativeFormat: mainCompany.negativeFormat,
+          dateFormat: mainCompany.dateFormat,
+          timeZone: mainCompany.timeZone,
+        },
+        security: {
+          requirePasswordChange: mainCompany.requirePasswordChange,
+          passwordExpireDays: mainCompany.passwordExpireDays,
+          sessionTimeout: mainCompany.sessionTimeout,
+          enableTwoFactor: mainCompany.enableTwoFactor,
+          allowMultipleSessions: mainCompany.allowMultipleSessions,
+        },
+        backup: {
+          autoBackup: mainCompany.autoBackup,
+          backupFrequency: mainCompany.backupFrequency,
+          retentionDays: mainCompany.retentionDays,
+          backupLocation: mainCompany.backupLocation,
+        },
+        integration: {
+          bankConnection: mainCompany.bankConnection,
+          paymentGateway: mainCompany.paymentGateway,
+          taxService: mainCompany.taxService,
+          reportingTools: mainCompany.reportingTools,
+        },
+      },
+    };
+
+    res.json(response);
   } catch (error) {
     console.error('Get main company profile error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -536,7 +587,7 @@ router.put('/profile', async (req, res) => {
 
     // Get existing main company
     const [existingMainCompany] = await db.select().from(mainCompanySettings).limit(1);
-    
+
     if (!existingMainCompany) {
       return res.status(404).json({ message: 'Main company not configured' });
     }
@@ -568,6 +619,62 @@ router.put('/profile', async (req, res) => {
   }
 });
 
+// Export main company data
+router.get('/profile/export', async (req, res) => {
+  try {
+    const userId = req.session.userId!;
+
+    // Get main company settings
+    const [mainCompany] = await db.select().from(mainCompanySettings).limit(1);
+
+    if (!mainCompany) {
+      return res.status(404).json({ message: 'Main company not configured' });
+    }
+
+    // Export all company data including accounts, transactions, etc.
+    // For the main company, we might want to export everything or specific system-wide data
+    // For now, let's export the main company settings and maybe some global lists if needed
+
+    const exportData = {
+      company: mainCompany,
+      exportDate: new Date().toISOString(),
+      type: 'main_company_export'
+    };
+
+    // Log data export
+    await activityLogger.logCRUD(
+      ACTIVITY_ACTIONS.DATA_EXPORT,
+      RESOURCE_TYPES.COMPANY,
+      {
+        userId,
+        ipAddress: req.ip,
+        userAgent: req.get("User-Agent")
+      },
+      1, // Main company ID is always 1
+      undefined,
+      { exportType: 'main_full' }
+    );
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="main-company-export-${new Date().getTime()}.json"`);
+    res.json(exportData);
+  } catch (error) {
+    console.error('Export main company data error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Archive main company (Not typically allowed, but adding handler to prevent 404)
+router.put('/profile/archive', async (req, res) => {
+  try {
+    // archiving the main company is usually not allowed or requires special handling
+    return res.status(403).json({ message: 'Archiving the main company is not allowed' });
+  } catch (error) {
+    console.error('Archive main company error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
 // Complete main company setup (initial configuration on first login)
 // POST /setup - Creates or updates the main company settings (system-wide, single instance)
 router.post('/setup', async (req, res) => {
@@ -577,7 +684,7 @@ router.post('/setup', async (req, res) => {
 
     // Check if main company already exists
     const [existingMainCompany] = await db.select().from(mainCompanySettings).limit(1);
-    
+
     if (existingMainCompany && existingMainCompany.name) {
       return res.status(409).json({ message: 'Main company is already configured' });
     }
@@ -637,9 +744,9 @@ router.post('/setup', async (req, res) => {
       resourceId: 1,
     });
 
-    res.json({ 
+    res.json({
       message: 'Main company setup completed successfully',
-      mainCompany 
+      mainCompany
     });
   } catch (error) {
     console.error('Main company setup error:', error);

@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
+import {
   Plus, Edit, Trash2, Users, Building2, Search, RefreshCw, Loader2,
-  UserPlus, X
+  UserPlus, X, Upload
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -106,7 +106,7 @@ export default function Clients() {
 
   // Assign user to company mutation
   const assignUserMutation = useMutation({
-    mutationFn: (data: UserAssignmentForm) => 
+    mutationFn: (data: UserAssignmentForm) =>
       apiRequest('POST', '/api/global-admin/assign-user', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/company-users', managingCompany?.id] });
@@ -209,9 +209,21 @@ export default function Clients() {
             Manage client companies and their user assignments
           </p>
         </div>
+        <Button
+          onClick={() => {
+            if (flexLayout) {
+              flexLayout.openTab('/admin/import-clients', {});
+            } else {
+              window.location.href = '/admin/import-clients';
+            }
+          }}
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          Import Clients
+        </Button>
       </div>
 
-      <ClientCompaniesGrid 
+      <ClientCompaniesGrid
         onManageUsers={handleManageCompanyUsers}
         onViewProfile={(company) => {
           if (flexLayout) {

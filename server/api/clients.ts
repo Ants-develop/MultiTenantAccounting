@@ -556,4 +556,140 @@ router.put('/settings/:id/security', async (req, res) => {
   }
 });
 
+// ============================================================================
+// Batch Import Route
+// ============================================================================
+
+// Batch import clients from CSV
+router.post('/import', async (req, res) => {
+  try {
+    const { clients } = req.body;
+
+    if (!Array.isArray(clients) || clients.length === 0) {
+      return res.status(400).json({ message: 'Invalid request: clients array is required' });
+    }
+
+    const results = {
+      imported: 0,
+      duplicates: 0,
+      errors: [] as Array<{ row: number; code: string; error: Record<string, string> }>
+    };
+
+    // Get existing client codes for duplicate detection
+    const existingClients = await db.select({ code: clientsTable.code }).from(clientsTable);
+    const existingCodes = new Set(existingClients.map(c => c.code.toUpperCase()));
+
+    // Process each client
+    for (let i = 0; i < clients.length; i++) {
+      const clientData = clients[i];
+      const rowNumber = i + 1;
+
+      try {
+        // Validate required fields
+        const errors: Record<string, string> = {};
+
+        if (!clientData.name || clientData.name.trim() === '') {
+          errors.name = 'Name is required';
+        }
+
+        if (!clientData.code || clientData.code.trim() === '') {
+          errors.code = 'Code is required';
+        }
+
+        // Validate email format if provided
+        if (clientData.email && clientData.email.trim() !== '') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(clientData.email)) {
+            errors.email = 'Invalid email format';
+          }
+        }
+
+        // Validate fiscalYearStart if provided
+        if (clientData.fiscalYearStart !== undefined && clientData.fiscalYearStart !== null && clientData.fiscalYearStart !== '') {
+          const fiscalYear = parseInt(clientData.fiscalYearStart);
+          if (isNaN(fiscalYear) || fiscalYear < 1 || fiscalYear > 12) {
+            errors.fiscalYearStart = 'Fiscal year start must be between 1 and 12';
+          }
+        }
+
+        // If there are validation errors, add to errors array
+        if (Object.keys(errors).length > 0) {
+          results.errors.push({
+            row: rowNumber,
+            code: clientData.code || `Row ${rowNumber}`,
+            error: errors
+          });
+          continue;
+        }
+
+        // Check for duplicate code
+        const codeUpper = clientData.code.toUpperCase();
+        if (existingCodes.has(codeUpper)) {
+          results.duplicates++;
+          continue;
+        }
+
+        // Prepare client data for insertion
+        const insertData = {
+          name: clientData.name.trim(),
+          code: codeUpper,
+          tenantCode: clientData.tenantCode?.trim() || null,
+          address: clientData.address?.trim() || null,
+          phone: clientData.phone?.trim() || null,
+          email: clientData.email?.trim() || null,
+          taxId: clientData.taxId?.trim() || null,
+          fiscalYearStart: clientData.fiscalYearStart ? parseInt(clientData.fiscalYearStart) : 1,
+          currency: clientData.currency?.trim() || 'GEL',
+          manager: clientData.manager?.trim() || null,
+          accountingSoftware: clientData.accountingSoftware?.trim() || null,
+          idCode: clientData.idCode?.trim() || null,
+          verificationStatus: clientData.verificationStatus?.trim() || 'not_registered',
+          isActive: true
+        };
+
+        // Insert client
+        const [newClient] = await db
+          .insert(clientsTable)
+          .values(insertData)
+          .returning();
+
+        // Add to existing codes to prevent duplicates within the same batch
+        existingCodes.add(codeUpper);
+        results.imported++;
+
+        // Log activity for each imported client
+        await activityLogger.logCRUD(
+          ACTIVITY_ACTIONS.COMPANY_CREATE,
+          RESOURCE_TYPES.COMPANY,
+          {
+            userId: req.session.userId!,
+            clientId: newClient.id,
+            ipAddress: req.ip,
+            userAgent: req.get("User-Agent")
+          },
+          newClient.id,
+          undefined,
+          { name: newClient.name, code: newClient.code, source: 'batch_import' }
+        );
+
+      } catch (error) {
+        console.error(`Error importing client at row ${rowNumber}:`, error);
+        results.errors.push({
+          row: rowNumber,
+          code: clientData.code || `Row ${rowNumber}`,
+          error: { general: error instanceof Error ? error.message : 'Unknown error' }
+        });
+      }
+    }
+
+    // Return results
+    res.json(results);
+
+  } catch (error) {
+    console.error('Batch import error:', error);
+    res.status(500).json({ message: 'Failed to import clients' });
+  }
+});
+
 export default router;
+

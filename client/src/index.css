@@ -1,9 +1,9 @@
+/* Import AG Grid custom styles for z-index management */
+@import "./css/ag-grid-custom.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Import AG Grid custom styles for z-index management */
-@import "./css/ag-grid-custom.css";
 
 /* FlexLayout Custom Styles and Overrides */
 /* These styles ensure FlexLayout matches the app's theme:
@@ -134,7 +134,7 @@
 }
 
 /* Ensure page content respects padding */
-.flexlayout__tab_content > div {
+.flexlayout__tab_content>div {
   width: 100%;
   height: 100%;
 }

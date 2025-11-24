@@ -10,8 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Settings as SettingsIcon, Building2, DollarSign, Shield, Users, Bell, 
+import {
+  Settings as SettingsIcon, Building2, DollarSign, Shield, Users, Bell,
   Calendar, Globe, Save, RotateCcw, AlertTriangle, CheckCircle,
   FileText, Archive, Database, Lock, Eye, EyeOff, BarChart3, Palette, Sun, Moon, Monitor
 } from "lucide-react";
@@ -25,6 +25,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { Company } from "@shared/schema";
+import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 
 interface CompanySettings extends Company {
   settings: {
@@ -113,12 +114,12 @@ type SecuritySettingsForm = z.infer<typeof securitySettingsSchema>;
 export default function CompanyProfile() {
   const [activeTab, setActiveTab] = useState("company");
   const [showTaxId, setShowTaxId] = useState(false);
-  
+
   const { mainCompany } = useAuth();
   const { canEditSettings, canViewSettings } = usePermissions();
   const queryClient = useQueryClient();
   const { theme, setTheme, resolvedTheme } = useTheme();
-  
+  const { useFlexLayout, toggleLayout } = useLayoutPreference();
   // Helper function to toggle theme
   const toggleTheme = () => {
     const currentTheme = theme || "system";
@@ -154,7 +155,7 @@ export default function CompanyProfile() {
       email: "",
       taxId: "",
       fiscalYearStart: 1,
-      currency: "USD",
+      currency: "GEL",
     },
   });
 
@@ -222,7 +223,7 @@ export default function CompanyProfile() {
 
   // Mutations
   const updateCompanyInfoMutation = useMutation({
-    mutationFn: (data: CompanyInfoForm) => 
+    mutationFn: (data: CompanyInfoForm) =>
       apiRequest('PUT', `/api/company/profile`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/company/profile'] });
@@ -362,7 +363,7 @@ export default function CompanyProfile() {
             Manage your company information and settings
           </p>
         </div>
-        
+
         <div className="flex items-center space-x-2">
           <Badge variant="outline" className="flex items-center">
             <Building2 className="w-3 h-3 mr-1" />
@@ -531,6 +532,7 @@ export default function CompanyProfile() {
                         <SelectValue placeholder="Select currency" />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="GEL">GEL - Georgian Lari</SelectItem>
                         <SelectItem value="USD">USD - US Dollar</SelectItem>
                         <SelectItem value="EUR">EUR - Euro</SelectItem>
                         <SelectItem value="GBP">GBP - British Pound</SelectItem>
@@ -544,16 +546,16 @@ export default function CompanyProfile() {
 
                 {canEditSettings() && (
                   <div className="flex justify-end space-x-3 pt-4">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => companyForm.reset()}
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       disabled={updateCompanyInfoMutation.isPending}
                     >
                       <Save className="w-4 h-4 mr-2" />
@@ -579,7 +581,7 @@ export default function CompanyProfile() {
               <form onSubmit={financialForm.handleSubmit(onFinancialSubmit)} className="space-y-6">
                 <div className="space-y-4">
                   <h4 className="font-medium">Document Numbering</h4>
-                  
+
                   <div className="flex items-center space-x-2">
                     <Switch
                       id="autoNumbering"
@@ -627,7 +629,7 @@ export default function CompanyProfile() {
 
                 <div className="space-y-4">
                   <h4 className="font-medium">Display Formats</h4>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="decimalPlaces">Decimal Places</Label>
@@ -714,16 +716,16 @@ export default function CompanyProfile() {
 
                 {canEditSettings() && (
                   <div className="flex justify-end space-x-3 pt-4">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => financialForm.reset()}
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       disabled={updateFinancialMutation.isPending}
                     >
                       <Save className="w-4 h-4 mr-2" />
@@ -828,16 +830,16 @@ export default function CompanyProfile() {
 
                 {canEditSettings() && (
                   <div className="flex justify-end space-x-3 pt-4">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => notificationForm.reset()}
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       disabled={updateNotificationsMutation.isPending}
                     >
                       <Save className="w-4 h-4 mr-2" />
@@ -943,16 +945,16 @@ export default function CompanyProfile() {
 
                 {canEditSettings() && (
                   <div className="flex justify-end space-x-3 pt-4">
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => securityForm.reset()}
                     >
                       <RotateCcw className="w-4 h-4 mr-2" />
                       Reset
                     </Button>
-                    <Button 
-                      type="submit" 
+                    <Button
+                      type="submit"
                       disabled={updateSecurityMutation.isPending}
                     >
                       <Save className="w-4 h-4 mr-2" />
@@ -977,7 +979,7 @@ export default function CompanyProfile() {
             <CardContent className="space-y-6">
               <div className="space-y-4">
                 <h4 className="font-medium">Available Integrations</h4>
-                
+
                 <div className="grid gap-4">
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
@@ -1037,7 +1039,7 @@ export default function CompanyProfile() {
 
               <div className="space-y-4">
                 <h4 className="font-medium">Data Management</h4>
-                
+
                 <div className="grid gap-4">
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div className="space-y-1">
@@ -1046,7 +1048,7 @@ export default function CompanyProfile() {
                         Export all company data for backup or migration
                       </p>
                     </div>
-                    <Button 
+                    <Button
                       variant="outline"
                       onClick={async () => {
                         try {
@@ -1056,11 +1058,11 @@ export default function CompanyProfile() {
                           if (!response.ok) {
                             throw new Error('Failed to export data');
                           }
-                          
+
                           // Get JSON data directly instead of blob for better memory efficiency
                           const data = await response.json();
                           const jsonString = JSON.stringify(data, null, 2);
-                          
+
                           // Create optimized blob and trigger download
                           const blob = new Blob([jsonString], { type: 'application/json' });
                           const url = window.URL.createObjectURL(blob);
@@ -1069,11 +1071,11 @@ export default function CompanyProfile() {
                           a.download = `company-${mainCompany?.code}-export-${new Date().toISOString().split('T')[0]}.json`;
                           document.body.appendChild(a);
                           a.click();
-                          
+
                           // Clean up immediately
                           window.URL.revokeObjectURL(url);
                           document.body.removeChild(a);
-                          
+
                           toast.success("Export successful", {
                             description: "Company data has been exported successfully.",
                           });
@@ -1097,8 +1099,8 @@ export default function CompanyProfile() {
                         Archive this company (can be restored later)
                       </p>
                     </div>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       disabled={!canEditSettings()}
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to archive this company? This will make it inactive but data will be preserved.')) {
@@ -1109,11 +1111,11 @@ export default function CompanyProfile() {
                             if (!response.ok) {
                               throw new Error('Failed to archive company');
                             }
-                            
+
                             toast.success("Company archived", {
                               description: "The company has been archived successfully.",
                             });
-                            
+
                             // Refresh company data
                             queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
                           } catch (error) {
@@ -1239,7 +1241,7 @@ export default function CompanyProfile() {
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Current Theme</p>
                     <p className="text-xs text-muted-foreground">
-                      {(theme || "system") === "system" 
+                      {(theme || "system") === "system"
                         ? `System (${(resolvedTheme || "light").charAt(0).toUpperCase() + (resolvedTheme || "light").slice(1)})`
                         : (theme || "light").charAt(0).toUpperCase() + (theme || "light").slice(1)}
                     </p>
@@ -1249,6 +1251,41 @@ export default function CompanyProfile() {
                     {(resolvedTheme || "light") === "dark" && <Moon className="w-3 h-3" />}
                     <span>{((resolvedTheme || "light")).charAt(0).toUpperCase() + (resolvedTheme || "light").slice(1)}</span>
                   </Badge>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Layout Mode</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Choose between multi-tab layout or simple single-page layout
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Use Multi-Tab Layout</p>
+                      <p className="text-xs text-muted-foreground">
+                        {useFlexLayout
+                          ? 'Pages open in tabs, allowing multiple pages open simultaneously'
+                          : 'Pages navigate normally, showing one page at a time'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={useFlexLayout}
+                      onCheckedChange={toggleLayout}
+                    />
+                  </div>
+
+                  {!useFlexLayout && (
+                    <div className="flex items-center gap-2 p-3 bg-muted/50 rounded-lg">
+                      <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                      <p className="text-xs text-muted-foreground">
+                        Simple layout mode is active. Refresh the page to apply changes.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <Separator />

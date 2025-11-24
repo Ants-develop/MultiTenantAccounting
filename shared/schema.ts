@@ -610,6 +610,7 @@ export const mainCompanySettings = pgTable("main_company_settings", {
   currency: text("currency").default("GEL"),
   dateFormat: text("date_format").default("MM/DD/YYYY"),
   decimalPlaces: integer("decimal_places").default(2),
+  timeZone: text("time_zone").default("America/New_York"),
   // Notification Settings
   emailNotifications: boolean("email_notifications").default(true),
   invoiceReminders: boolean("invoice_reminders").default(true),

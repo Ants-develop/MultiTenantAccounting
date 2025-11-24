@@ -22,6 +22,7 @@ import CompanyProfile from "@/pages/CompanyProfile";
 import RoleManagement from "@/pages/admin/RoleManagement";
 import PermissionsManagement from "@/pages/admin/PermissionsManagement";
 import Clients from "@/pages/admin/Clients";
+import ClientImport from "@/pages/admin/ClientImport";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import AccountingHome from "@/pages/accounting/AccountingHome";
@@ -209,6 +210,11 @@ export const pageRegistry: PageConfig = {
     title: "MSSQL Import",
     component: MSSQLImport,
     path: "/mssql-import",
+  },
+  "/admin/import-clients": {
+    title: "Import Clients",
+    component: ClientImport,
+    path: "/admin/import-clients",
   },
   "/audit": {
     title: "Audit",
