@@ -1175,6 +1175,9 @@ export const taxdomeActivityLog = pgTable("activity_log", {
 });
 
 // Migration History Tables
+// NOTE: These tables are managed by manual SQL migration (009_migration_tracking.sql)
+// Foreign keys reference migration_id (unique column, not primary key) which Drizzle
+// doesn't fully support. Do NOT use `drizzle-kit push` on these tables - use manual migrations instead.
 export const migrationHistory = pgTable("migration_history", {
   id: serial("id").primaryKey(),
   migrationId: text("migration_id").notNull().unique(),
@@ -1195,9 +1198,11 @@ export const migrationHistory = pgTable("migration_history", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Foreign key to migration_history.migration_id is defined in SQL migration, not here
+// to avoid Drizzle trying to manage it (Drizzle doesn't fully support FKs to unique non-PK columns)
 export const migrationLogs = pgTable("migration_logs", {
   id: serial("id").primaryKey(),
-  migrationId: text("migration_id").notNull(),
+  migrationId: text("migration_id").notNull(), // FK to migration_history.migration_id (defined in SQL)
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   level: text("level").notNull(), // 'info', 'warn', 'error'
   message: text("message").notNull(),
@@ -1205,9 +1210,11 @@ export const migrationLogs = pgTable("migration_logs", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Foreign key to migration_history.migration_id is defined in SQL migration, not here
+// to avoid Drizzle trying to manage it (Drizzle doesn't fully support FKs to unique non-PK columns)
 export const migrationErrors = pgTable("migration_errors", {
   id: serial("id").primaryKey(),
-  migrationId: text("migration_id").notNull(),
+  migrationId: text("migration_id").notNull(), // FK to migration_history.migration_id (defined in SQL)
   timestamp: timestamp("timestamp").notNull().defaultNow(),
   message: text("message").notNull(),
   recordId: text("record_id"),
