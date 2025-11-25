@@ -200,6 +200,18 @@ router.get("/clients", async (req, res) => {
 
     // Execute base query to get filtered companies
     const allFilteredCompanies = await baseQuery;
+    
+    // Debug: Log the actual query result with database info
+    const dbUrl = process.env.DATABASE_URL || 'not set';
+    const dbInfo = dbUrl.includes('@') ? dbUrl.split('@')[1] : 'unknown';
+    console.log(`[Global Admin API] /clients - Found ${allFilteredCompanies.length} companies in database`);
+    console.log(`[Global Admin API] Database: ${dbInfo}`);
+    if (allFilteredCompanies.length > 0) {
+      console.log(`[Global Admin API] Company IDs: ${allFilteredCompanies.map((c: any) => c.id).join(', ')}`);
+      console.log(`[Global Admin API] Company Names: ${allFilteredCompanies.map((c: any) => c.name).join(', ')}`);
+    } else {
+      console.log(`[Global Admin API] No companies found in database`);
+    }
 
     // Now get the stats for each filtered company
     const companiesWithStats = await Promise.all(
@@ -249,6 +261,9 @@ router.get("/clients", async (req, res) => {
       // For now, this is a placeholder
     }
 
+    // Debug: Log final response
+    console.log(`[Global Admin API] /clients - Returning ${filteredCompanies.length} companies`);
+    
     res.json({ data: filteredCompanies });
   } catch (error) {
     console.error("Error fetching companies:", error);

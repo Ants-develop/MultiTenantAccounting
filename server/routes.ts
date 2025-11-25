@@ -237,11 +237,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userWithCompanies = await getUserWithCompanies(req.session.userId!);
       if (!userWithCompanies) {
-        return res.status(404).json({ message: 'User not found' });
+        // User doesn't exist in database - destroy session
+        req.session.destroy((err) => {
+          if (err) {
+            console.error('Error destroying session:', err);
+          }
+        });
+        return res.status(401).json({ message: 'User not found - session invalidated' });
       }
       res.json(userWithCompanies);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Get user error:', error);
+      // If it's a database error (table doesn't exist), destroy session
+      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
+        req.session.destroy((err) => {
+          if (err) {
+            console.error('Error destroying session:', err);
+          }
+        });
+        return res.status(500).json({ 
+          message: 'Database not initialized. Please run migrations first.',
+          error: 'MISSING_TABLES'
+        });
+      }
       res.status(500).json({ message: 'Internal server error' });
     }
   });

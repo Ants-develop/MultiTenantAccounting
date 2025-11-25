@@ -74,7 +74,6 @@ SCHEMA vs MIGRATIONS vs DATABASE COMPARISON
   Database tables:        13
 
 ⚠️  In migrations but not in schema.ts:
-   - general_ledger
 
 ================================================================================
 DETAILED TABLE STATUS
@@ -84,7 +83,6 @@ DETAILED TABLE STATUS
 ✅ companies                   [Schema, Migrations, Database]
 ✅ user_companies              [Schema, Migrations, Database]
 ...
-⚠️  general_ledger              [Migrations, Database]
 ```
 
 ## What It Validates
@@ -146,8 +144,6 @@ The validator checks for these tables defined in `shared/schema.ts`:
 
 ### Special Cases
 
-#### `general_ledger` Table
-- ✅ Exists in migrations (`003_general_ledger.sql`)
 - ⚠️  NOT in `shared/schema.ts` (legacy table)
 - ✅ Still validated if present in database
 

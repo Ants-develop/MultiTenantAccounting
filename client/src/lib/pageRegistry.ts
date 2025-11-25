@@ -2,7 +2,6 @@ import { ComponentType } from "react";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import ChartOfAccounts from "@/pages/accounting/ChartOfAccounts";
-import GeneralLedger from "@/pages/accounting/GeneralLedger";
 import AccountsReceivable from "@/pages/accounting/AccountsReceivable";
 import AccountsPayable from "@/pages/accounting/AccountsPayable";
 import BankReconciliation from "@/pages/accounting/BankReconciliation";
@@ -88,11 +87,6 @@ export const pageRegistry: PageConfig = {
     title: "Chart of Accounts",
     component: ChartOfAccounts,
     path: "/accounting/chart-of-accounts",
-  },
-  "/accounting/general-ledger": {
-    title: "General Ledger",
-    component: GeneralLedger,
-    path: "/accounting/general-ledger",
   },
   "/accounting/accounts-receivable": {
     title: "Accounts Receivable",

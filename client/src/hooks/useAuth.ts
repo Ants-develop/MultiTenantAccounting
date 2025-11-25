@@ -11,15 +11,33 @@ export function useAuth() {
     queryKey: ['/api/auth/me'],
     queryFn: async () => {
       try {
-        return await getCurrentUser();
+        const response = await getCurrentUser();
+        return response;
       } catch (error: any) {
-        if (error.message.includes('401')) {
+        // Check if it's an authentication error (401, 404)
+        const errorMsg = error?.message || '';
+        const status = error?.status || (errorMsg.match(/^(\d+):/)?.[1]);
+        
+        // Handle authentication errors by returning null (not throwing)
+        if (status === '401' || status === '404' || 
+            errorMsg.includes('401') || errorMsg.includes('404') || 
+            errorMsg.includes('User not found') || errorMsg.includes('session invalidated')) {
+          // Immediately set query data to null to stop loading state
+          queryClient.setQueryData(['/api/auth/me'], null);
+          // Return null to indicate no user is authenticated
           return null;
         }
-        throw error;
+        // For other errors, return null to prevent infinite loading
+        console.error('Auth error:', error);
+        return null;
       }
     },
     retry: false,
+    refetchOnWindowFocus: false, // Prevent refetch loops
+    refetchOnMount: true, // Refetch on mount to check auth status
+    refetchOnReconnect: false, // Don't refetch on reconnect
+    staleTime: 5 * 60 * 1000, // 5 minutes - normal stale time
+    gcTime: 10 * 60 * 1000, // 10 minutes cache time
   });
 
   const loginMutation = useMutation({

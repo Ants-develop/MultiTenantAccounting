@@ -4,55 +4,47 @@
 
 The import process follows this flow:
 
-1. **Read from MSSQL** `audit.GeneralLedger` filtered by `TenantCode`
-2. **Identify TenantCode** - Validate tenant code exists in companies table
-3. **Insert into `general_ledger`** - Store raw MSSQL data (with binary as BYTEA)
-4. **Copy to `journal_entries`** - Copy all columns from `general_ledger` to `journal_entries` with `mssql_record_id` reference
+1. **Read from MSSQL** `GeneralLedger` or `audit.GeneralLedger` filtered by `TenantCode`
+2. **Identify TenantCode** - Validate tenant code exists in clients table
+3. **Insert directly into `journal_entries`** - Transform and store MSSQL data with proper client relationships
 
 ## Data Flow
 
 ```
-MSSQL audit.GeneralLedger
+MSSQL GeneralLedger / audit.GeneralLedger
    ↓
 [Filter by TenantCode]
    ↓
-PostgreSQL general_ledger (raw storage)
+[Transform data types: binary to hex, validate client]
    ↓
-[Copy all columns]
-   ↓
-PostgreSQL journal_entries (with mssql_record_id → general_ledger.id)
+PostgreSQL journal_entries (with client_id relationship)
 ```
 
 ## Table Structure
 
-### `general_ledger` (Raw Storage)
-- Stores **raw data** from MSSQL GeneralLedger
-- Binary fields stored as BYTEA (not hex text)
-- Used for:
-  - Audit trail
-  - Data validation
-  - Reference for `journal_entries`
-
-### `journal_entries` (Working Data)
-- **Copy** of `general_ledger` after tenantCode identification
+### `journal_entries` (Primary Storage)
+- Stores **all journal entries** imported from MSSQL GeneralLedger
 - Binary fields stored as **hex text** (for display/editing)
-- Has `mssql_record_id` → `general_ledger.id` for tracking
+- Has `client_id` → `clients.id` for proper multi-tenant relationships
 - Used for:
   - Application display
   - Editing/modification
   - Business operations
+  - Reporting and analysis
 
 ## Key Fields
 
-- `general_ledger.id` - Internal tracking ID (SERIAL PRIMARY KEY)
-- `journal_entries.mssql_record_id` - References `general_ledger.id` for tracking individual records
-- Both tables have all MSSQL parity columns
+- `journal_entries.id` - Internal tracking ID (SERIAL PRIMARY KEY)
+- `journal_entries.client_id` - References `clients.id` for multi-tenant data isolation
+- `journal_entries.entry_number` - Unique entry number per client (format: GL-{tenantCode}-{number})
+- `journal_entries.tenant_code` - MSSQL tenant code for reference
+- All MSSQL parity columns are stored directly in `journal_entries`
 
 ## Migration Process
 
 1. Read MSSQL data filtered by TenantCode
-2. Transform data types (binary to bytea for general_ledger, binary to hex for journal_entries)
-3. Insert into `general_ledger` first
-4. Get inserted `general_ledger.id`
-5. Copy to `journal_entries` with `mssql_record_id = general_ledger.id`
+2. Transform data types (binary to hex text, validate client exists)
+3. Generate unique entry_number per client
+4. Insert directly into `journal_entries` with `client_id` relationship
+5. Handle duplicates using `ON CONFLICT (client_id, entry_number) DO NOTHING`
 

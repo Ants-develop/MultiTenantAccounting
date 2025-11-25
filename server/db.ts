@@ -101,6 +101,15 @@ function getPool(): pg.Pool {
       query_timeout: 300000, // 5 minutes in milliseconds
     });
 
+    // Set search_path to public on all new connections to ensure we use public schema, not temporal
+    poolInstance.on('connect', async (client) => {
+      try {
+        await client.query('SET search_path = public, pg_catalog');
+      } catch (error) {
+        console.error('Error setting search_path on new connection:', error);
+      }
+    });
+
     // Handle pool errors
     poolInstance.on('error', (err) => {
       console.error('Unexpected error on idle client', err);

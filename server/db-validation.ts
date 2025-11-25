@@ -89,7 +89,7 @@ export class DatabaseValidationService {
       try {
         // Check username uniqueness
         const existingUsername = await db.execute(
-          sql`SELECT id FROM users WHERE username = ${data.username} LIMIT 1`
+          sql`SELECT id FROM public.users WHERE username = ${data.username} LIMIT 1`
         );
         if (existingUsername.rows.length > 0) {
           errors.push("Username already exists");
@@ -97,7 +97,7 @@ export class DatabaseValidationService {
 
         // Check email uniqueness
         const existingEmail = await db.execute(
-          sql`SELECT id FROM users WHERE email = ${data.email} LIMIT 1`
+          sql`SELECT id FROM public.users WHERE email = ${data.email} LIMIT 1`
         );
         if (existingEmail.rows.length > 0) {
           errors.push("Email already exists");
@@ -120,7 +120,7 @@ export class DatabaseValidationService {
       try {
         // Check company code uniqueness
         const existingCode = await db.execute(
-          sql`SELECT id FROM companies WHERE code = ${data.code} LIMIT 1`
+          sql`SELECT id FROM public.clients WHERE code = ${data.code} LIMIT 1`
         );
         if (existingCode.rows.length > 0) {
           errors.push("Company code already exists");
@@ -318,10 +318,10 @@ export class DatabaseValidationService {
 
       // Check for orphaned records
       const orphanChecks = [
-        { table: 'user_companies', column: 'user_id', refTable: 'users', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN users u ON uc.user_id = u.id WHERE u.id IS NULL` },
-        { table: 'user_companies', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM user_companies uc LEFT JOIN clients c ON uc.client_id = c.id WHERE c.id IS NULL` },
-        { table: 'accounts', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.accounts a LEFT JOIN clients c ON a.client_id = c.id WHERE c.id IS NULL` },
-        { table: 'journal_entries', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.journal_entries je LEFT JOIN clients c ON je.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'user_companies', column: 'user_id', refTable: 'users', query: sql`SELECT COUNT(*) as count FROM public.user_companies uc LEFT JOIN public.users u ON uc.user_id = u.id WHERE u.id IS NULL` },
+        { table: 'user_companies', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM public.user_companies uc LEFT JOIN public.clients c ON uc.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'accounts', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.accounts a LEFT JOIN public.clients c ON a.client_id = c.id WHERE c.id IS NULL` },
+        { table: 'journal_entries', column: 'client_id', refTable: 'clients', query: sql`SELECT COUNT(*) as count FROM accounting.journal_entries je LEFT JOIN public.clients c ON je.client_id = c.id WHERE c.id IS NULL` },
         { table: 'journal_entry_lines', column: 'journal_entry_id', refTable: 'journal_entries', query: sql`SELECT COUNT(*) as count FROM accounting.journal_entry_lines jel LEFT JOIN accounting.journal_entries je ON jel.journal_entry_id = je.id WHERE je.id IS NULL` }
       ];
 

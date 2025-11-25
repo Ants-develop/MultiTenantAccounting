@@ -713,11 +713,22 @@ export async function migrateGeneralLedger(
           const insertQuery = `
             INSERT INTO accounting.journal_entries (${columnList})
             VALUES ${valueGroups.join(', ')}
+            ON CONFLICT (client_id, entry_number) DO NOTHING
           `;
 
           try {
-            await pool.query(insertQuery, flatValues);
-            progress.successCount += values.length;
+            const result = await pool.query(insertQuery, flatValues);
+            // Only count rows that were actually inserted (not skipped due to conflict)
+            const insertedCount = result.rowCount || 0;
+            progress.successCount += insertedCount;
+            if (insertedCount < values.length) {
+              const skippedCount = values.length - insertedCount;
+              addLog(progress, 'info', `Skipped ${skippedCount} duplicate entries in batch`, { 
+                batchSize: values.length, 
+                inserted: insertedCount, 
+                skipped: skippedCount 
+              });
+            }
             if (progress.processedRecords % (batchSize * 10) === 0) {
               addLog(progress, 'info', `Processed ${progress.processedRecords}/${progress.totalRecords} records (${progress.progress.toFixed(1)}%)`);
             }
@@ -887,11 +898,22 @@ export async function migrateGeneralLedger(
         const insertQuery = `
           INSERT INTO accounting.journal_entries (${columnList})
           VALUES ${valueGroups.join(', ')}
+          ON CONFLICT (client_id, entry_number) DO NOTHING
         `;
 
         try {
-          await pool.query(insertQuery, flatValues);
-          progress.successCount += values.length;
+          const result = await pool.query(insertQuery, flatValues);
+          // Only count rows that were actually inserted (not skipped due to conflict)
+          const insertedCount = result.rowCount || 0;
+          progress.successCount += insertedCount;
+          if (insertedCount < values.length) {
+            const skippedCount = values.length - insertedCount;
+            addLog(progress, 'info', `Skipped ${skippedCount} duplicate entries in final batch`, { 
+              batchSize: values.length, 
+              inserted: insertedCount, 
+              skipped: skippedCount 
+            });
+          }
         } catch (error) {
           console.error('❌ Final batch insert error:', error);
           console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
@@ -966,7 +988,7 @@ export async function migrateGeneralLedger(
 }
 
 /**
- * Export to audit general_ledger table
+ * Export to journal_entries table from audit.GeneralLedger
  */
 export async function exportToAudit(
   mssqlPool: sql.ConnectionPool,
@@ -1040,8 +1062,15 @@ export async function exportToAudit(
       if (batch.length >= batchSize) {
         request.pause();
         try {
-          const values = batch.map((r) => [
+          const values = batch.map((r, idx) => [
             clientId,
+            `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
+            r.PostingsPeriod || new Date(),
+            r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
+            null,
+            convertDecimal(r.Amount) || 0,
+            null,
+            true,
             r.TenantCode,
             r.TenantName,
             r.Abonent,
@@ -1091,50 +1120,78 @@ export async function exportToAudit(
             r.DocumentModifyDate,
             r.DocumentComments,
             r.PostingNumber,
-            'MSSQL',
-            new Date(),
-            `audit_${Date.now()}`,
           ]);
 
+          // 🚀 BATCH INSERT: Build multi-row VALUES clause for better performance
+          const columnList = `client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+            tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+            responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+            id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+            double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+            analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+            withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+            currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+            tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+            attached_files, doc_type, doc_date, doc_number, document_creation_date,
+            document_modify_date, document_comments, posting_number`;
+          
+          const valueGroups: string[] = [];
+          const flatValues: any[] = [];
+          let paramCounter = 1;
+          
           for (const val of values) {
-            try {
-              // Use Drizzle SQL template for proper parameter binding
-              await db.execute(drizzleSql`INSERT INTO accounting.general_ledger (
-                client_id, tenant_code, tenant_name, abonent, postings_period, register, branch, content,
-                responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr, id_dr,
-                legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr, double_taxation_dr,
-                pension_scheme_participant_dr, account_cr, account_name_cr, analytic_cr, analytic_ref_cr,
-                id_cr, legal_form_cr, country_cr, profit_tax_cr, withholding_tax_cr, double_taxation_cr,
-                pension_scheme_participant_cr, currency, amount, amount_cur, quantity_dr, quantity_cr,
-                rate, document_rate, tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
-                attached_files, doc_type, doc_date, doc_number, document_creation_date, document_modify_date,
-                document_comments, posting_number, source_system, migrated_at, migration_batch_id
-              ) VALUES (
-                ${val[0]}, ${val[1]}, ${val[2]}, ${val[3]}, ${val[4]}, ${val[5]}, ${val[6]}, ${val[7]},
-                ${val[8]}, ${val[9]}, ${val[10]}, ${val[11]}, ${val[12]}, ${val[13]}, ${val[14]}, ${val[15]},
-                ${val[16]}, ${val[17]}, ${val[18]}, ${val[19]}, ${val[20]}, ${val[21]}, ${val[22]}, ${val[23]},
-                ${val[24]}, ${val[25]}, ${val[26]}, ${val[27]}, ${val[28]}, ${val[29]}, ${val[30]}, ${val[31]},
-                ${val[32]}, ${val[33]}, ${val[34]}, ${val[35]}, ${val[36]}, ${val[37]}, ${val[38]}, ${val[39]},
-                ${val[40]}, ${val[41]}, ${val[42]}, ${val[43]}, ${val[44]}, ${val[45]}, ${val[46]}, ${val[47]},
-                ${val[48]}, ${val[49]}, ${val[50]}, ${val[51]}, ${val[52]}
-              ) ON CONFLICT DO NOTHING`);
-              progress.successCount++;
-            } catch (error) {
-              console.error('❌ Insert error:', error);
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              addLog(progress, 'error', `Insert failed: ${errorMessage}`, { recordIndex: values.indexOf(val) });
-              addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
-                recordIndex: values.indexOf(val),
-                tenantCode 
+            const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
+            valueGroups.push(`(${placeholders})`);
+            flatValues.push(...val);
+          }
+          
+          const insertQuery = `
+            INSERT INTO accounting.journal_entries (${columnList})
+            VALUES ${valueGroups.join(', ')}
+            ON CONFLICT (client_id, entry_number) DO NOTHING
+          `;
+
+          try {
+            const result = await pool.query(insertQuery, flatValues);
+            // Only count rows that were actually inserted (not skipped due to conflict)
+            const insertedCount = result.rowCount || 0;
+            progress.successCount += insertedCount;
+            if (insertedCount < values.length) {
+              const skippedCount = values.length - insertedCount;
+              addLog(progress, 'info', `Skipped ${skippedCount} duplicate entries in batch`, { 
+                batchSize: values.length, 
+                inserted: insertedCount, 
+                skipped: skippedCount 
               });
-              // Stop migration immediately on any insert failure
-              progress.status = 'failed';
-              progress.errorMessage = `Insert failed: ${errorMessage}`;
-              progress.endTime = new Date();
-              emitProgress(progress);
-              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-              throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
             }
+            if (progress.processedRecords % (batchSize * 10) === 0) {
+              addLog(progress, 'info', `Processed ${progress.processedRecords}/${progress.totalRecords} records (${progress.progress.toFixed(1)}%)`);
+            }
+          } catch (error) {
+            console.error('❌ Batch insert error:', error);
+            console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
+            console.error(`   Client ID: ${clientId}, Tenant Code: ${tenantCode}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            
+            addLog(progress, 'error', `Batch insert failed: ${errorMessage}`, { 
+              batchSize: values.length, 
+              clientId, 
+              tenantCode 
+            });
+            addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+              batchSize: values.length, 
+              processedRecords: progress.processedRecords,
+              clientId,
+              tenantCode,
+              errorType: 'UNKNOWN'
+            });
+            // Stop migration immediately on any insert failure
+            progress.status = 'failed';
+            progress.errorMessage = `Insert failed: ${errorMessage}`;
+            progress.endTime = new Date();
+            emitProgress(progress);
+            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
           }
 
           progress.processedRecords += batch.length;
@@ -1161,14 +1218,142 @@ export async function exportToAudit(
     });
 
     request.on('done', async () => {
+      // Process remaining batch
       if (batch.length > 0) {
+        const values = batch.map((r, idx) => [
+          clientId,
+          `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
+          r.PostingsPeriod || new Date(),
+          r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
+          null,
+          convertDecimal(r.Amount) || 0,
+          null,
+          true,
+          r.TenantCode,
+          r.TenantName,
+          r.Abonent,
+          r.PostingsPeriod,
+          convertBinaryToHex(r.Register),
+          r.Branch,
+          r.Content,
+          r.ResponsiblePerson,
+          r.AccountDr,
+          r.AccountNameDr,
+          r.AnalyticDr,
+          convertBinaryToHex(r.AnalyticRefDr),
+          r.IDDr,
+          r.LegalFormDr,
+          r.CountryDr,
+          convertBinaryToBoolean(r.ProfitTaxDr),
+          convertBinaryToBoolean(r.WithholdingTaxDr),
+          convertBinaryToBoolean(r.DoubleTaxationDr),
+          convertBinaryToBoolean(r.PensionSchemeParticipantDr),
+          r.AccountCr,
+          r.AccountNameCr,
+          r.AnalyticCr,
+          convertBinaryToHex(r.AnalyticRefCr),
+          r.IDCr,
+          r.LegalFormCr,
+          r.CountryCr,
+          convertBinaryToBoolean(r.ProfitTaxCr),
+          convertBinaryToBoolean(r.WithholdingTaxCr),
+          convertBinaryToBoolean(r.DoubleTaxationCr),
+          convertBinaryToBoolean(r.PensionSchemeParticipantCr),
+          r.Currency,
+          convertDecimal(r.Amount),
+          convertDecimal(r.AmountCur),
+          convertDecimal(r.QuantityDr),
+          convertDecimal(r.QuantityCr),
+          convertDecimal(r.Rate),
+          convertDecimal(r.DocumentRate),
+          r.TAXInvoiceNumber,
+          r.TAXInvoiceDate,
+          r.TAXInvoiceSeries,
+          r.WaybillNumber,
+          convertDecimal(r.AttachedFiles),
+          r.DocType,
+          r.DocDate,
+          r.DocNumber,
+          r.DocumentCreationDate,
+          r.DocumentModifyDate,
+          r.DocumentComments,
+          r.PostingNumber,
+        ]);
+
+        const columnList = `client_id, entry_number, date, description, reference, total_amount, user_id, is_posted,
+          tenant_code, tenant_name, abonent, postings_period, register, branch, content_text,
+          responsible_person, account_dr, account_name_dr, analytic_dr, analytic_ref_dr,
+          id_dr, legal_form_dr, country_dr, profit_tax_dr, withholding_tax_dr,
+          double_taxation_dr, pension_scheme_participant_dr, account_cr, account_name_cr,
+          analytic_cr, analytic_ref_cr, id_cr, legal_form_cr, country_cr, profit_tax_cr,
+          withholding_tax_cr, double_taxation_cr, pension_scheme_participant_cr,
+          currency, amount, amount_cur, quantity_dr, quantity_cr, rate, document_rate,
+          tax_invoice_number, tax_invoice_date, tax_invoice_series, waybill_number,
+          attached_files, doc_type, doc_date, doc_number, document_creation_date,
+          document_modify_date, document_comments, posting_number`;
+        
+        const valueGroups: string[] = [];
+        const flatValues: any[] = [];
+        let paramCounter = 1;
+        
+        for (const val of values) {
+          const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
+          valueGroups.push(`(${placeholders})`);
+          flatValues.push(...val);
+        }
+        
+        const insertQuery = `
+          INSERT INTO accounting.journal_entries (${columnList})
+          VALUES ${valueGroups.join(', ')}
+          ON CONFLICT (client_id, entry_number) DO NOTHING
+        `;
+
+        try {
+          const result = await pool.query(insertQuery, flatValues);
+          const insertedCount = result.rowCount || 0;
+          progress.successCount += insertedCount;
+          if (insertedCount < values.length) {
+            const skippedCount = values.length - insertedCount;
+            addLog(progress, 'info', `Skipped ${skippedCount} duplicate entries in final batch`, { 
+              batchSize: values.length, 
+              inserted: insertedCount, 
+              skipped: skippedCount 
+            });
+          }
+        } catch (error) {
+          console.error('❌ Final batch insert error:', error);
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          addLog(progress, 'error', `Final batch insert failed: ${errorMessage}`, { 
+            batchSize: values.length, 
+            clientId,
+            tenantCode,
+            isFinalBatch: true 
+          });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+            batchSize: values.length, 
+            processedRecords: progress.processedRecords,
+            clientId,
+            tenantCode,
+            isFinalBatch: true,
+            errorType: 'UNKNOWN'
+          });
+          progress.status = 'failed';
+          progress.errorMessage = `Insert failed: ${errorMessage}`;
+          progress.endTime = new Date();
+          emitProgress(progress);
+          saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+          throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
+        }
+
         progress.processedRecords += batch.length;
         progress.progress = 100;
       }
 
       progress.status = 'completed';
       progress.endTime = new Date();
+      addLog(progress, 'info', `Export completed: ${progress.successCount} successful, ${progress.errorCount} errors`);
       emitProgress(progress);
+      saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
     });
 
     request.on('error', (error: any) => {

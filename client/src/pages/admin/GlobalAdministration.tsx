@@ -185,7 +185,9 @@ export default function GlobalAdministration() {
       if (!response.ok) {
         throw new Error('Failed to fetch companies');
       }
-      return response.json();
+      const result = await response.json();
+      // Backend returns { data: [...] }, extract the array
+      return Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
     },
   });
 

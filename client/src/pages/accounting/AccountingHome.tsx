@@ -9,7 +9,6 @@ export default function AccountingHome() {
 
   const tiles = [
     { title: t('navigation.chartOfAccounts'), href: '/chart-of-accounts', icon: List, color: 'bg-blue-100 text-blue-600' },
-    { title: t('navigation.generalLedger'), href: '/general-ledger', icon: Book, color: 'bg-emerald-100 text-emerald-600' },
     { title: t('navigation.accountsReceivable'), href: '/accounts-receivable', icon: File, color: 'bg-purple-100 text-purple-600' },
     { title: t('navigation.accountsPayable'), href: '/accounts-payable', icon: Receipt, color: 'bg-amber-100 text-amber-600' },
     { title: t('navigation.bankReconciliation'), href: '/bank-reconciliation', icon: University, color: 'bg-rose-100 text-rose-600' },

@@ -59,7 +59,6 @@ import Notifications from "@/pages/Notifications";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
 
 // Extra pages (not in sidebar but accessible)
-import GeneralLedger from "@/pages/accounting/GeneralLedger";
 import BankReconciliation from "@/pages/accounting/BankReconciliation";
 import Invoices from "@/pages/accounting/Invoices";
 import Sales from "@/pages/accounting/Sales";
@@ -151,7 +150,6 @@ function ProtectedApp() {
           <Route path="/testing" component={TestingDashboard} />
 
           {/* Extra pages (not in sidebar but accessible) */}
-          <Route path="/general-ledger" component={GeneralLedger} />
           <Route path="/bank-reconciliation" component={BankReconciliation} />
           <Route path="/invoices" component={Invoices} />
           <Route path="/sales" component={Sales} />

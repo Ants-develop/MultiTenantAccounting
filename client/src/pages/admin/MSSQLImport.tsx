@@ -323,8 +323,9 @@ export default function MSSQLImport() {
   const [selectedAuditTables, setSelectedAuditTables] = useState<Set<string>>(new Set());
   const [selectedHistoricalMigration, setSelectedHistoricalMigration] = useState<MigrationStatus | null>(null);
   const [showHistoricalMigrations, setShowHistoricalMigrations] = useState(false);
+  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
-  const { user, mainCompany } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -402,39 +403,44 @@ export default function MSSQLImport() {
       const data = await response.json();
       return data || [];
     },
-    enabled: !!mainCompany?.id,
+    enabled: true, // Always enabled to allow client selection
   });
+
+  // Initialize selectedClientId with first available client
+  useEffect(() => {
+    if (availableClients.length > 0 && selectedClientId === null) {
+      setSelectedClientId(availableClients[0].id);
+    }
+  }, [availableClients, selectedClientId]);
 
   // Add PostingsPeriod filter state
   const [postingsPeriodFrom, setPostingsPeriodFrom] = useState<string>('');
   const [postingsPeriodTo, setPostingsPeriodTo] = useState<string>('');
 
-  // Fetch available tenant codes from MSSQL with optional PostingsPeriod filter
+  // Fetch available tenant codes from MSSQL filtered by selected client's tenantCode
   const { data: tenantCodes = [], isLoading: tenantCodesLoading, refetch: refetchTenantCodes } = useQuery<TenantCode[]>({
-    queryKey: ['/api/mssql/tenant-codes', postingsPeriodFrom, postingsPeriodTo, availableClients],
+    queryKey: ['/api/mssql/tenant-codes', postingsPeriodFrom, postingsPeriodTo, selectedClientId, availableClients],
     queryFn: async () => {
+      // Get selected client
+      const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
+      
       // Build query parameters
       const params = new URLSearchParams();
       if (postingsPeriodFrom) params.append('postingsPeriodFrom', postingsPeriodFrom);
       if (postingsPeriodTo) params.append('postingsPeriodTo', postingsPeriodTo);
       
-      // Add all client tenant codes if available
-      if (availableClients.length > 0) {
-        const tenantCodes = availableClients
-          .filter((c: any) => c.tenantCode)
-          .map((c: any) => c.tenantCode)
-          .join(',');
-        if (tenantCodes) {
-          params.append('tenantCodes', tenantCodes);
-        }
+      // Filter by selected client's tenantCode if available
+      if (selectedClient?.tenantCode) {
+        params.append('tenantCodes', String(selectedClient.tenantCode));
       }
+      // If no tenantCode on client, don't add filter - will show all tenant codes
 
       const url = `/api/mssql/tenant-codes${params.toString() ? '?' + params.toString() : ''}`;
       const response = await apiRequest('GET', url);
       const data = await response.json();
       return data.tenantCodes || [];
     },
-    enabled: !!mainCompany?.id,
+    enabled: !!selectedClientId && availableClients.length > 0,
   });
 
   // Fetch available audit tables
@@ -445,26 +451,26 @@ export default function MSSQLImport() {
       const data = await response.json();
       return data.auditTables || [];
     },
-    enabled: !!mainCompany?.id,
+    enabled: !!selectedClientId,
   });
 
   // Start migration mutation
   const startMigrationMutation = useMutation<MigrationResult, Error, MigrationForm>({
     mutationFn: async (data) => {
-      console.log('Mutation function called with:', { data, selectedTenant, mainCompany });
+      console.log('Mutation function called with:', { data, selectedTenant, selectedClientId });
 
       if (!selectedTenant) {
         throw new Error("No tenant selected");
       }
-      if (!mainCompany?.id) {
-        throw new Error("Main company not configured");
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
       }
 
       console.log('Making API request to start migration...');
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         type: 'general-ledger',
         tenantCode: selectedTenant.tenantCode,
-        clientId: mainCompany.id,
+        clientId: selectedClientId,
         batchSize: data.batchSize,
         postingsPeriodFrom: postingsPeriodFrom || undefined,
         postingsPeriodTo: postingsPeriodTo || undefined,
@@ -502,20 +508,20 @@ export default function MSSQLImport() {
   // Start update mutation
   const startUpdateMutation = useMutation<MigrationResult, Error, void>({
     mutationFn: async () => {
-      console.log('Starting update for:', { selectedTenant, mainCompany });
+      console.log('Starting update for:', { selectedTenant, selectedClientId });
 
       if (!selectedTenant) {
         throw new Error("No tenant selected");
       }
-      if (!mainCompany?.id) {
-        throw new Error("Main company not configured");
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
       }
 
       console.log('Making API request to start update...');
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         type: 'update',
         tenantCode: selectedTenant.tenantCode,
-        clientId: mainCompany.id,
+        clientId: selectedClientId,
         postingsPeriodFrom: postingsPeriodFrom || undefined,
         postingsPeriodTo: postingsPeriodTo || undefined,
       });
@@ -565,22 +571,25 @@ export default function MSSQLImport() {
     },
   });
 
-  // Export to audit table (general_ledger) mutation
+  // Export to journal_entries from audit.GeneralLedger mutation
   const exportToAuditMutation = useMutation<MigrationResult, Error, void>({
     mutationFn: async () => {
-      if (!mainCompany?.id) {
-        throw new Error("Main company not configured");
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
       }
 
-      const tenantCode = (mainCompany as any)?.tenantCode;
+      // Find the selected client to get its tenant code
+      const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
+      const tenantCode = selectedClient?.tenantCode;
+      
       if (!tenantCode) {
-        throw new Error("Main company tenant code not configured. Please set tenant code in Global Admin.");
+        throw new Error("Client tenant code not configured. Please set tenant code for this client in Global Admin.");
       }
 
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         type: 'audit',
         tenantCode: tenantCode,
-        clientId: mainCompany.id,
+        clientId: selectedClientId,
       });
       return response.json();
     },
@@ -588,7 +597,7 @@ export default function MSSQLImport() {
       if (result.success) {
         toast({
           title: "Export Started",
-          description: `Exporting data from MSSQL to general_ledger for tenant code ${(mainCompany as any)?.tenantCode}`,
+          description: `Exporting data from MSSQL to journal_entries for tenant code ${availableClients.find((c: any) => c.id === selectedClientId)?.tenantCode}`,
         });
         setIsPolling(true); // Start polling immediately
         refetchMigrationStatus(); // Immediate refetch to get status right away
@@ -613,8 +622,8 @@ export default function MSSQLImport() {
   // Start audit table migration mutation
   const startAuditTableMigrationMutation = useMutation<AuditMigrationResult, Error, { tableName: string; batchSize: number }>({
     mutationFn: async (data) => {
-      if (!mainCompany?.id) {
-        throw new Error("Main company not configured");
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
       }
 
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
@@ -654,8 +663,8 @@ export default function MSSQLImport() {
   // Start full audit export mutation
   const startFullAuditExportMutation = useMutation<AuditMigrationResult, Error, { batchSize: number }>({
     mutationFn: async (data) => {
-      if (!mainCompany?.id) {
-        throw new Error("Main company not configured");
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
       }
 
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
@@ -692,12 +701,12 @@ export default function MSSQLImport() {
   });
 
   const handleStartMigration = (data: MigrationForm) => {
-    console.log('handleStartMigration called with:', { data, selectedTenant, mainCompany });
+    console.log('handleStartMigration called with:', { data, selectedTenant, selectedClientId });
     
-    if (!mainCompany?.id) {
+    if (!selectedClientId) {
       toast({
         title: "Error",
-        description: "Main company not configured",
+        description: "No client selected. Please select a valid client.",
         variant: "destructive",
       });
       return;
@@ -750,10 +759,10 @@ export default function MSSQLImport() {
     }
   };
 
-  const formatDuration = (startTime?: string, endTime?: string) => {
+  const formatDuration = (startTime?: string | Date | null, endTime?: string | Date | null) => {
     if (!startTime) return 'N/A';
-    const start = new Date(startTime);
-    const end = endTime ? new Date(endTime) : new Date();
+    const start = startTime instanceof Date ? startTime : new Date(startTime);
+    const end = endTime ? (endTime instanceof Date ? endTime : new Date(endTime)) : new Date();
     const diffMs = end.getTime() - start.getTime();
     const diffMins = Math.floor(diffMs / 60000);
     const diffSecs = Math.floor((diffMs % 60000) / 1000);
@@ -803,64 +812,78 @@ export default function MSSQLImport() {
         </div>
       </div>
 
-      {/* Main Company Info & Filter */}
+      {/* Client Selection & Info */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center">
             <Info className="w-5 h-5 mr-2" />
-            Main Company & Available Clients
+            Client Selection for Migration
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Main Company Name</Label>
-              <p className="text-sm text-muted-foreground">{mainCompany?.name || 'Not configured'}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Main Company Tenant Code</Label>
-              <p className="text-sm text-muted-foreground">
-                {(mainCompany as any)?.tenantCode ? (
-                  <span className="font-semibold text-primary">{(mainCompany as any).tenantCode}</span>
-                ) : (
-                  <span className="text-amber-600">Not configured</span>
-                )}
-              </p>
-              {!(mainCompany as any)?.tenantCode && mainCompany?.name && (
-                <p className="text-xs text-amber-600 mt-1">
-                  ⚠️ Set tenant code in Global Admin to export data to general_ledger
-                </p>
-              )}
-              {(mainCompany as any)?.tenantCode && (
-                <p className="text-xs text-green-600 mt-1">
-                  ✓ Ready to export MSSQL data to general_ledger using tenant code: {(mainCompany as any).tenantCode}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Available Clients Summary */}
-          <div className="border-t pt-4">
-            <Label className="text-sm font-medium">Available Clients ({availableClients.length})</Label>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
-              {clientsLoading ? (
-                <p className="text-sm text-muted-foreground">Loading clients...</p>
-              ) : availableClients.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No clients configured</p>
-              ) : (
-                availableClients.slice(0, 6).map((client: any) => (
-                  <div key={client.id} className="p-2 bg-gray-50 rounded border text-sm">
-                    <p className="font-medium">{client.name}</p>
-                    <p className="text-xs text-gray-500">
-                      {client.tenantCode ? `Code: ${client.tenantCode}` : 'No tenant code'}
-                    </p>
-                  </div>
-                ))
-              )}
-              {availableClients.length > 6 && (
-                <p className="text-xs text-muted-foreground">... and {availableClients.length - 6} more</p>
-              )}
-            </div>
+          {/* Client Selection */}
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Select Client for Migration</Label>
+            {clientsLoading ? (
+              <p className="text-sm text-muted-foreground">Loading clients...</p>
+            ) : availableClients.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No clients configured</p>
+            ) : (
+              <Select
+                value={selectedClientId?.toString() || ""}
+                onValueChange={(value) => setSelectedClientId(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClients.map((client: any) => (
+                    <SelectItem key={client.id} value={client.id.toString()}>
+                      {client.name} {client.code ? `(${client.code})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {selectedClientId && (
+              <div className="mt-3 space-y-2">
+                {(() => {
+                  const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
+                  if (!selectedClient) return null;
+                  
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Client Name</Label>
+                          <p className="text-sm font-medium">{selectedClient.name}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Tenant Code</Label>
+                          <p className="text-sm text-muted-foreground">
+                            {selectedClient.tenantCode ? (
+                              <span className="font-semibold text-primary">{selectedClient.tenantCode}</span>
+                            ) : (
+                              <span className="text-amber-600">Not configured</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      {!selectedClient.tenantCode && (
+                        <p className="text-xs text-amber-600">
+                          ⚠️ This client has no tenant code configured. Tenant codes will not be filtered. Please set tenant code in Global Admin to filter tenant codes for this client.
+                        </p>
+                      )}
+                      {selectedClient.tenantCode && (
+                        <p className="text-xs text-green-600">
+                          ✓ Tenant codes will be filtered to match this client's tenant code: {selectedClient.tenantCode}
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* PostingsPeriod Filter */}
@@ -1294,21 +1317,21 @@ export default function MSSQLImport() {
 
         {/* Tab 1: General Ledger Import */}
         <TabsContent value="general-ledger" className="space-y-4">
-          {/* Export to general_ledger button */}
+          {/* Export to journal_entries button */}
           <div className="mb-4">
             <Button 
               variant="default" 
               onClick={() => exportToAuditMutation.mutate()}
               disabled={
-                !mainCompany?.id || 
-                !(mainCompany as any)?.tenantCode || 
+                !selectedClientId || 
+                !availableClients.find((c: any) => c.id === selectedClientId)?.tenantCode || 
                 exportToAuditMutation.isPending ||
                 !!activeMigration
               }
               className="w-full"
             >
               <Database className={`w-4 h-4 mr-2 ${exportToAuditMutation.isPending ? 'animate-pulse' : ''}`} />
-              {exportToAuditMutation.isPending ? 'Exporting...' : 'Export to general_ledger'}
+              {exportToAuditMutation.isPending ? 'Exporting...' : 'Export to journal_entries'}
             </Button>
           </div>
 
@@ -1372,12 +1395,12 @@ export default function MSSQLImport() {
                           <Button
                             size="sm"
                             onClick={() => {
-                              if (tenant && mainCompany?.id) {
+                              if (tenant && selectedClientId) {
                                 setSelectedTenant(tenant);
                                 setIsImportDialogOpen(true);
                               }
                             }}
-                            disabled={!mainCompany?.id}
+                            disabled={!selectedClientId}
                           >
                             <Upload className="w-4 h-4 mr-2" />
                             Import
@@ -1386,13 +1409,13 @@ export default function MSSQLImport() {
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              if (tenant && mainCompany?.id) {
+                              if (tenant && selectedClientId) {
                                 setSelectedTenant(tenant);
                                 // Start update directly without dialog
                                 startUpdateMutation.mutate();
                               }
                             }}
-                            disabled={!mainCompany?.id || startUpdateMutation.isPending}
+                            disabled={!selectedClientId || startUpdateMutation.isPending}
                           >
                             <ArrowUpCircle className="w-4 h-4 mr-2" />
                             {startUpdateMutation.isPending ? 'Updating...' : 'Update'}
@@ -1417,7 +1440,7 @@ export default function MSSQLImport() {
               variant="default" 
               onClick={() => setIsAuditImportDialogOpen(true)}
               disabled={
-                !mainCompany?.id || 
+                !selectedClientId || 
                 auditTables.length === 0 ||
                 activeMigration?.status === 'running'
               }
@@ -1435,7 +1458,7 @@ export default function MSSQLImport() {
                 }
               }}
               disabled={
-                !mainCompany?.id || 
+                !selectedClientId || 
                 auditTables.length === 0 ||
                 activeMigration?.status === 'running' ||
                 startFullAuditExportMutation.isPending
@@ -1708,6 +1731,27 @@ export default function MSSQLImport() {
           </DialogHeader>
           <form onSubmit={form.handleSubmit(handleStartMigration)} className="space-y-4">
             <div className="space-y-2">
+              <Label>Client</Label>
+              <Select
+                value={selectedClientId?.toString() || ""}
+                onValueChange={(value) => setSelectedClientId(parseInt(value))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a client" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableClients.map((client: any) => (
+                    <SelectItem key={client.id} value={client.id.toString()}>
+                      {client.name} {client.code ? `(${client.code})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedClientId && (
+                <p className="text-xs text-red-500">Please select a client to continue</p>
+              )}
+            </div>
+            <div className="space-y-2">
               <Label>Tenant Code</Label>
               <Input
                 value={selectedTenant?.tenantCode || ''}
@@ -1756,7 +1800,7 @@ export default function MSSQLImport() {
               </Button>
               <Button
                 type="submit"
-                disabled={startMigrationMutation.isPending || !selectedTenant}
+                disabled={startMigrationMutation.isPending || !selectedTenant || !selectedClientId}
               >
                 {startMigrationMutation.isPending ? (
                   <>

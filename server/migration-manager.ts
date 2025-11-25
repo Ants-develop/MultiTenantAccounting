@@ -148,7 +148,7 @@ export class MigrationManager {
           "users", "companies", "user_companies", "accounts",
           "journal_entries", "journal_entry_lines", "customers",
           "vendors", "invoices", "bills", "activity_logs",
-          "company_settings", "general_ledger"
+          "company_settings"
         ];
         
         const existingTablesResult = await db.execute(sql`

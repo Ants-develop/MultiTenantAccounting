@@ -288,8 +288,7 @@ export const accounts = accounting.table("accounts", {
 });
 
 // Journal Entries
-// Note: journal_entries is a copy of general_ledger imported from MSSQL
-// mssql_record_id links back to general_ledger.id for tracking individual records
+// Stores journal entries imported from MSSQL GeneralLedger
 export const journalEntries = accounting.table("journal_entries", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull(),
@@ -300,9 +299,6 @@ export const journalEntries = accounting.table("journal_entries", {
   totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
   userId: integer("user_id").references(() => users.id),
   isPosted: boolean("is_posted").default(false),
-  // Internal tracking: Link to general_ledger table for MSSQL import tracking
-  // Temporarily commented out - column doesn't exist in DB yet
-  // mssqlRecordId: integer("mssql_record_id").references(() => generalLedger.id),
   // MSSQL parity fields (all optional/nullable)
   // TenantCode VARCHAR(50) for flexibility, convert to INT in code when needed
   tenantCode: text("tenant_code"),
@@ -487,74 +483,6 @@ export const activityLogs = pgTable("activity_logs", {
 });
 
 // Company Settings
-// General Ledger (Raw MSSQL Import Storage)
-// Purpose: Store raw data from MSSQL GeneralLedger before copying to journal_entries
-// journal_entries is a copy of general_ledger after tenantCode identification
-export const generalLedger = accounting.table("general_ledger", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  // MSSQL parity fields (all from MSSQL GeneralLedger table)
-  // Tenant information
-  // TenantCode VARCHAR(50) for flexibility, convert to INT in code when needed
-  tenantCode: text("tenant_code"),
-  tenantName: text("tenant_name"),
-  abonent: text("abonent"),
-  postingsPeriod: timestamp("postings_period"),
-  register: text("register"), // binary(16) - stored as BYTEA in DB, but mapped as text in schema for compatibility
-  branch: text("branch"),
-  content: text("content"),
-  responsiblePerson: text("responsible_person"),
-  // Debit account information
-  accountDr: text("account_dr"),
-  accountNameDr: text("account_name_dr"),
-  analyticDr: text("analytic_dr"),
-  analyticRefDr: text("analytic_ref_dr"), // binary(16) - stored as BYTEA in DB, but mapped as text in schema for compatibility
-  idDr: text("id_dr"),
-  legalFormDr: text("legal_form_dr"),
-  countryDr: text("country_dr"),
-  profitTaxDr: boolean("profit_tax_dr"),
-  withholdingTaxDr: boolean("withholding_tax_dr"),
-  doubleTaxationDr: boolean("double_taxation_dr"),
-  pensionSchemeParticipantDr: boolean("pension_scheme_participant_dr"),
-  // Credit account information
-  accountCr: text("account_cr"),
-  accountNameCr: text("account_name_cr"),
-  analyticCr: text("analytic_cr"),
-  analyticRefCr: text("analytic_ref_cr"), // binary(16) - stored as BYTEA in DB, but mapped as text in schema for compatibility
-  idCr: text("id_cr"),
-  legalFormCr: text("legal_form_cr"),
-  countryCr: text("country_cr"),
-  profitTaxCr: boolean("profit_tax_cr"),
-  withholdingTaxCr: boolean("withholding_tax_cr"),
-  doubleTaxationCr: boolean("double_taxation_cr"),
-  pensionSchemeParticipantCr: boolean("pension_scheme_participant_cr"),
-  // Financial information
-  currency: text("currency"),
-  amount: decimal("amount", { precision: 21, scale: 2 }),
-  amountCur: decimal("amount_cur", { precision: 21, scale: 2 }),
-  quantityDr: decimal("quantity_dr", { precision: 21, scale: 4 }),
-  quantityCr: decimal("quantity_cr", { precision: 21, scale: 4 }),
-  rate: decimal("rate", { precision: 19, scale: 13 }),
-  documentRate: decimal("document_rate", { precision: 19, scale: 13 }),
-  // Tax invoice information
-  taxInvoiceNumber: text("tax_invoice_number"),
-  taxInvoiceDate: timestamp("tax_invoice_date"),
-  taxInvoiceSeries: text("tax_invoice_series"),
-  waybillNumber: text("waybill_number"),
-  attachedFiles: decimal("attached_files", { precision: 17, scale: 5 }),
-  // Document information
-  docType: text("doc_type"),
-  docDate: timestamp("doc_date"),
-  docNumber: text("doc_number"),
-  documentCreationDate: timestamp("document_creation_date"),
-  documentModifyDate: timestamp("document_modify_date"),
-  documentComments: text("document_comments"),
-  postingNumber: decimal("posting_number", { precision: 18, scale: 0 }),
-  // System fields
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 export const companySettings = pgTable("company_settings", {
   id: serial("id").primaryKey(),
   clientId: integer("client_id").references(() => clients.id).notNull().unique(),
@@ -659,7 +587,6 @@ export const companiesRelations = relations(companies, ({ many, one }) => ({
   vendors: many(vendors),
   invoices: many(invoices),
   bills: many(bills),
-  generalLedger: many(generalLedger),
   rsUsers: many(rsUsers),
   settings: one(companySettings),
 }));
@@ -707,9 +634,6 @@ export const billsRelations = relations(bills, ({ one }) => ({
   vendor: one(vendors, { fields: [bills.vendorId], references: [vendors.id] }),
 }));
 
-export const generalLedgerRelations = relations(generalLedger, ({ one }) => ({
-  company: one(companies, { fields: [generalLedger.clientId], references: [companies.id] }),
-}));
 
 export const companySettingsRelations = relations(companySettings, ({ one }) => ({
   company: one(companies, { fields: [companySettings.clientId], references: [companies.id] }),
@@ -737,7 +661,6 @@ export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true, c
 export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, userId: true });
 export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, userId: true });
 export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, timestamp: true, clientId: true });
-export const insertGeneralLedgerSchema = createInsertSchema(generalLedger).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Main Company Settings Schemas
@@ -1027,8 +950,6 @@ export type Bill = typeof bills.$inferSelect;
 export type InsertBill = z.infer<typeof insertBillSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
-export type GeneralLedger = typeof generalLedger.$inferSelect;
-export type InsertGeneralLedger = z.infer<typeof insertGeneralLedgerSchema>;
 export type CompanySettings = typeof companySettings.$inferSelect;
 export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
 export type BankAccount = typeof bankAccounts.$inferSelect;
