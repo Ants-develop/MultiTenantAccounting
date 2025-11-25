@@ -1,8 +1,8 @@
 import sql from 'mssql';
 import { db, pool } from '../db';
-import { sql as drizzleSql } from 'drizzle-orm';
+import { sql as drizzleSql, eq } from 'drizzle-orm';
 import { EventEmitter } from 'events';
-import { migrationHistory, migrationLogs, migrationErrors } from '@shared/schema';
+import { migrationHistory, migrationLogs, migrationErrors, clients } from '@shared/schema';
 
 export interface LogEntry {
   timestamp: Date;
@@ -243,6 +243,53 @@ export async function getTenantCodes(
 }
 
 /**
+ * Validate that a client exists in the database
+ * @param clientId - The client ID to validate
+ * @returns Promise<boolean> - true if client exists and is active, false otherwise
+ * @throws Error with descriptive message if client doesn't exist
+ */
+export async function validateClientExists(clientId: number): Promise<boolean> {
+  try {
+    const [client] = await db
+      .select({ id: clients.id, name: clients.name, isActive: clients.isActive })
+      .from(clients)
+      .where(eq(clients.id, clientId))
+      .limit(1);
+
+    if (!client) {
+      // Get available client IDs for debugging
+      const availableClients = await db
+        .select({ id: clients.id, name: clients.name })
+        .from(clients)
+        .limit(10);
+      
+      const availableIds = availableClients.map(c => c.id).join(', ');
+      throw new Error(
+        `Client with ID ${clientId} does not exist in the database. ` +
+        `Available client IDs: ${availableIds || 'none'}. ` +
+        `Please ensure the client is created before starting migration.`
+      );
+    }
+
+    if (!client.isActive) {
+      console.warn(`⚠️  Client ${clientId} (${client.name}) exists but is marked as inactive`);
+      // Still allow migration for inactive clients, but log a warning
+    }
+
+    return true;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('does not exist')) {
+      throw error; // Re-throw our custom error
+    }
+    // Handle database errors
+    console.error('❌ Error validating client:', error);
+    throw new Error(
+      `Failed to validate client ${clientId}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+/**
  * Convert MSSQL binary(1) to boolean
  */
 function convertBinaryToBoolean(value: any): boolean | null {
@@ -474,9 +521,25 @@ export async function migrateGeneralLedger(
     errors: [],
   };
   
+  // Validate client exists before starting migration
+  try {
+    await validateClientExists(clientId);
+    console.log(`✅ Client ${clientId} validated before migration start`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Client validation failed in migrateGeneralLedger for clientId ${clientId}:`, errorMessage);
+    progress.status = 'failed';
+    progress.errorMessage = `Client validation failed: ${errorMessage}`;
+    progress.endTime = new Date();
+    addLog(progress, 'error', `Migration failed: Client ${clientId} does not exist`, { clientId, error: errorMessage });
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    throw new Error(`Cannot start migration: ${errorMessage}`);
+  }
+  
   // Save initial migration history FIRST (before any logs) to ensure foreign key exists
   await saveMigrationHistory(progress);
-  addLog(progress, 'info', `Starting migration for tenant ${tenantCode}`, { batchSize, postingsPeriodFrom, postingsPeriodTo });
+  addLog(progress, 'info', `Starting migration for tenant ${tenantCode}`, { batchSize, postingsPeriodFrom, postingsPeriodTo, clientId });
 
   try {
     // Build WHERE clause for date filtering using parameterized queries
@@ -661,20 +724,35 @@ export async function migrateGeneralLedger(
           } catch (error) {
             console.error('❌ Batch insert error:', error);
             console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
+            console.error(`   Client ID: ${clientId}, Tenant Code: ${tenantCode}`);
             const errorMessage = error instanceof Error ? error.message : String(error);
-            addLog(progress, 'error', `Batch insert failed: ${errorMessage}`, { batchSize: values.length });
+            
+            // Check if it's a foreign key constraint violation
+            let enhancedMessage = errorMessage;
+            if (errorMessage.includes('foreign key constraint') && errorMessage.includes('client_id')) {
+              enhancedMessage = `Foreign key constraint violation: Client ID ${clientId} does not exist in clients table. ` +
+                `Please ensure the client is created before starting migration. Original error: ${errorMessage}`;
+            }
+            
+            addLog(progress, 'error', `Batch insert failed: ${enhancedMessage}`, { 
+              batchSize: values.length, 
+              clientId, 
+              tenantCode 
+            });
             addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
               batchSize: values.length, 
               processedRecords: progress.processedRecords,
-              tenantCode 
+              clientId,
+              tenantCode,
+              errorType: errorMessage.includes('foreign key constraint') ? 'FOREIGN_KEY_VIOLATION' : 'UNKNOWN'
             });
             // Stop migration immediately on any insert failure
             progress.status = 'failed';
-            progress.errorMessage = `Insert failed: ${errorMessage}`;
+            progress.errorMessage = `Insert failed: ${enhancedMessage}`;
             progress.endTime = new Date();
             emitProgress(progress);
             saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
+            throw new Error(`Migration stopped due to insert failure: ${enhancedMessage}`);
           }
 
           progress.processedRecords += batch.length;
@@ -685,12 +763,32 @@ export async function migrateGeneralLedger(
           request.resume();
         } catch (error) {
           console.error('❌ Batch error:', error);
+          console.error(`   Client ID: ${clientId}, Tenant Code: ${tenantCode}`);
           const errorMessage = error instanceof Error ? error.message : String(error);
-          addLog(progress, 'error', `Batch processing failed: ${errorMessage}`, { batchSize: batch.length, processedRecords: progress.processedRecords });
-          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { batchSize: batch.length, processedRecords: progress.processedRecords });
+          
+          // Check if it's a foreign key constraint violation
+          let enhancedMessage = errorMessage;
+          if (errorMessage.includes('foreign key constraint') && errorMessage.includes('client_id')) {
+            enhancedMessage = `Foreign key constraint violation: Client ID ${clientId} does not exist in clients table. ` +
+              `Please ensure the client is created before starting migration. Original error: ${errorMessage}`;
+          }
+          
+          addLog(progress, 'error', `Batch processing failed: ${enhancedMessage}`, { 
+            batchSize: batch.length, 
+            processedRecords: progress.processedRecords,
+            clientId,
+            tenantCode
+          });
+          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
+            batchSize: batch.length, 
+            processedRecords: progress.processedRecords,
+            clientId,
+            tenantCode,
+            errorType: errorMessage.includes('foreign key constraint') ? 'FOREIGN_KEY_VIOLATION' : 'UNKNOWN'
+          });
           // Stop migration immediately on any error
           progress.status = 'failed';
-          progress.errorMessage = `Batch processing failed: ${errorMessage}`;
+          progress.errorMessage = `Batch processing failed: ${enhancedMessage}`;
           progress.endTime = new Date();
           emitProgress(progress);
           saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
@@ -797,21 +895,37 @@ export async function migrateGeneralLedger(
         } catch (error) {
           console.error('❌ Final batch insert error:', error);
           console.error(`   Batch size: ${values.length}, Val length: ${values[0]?.length || 0}`);
+          console.error(`   Client ID: ${clientId}, Tenant Code: ${tenantCode}`);
           const errorMessage = error instanceof Error ? error.message : String(error);
-          addLog(progress, 'error', `Final batch insert failed: ${errorMessage}`, { batchSize: values.length });
+          
+          // Check if it's a foreign key constraint violation
+          let enhancedMessage = errorMessage;
+          if (errorMessage.includes('foreign key constraint') && errorMessage.includes('client_id')) {
+            enhancedMessage = `Foreign key constraint violation: Client ID ${clientId} does not exist in clients table. ` +
+              `Please ensure the client is created before starting migration. Original error: ${errorMessage}`;
+          }
+          
+          addLog(progress, 'error', `Final batch insert failed: ${enhancedMessage}`, { 
+            batchSize: values.length, 
+            clientId,
+            tenantCode,
+            isFinalBatch: true 
+          });
           addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { 
             batchSize: values.length, 
             processedRecords: progress.processedRecords,
+            clientId,
             tenantCode,
-            isFinalBatch: true
+            isFinalBatch: true,
+            errorType: errorMessage.includes('foreign key constraint') ? 'FOREIGN_KEY_VIOLATION' : 'UNKNOWN'
           });
           // Stop migration immediately on any insert failure
           progress.status = 'failed';
-          progress.errorMessage = `Insert failed: ${errorMessage}`;
+          progress.errorMessage = `Insert failed: ${enhancedMessage}`;
           progress.endTime = new Date();
           emitProgress(progress);
           saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-          throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
+          throw new Error(`Migration stopped due to insert failure: ${enhancedMessage}`);
         }
 
         progress.processedRecords += batch.length;
@@ -877,9 +991,25 @@ export async function exportToAudit(
     errors: [],
   };
   
+  // Validate client exists before starting migration
+  try {
+    await validateClientExists(clientId);
+    console.log(`✅ Client ${clientId} validated before audit export start`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Client validation failed in exportToAudit for clientId ${clientId}:`, errorMessage);
+    progress.status = 'failed';
+    progress.errorMessage = `Client validation failed: ${errorMessage}`;
+    progress.endTime = new Date();
+    addLog(progress, 'error', `Audit export failed: Client ${clientId} does not exist`, { clientId, error: errorMessage });
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    throw new Error(`Cannot start audit export: ${errorMessage}`);
+  }
+  
   // Save initial migration history FIRST (before any logs) to ensure foreign key exists
   await saveMigrationHistory(progress);
-  addLog(progress, 'info', `Starting audit export for tenant ${tenantCode}`, { batchSize });
+  addLog(progress, 'info', `Starting audit export for tenant ${tenantCode}`, { batchSize, clientId });
 
   try {
     const countRequest = mssqlPool.request();
@@ -1088,6 +1218,22 @@ export async function migrateRSTables(
     logs: [],
     errors: [],
   };
+
+  // Validate client exists before starting migration
+  try {
+    await validateClientExists(clientId);
+    console.log(`✅ Client ${clientId} validated before RS migration start`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Client validation failed in migrateRSTables for clientId ${clientId}:`, errorMessage);
+    progress.status = 'failed';
+    progress.errorMessage = `Client validation failed: ${errorMessage}`;
+    progress.endTime = new Date();
+    addLog(progress, 'error', `RS migration failed: Client ${clientId} does not exist`, { clientId, tableName, error: errorMessage });
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    throw new Error(`Cannot start RS migration: ${errorMessage}`);
+  }
 
   try {
     const countRequest = mssqlPool.request();
@@ -1378,9 +1524,25 @@ export async function updateJournalEntries(
     errors: [],
   };
   
+  // Validate client exists before starting migration
+  try {
+    await validateClientExists(clientId);
+    console.log(`✅ Client ${clientId} validated before update start`);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error(`❌ Client validation failed in updateJournalEntries for clientId ${clientId}:`, errorMessage);
+    progress.status = 'failed';
+    progress.errorMessage = `Client validation failed: ${errorMessage}`;
+    progress.endTime = new Date();
+    addLog(progress, 'error', `Update failed: Client ${clientId} does not exist`, { clientId, error: errorMessage });
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    throw new Error(`Cannot start update: ${errorMessage}`);
+  }
+  
   // Save initial migration history FIRST (before any logs) to ensure foreign key exists
   await saveMigrationHistory(progress);
-  addLog(progress, 'info', `Starting update for tenant ${tenantCode}`, { batchSize, postingsPeriodFrom, postingsPeriodTo });
+  addLog(progress, 'info', `Starting update for tenant ${tenantCode}`, { batchSize, postingsPeriodFrom, postingsPeriodTo, clientId });
 
   try {
     // Build WHERE clause for date filtering using parameterized queries

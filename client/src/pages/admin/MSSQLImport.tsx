@@ -439,9 +439,9 @@ export default function MSSQLImport() {
 
   // Fetch available audit tables
   const { data: auditTables = [], isLoading: auditTablesLoading, refetch: refetchAuditTables } = useQuery<AuditTable[]>({
-    queryKey: ['/api/mssql-audit/audit-tables'],
+    queryKey: ['/api/mssql/audit-tables'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/mssql-audit/audit-tables');
+      const response = await apiRequest('GET', '/api/mssql/audit-tables');
       const data = await response.json();
       return data.auditTables || [];
     },

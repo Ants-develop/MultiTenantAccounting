@@ -13,10 +13,11 @@ import {
   getProgressEmitter,
   getAuditTableNames,
   MigrationProgress,
+  validateClientExists,
 } from "../services/mssql-migration";
 import { db } from "../db";
 import { DEFAULT_CLIENT_ID } from "../constants";
-import { migrationHistory, migrationLogs, migrationErrors } from "@shared/schema";
+import { migrationHistory, migrationLogs, migrationErrors, clients } from "@shared/schema";
 import { sql as drizzleSql, desc, and, eq } from "drizzle-orm";
 
 const router = express.Router();
@@ -114,6 +115,51 @@ router.get("/tenant-codes", async (req, res) => {
   }
 });
 
+// Get available audit tables from MSSQL audit schema
+router.get("/audit-tables", async (req, res) => {
+  console.log("\n" + "=".repeat(60));
+  console.log("📍 GET /api/mssql/audit-tables - Request received");
+  console.log("   Session User ID:", req.session?.userId);
+  console.log("=".repeat(60));
+
+  try {
+    console.log("\n1️⃣ Initializing MSSQL pool...");
+    const pool = await initMSSQLPool();
+    
+    console.log("\n2️⃣ Fetching available audit tables...");
+    const tables = await getAuditTableNames(pool);
+
+    console.log("\n3️⃣ Formatting response...");
+    const response = {
+      auditTables: tables.map((table) => ({
+        tableName: table.tableName,
+        recordCount: table.recordCount,
+      })),
+    };
+    
+    console.log(`   ✅ Returning ${response.auditTables.length} audit table(s)`);
+    response.auditTables.forEach((t: any) => {
+      console.log(`      - Table: ${t.tableName}, Records: ${t.recordCount}`);
+    });
+    console.log("=".repeat(60) + "\n");
+    
+    res.json(response);
+  } catch (error: any) {
+    console.error("\n❌ Get audit tables error");
+    console.error("   Error Type:", error.constructor.name);
+    console.error("   Error Message:", error.message);
+    console.error("   Error Code:", error.code);
+    console.error("   Stack:", error.stack);
+    console.error("=".repeat(60) + "\n");
+    
+    res.status(500).json({
+      message: "Failed to fetch audit tables",
+      error: error.message,
+      code: error.code,
+    });
+  }
+});
+
 // Shared handler function for unified migration endpoint
 async function handleStartMigration(req: express.Request, res: express.Response, defaultType?: string) {
   try {
@@ -156,6 +202,38 @@ async function handleStartMigration(req: express.Request, res: express.Response,
 
     if (type === 'audit-table' && !tableName) {
       return res.status(400).json({ message: "Missing required parameter: tableName" });
+    }
+
+    // Validate clientId exists in database for migration types that require it
+    if (clientId && (type === 'general-ledger' || type === 'audit' || type === 'update' || type === 'rs')) {
+      try {
+        await validateClientExists(clientId);
+        console.log(`✅ Client ${clientId} validated successfully`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Client validation failed for clientId ${clientId}:`, errorMessage);
+        return res.status(400).json({ 
+          message: `Invalid client ID: ${errorMessage}`,
+          clientId,
+          error: 'CLIENT_NOT_FOUND'
+        });
+      }
+    }
+
+    // For audit-table and full-audit-export, validate DEFAULT_CLIENT_ID if used
+    if ((type === 'audit-table' || type === 'full-audit-export') && DEFAULT_CLIENT_ID) {
+      try {
+        await validateClientExists(DEFAULT_CLIENT_ID);
+        console.log(`✅ Default client ${DEFAULT_CLIENT_ID} validated successfully`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`❌ Default client validation failed for clientId ${DEFAULT_CLIENT_ID}:`, errorMessage);
+        return res.status(400).json({ 
+          message: `Invalid default client ID: ${errorMessage}`,
+          clientId: DEFAULT_CLIENT_ID,
+          error: 'DEFAULT_CLIENT_NOT_FOUND'
+        });
+      }
     }
 
     const pool = await initMSSQLPool();

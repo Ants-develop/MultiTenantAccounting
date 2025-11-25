@@ -27,7 +27,6 @@ import dashboardRouter from "./api/dashboard";
 import homeRouter from "./api/home";
 import customersVendorsRouter from "./api/customers-vendors";
 import mssqlImportRouter from "./api/mssql-import";
-import mssqlAuditImportRouter from "./api/mssql-audit-import";
 import rsAdminRouter from "./api/rs-admin";
 import permissionsRouter from "./api/permissions";
 import pipelinesRouter from "./api/pipelines";
@@ -595,7 +594,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/home', homeRouter);
   app.use('/api', customersVendorsRouter);
   app.use('/api/mssql', mssqlImportRouter);
-  app.use('/api/mssql-audit', mssqlAuditImportRouter);
   app.use('/api/permissions', permissionsRouter);
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
