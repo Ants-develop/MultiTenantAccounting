@@ -22,7 +22,18 @@ class TemplateSchedulerWorker {
 
     this.isRunning = true;
     try {
-      const templates = await getScheduledTemplates();
+      let templates;
+      try {
+        templates = await getScheduledTemplates();
+      } catch (error: any) {
+        // Handle database connection errors gracefully
+        if (error?.code === 'ETIMEDOUT' || error?.message?.includes('timeout') || error?.message?.includes('Connection terminated')) {
+          console.warn("[Template Scheduler Worker] Database connection timeout, will retry on next cycle");
+          return;
+        }
+        throw error; // Re-throw other errors
+      }
+      
       console.log(`[Template Scheduler Worker] Checking ${templates.length} scheduled templates`);
 
       for (const template of templates) {
@@ -113,15 +124,25 @@ class TemplateSchedulerWorker {
 
     console.log("[Template Scheduler Worker] Starting...");
     
-    // Run immediately on start
-    this.processScheduledTemplates().catch(console.error);
+    // Delay initial run to ensure database connection is ready
+    // Run after 5 seconds to give the database connection time to establish
+    setTimeout(() => {
+      this.processScheduledTemplates().catch((error) => {
+        console.error("[Template Scheduler Worker] Error in initial run:", error.message);
+      });
+    }, 5000);
 
     // Then run every minute
     this.intervalId = setInterval(() => {
-      this.processScheduledTemplates().catch(console.error);
+      this.processScheduledTemplates().catch((error) => {
+        // Only log if it's not a connection timeout (those are expected and handled)
+        if (!error?.message?.includes('timeout') && !error?.message?.includes('Connection terminated')) {
+          console.error("[Template Scheduler Worker] Error processing scheduled templates:", error);
+        }
+      });
     }, 60 * 1000); // 60 seconds
 
-    console.log("[Template Scheduler Worker] Started (running every minute)");
+    console.log("[Template Scheduler Worker] Started (running every minute, initial run in 5 seconds)");
   }
 
   /**

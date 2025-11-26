@@ -1,3 +1,4 @@
+-- UP
 -- Add indexes for task management tables to improve query performance
 
 -- Tasks table indexes
@@ -30,3 +31,22 @@ CREATE INDEX IF NOT EXISTS idx_task_templates_client_id ON tasks.task_templates(
 CREATE INDEX IF NOT EXISTS idx_task_templates_created_by ON tasks.task_templates(created_by);
 CREATE INDEX IF NOT EXISTS idx_task_templates_is_public ON tasks.task_templates(is_public);
 
+-- DOWN
+DROP INDEX IF EXISTS tasks.idx_task_templates_is_public;
+DROP INDEX IF EXISTS tasks.idx_task_templates_created_by;
+DROP INDEX IF EXISTS tasks.idx_task_templates_client_id;
+DROP INDEX IF EXISTS tasks.idx_task_dependencies_depends_on;
+DROP INDEX IF EXISTS tasks.idx_task_dependencies_task_id;
+DROP INDEX IF EXISTS tasks.idx_task_attachments_uploaded_by;
+DROP INDEX IF EXISTS tasks.idx_task_attachments_task_id;
+DROP INDEX IF EXISTS tasks.idx_task_comments_user_id;
+DROP INDEX IF EXISTS tasks.idx_task_comments_task_id;
+DROP INDEX IF EXISTS tasks.idx_task_checklists_assigned_to;
+DROP INDEX IF EXISTS tasks.idx_task_checklists_task_id;
+DROP INDEX IF EXISTS tasks.idx_tasks_created_by;
+DROP INDEX IF EXISTS tasks.idx_tasks_priority;
+DROP INDEX IF EXISTS tasks.idx_tasks_template_id;
+DROP INDEX IF EXISTS tasks.idx_tasks_due_at;
+DROP INDEX IF EXISTS tasks.idx_tasks_assigned_to;
+DROP INDEX IF EXISTS tasks.idx_tasks_status;
+DROP INDEX IF EXISTS tasks.idx_tasks_client_id;

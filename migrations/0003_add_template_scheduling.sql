@@ -1,3 +1,4 @@
+-- UP
 -- Add scheduling fields to task_templates table for automatic task creation
 
 -- Add schedule_enabled boolean field
@@ -29,3 +30,7 @@ COMMENT ON COLUMN tasks.task_templates.schedule_config IS 'Scheduling configurat
   "nextRunAt": "2024-01-22T09:00:00Z"   // Next scheduled execution timestamp
 }';
 
+-- DOWN
+DROP INDEX IF EXISTS tasks.idx_task_templates_schedule_enabled;
+ALTER TABLE tasks.task_templates DROP COLUMN IF EXISTS schedule_config;
+ALTER TABLE tasks.task_templates DROP COLUMN IF EXISTS schedule_enabled;
