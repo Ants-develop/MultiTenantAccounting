@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Edit, Trash2, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Edit, Trash2, Check, ChevronDown, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useClientFilter } from "@/hooks/useClientFilter";
 import { ClientFilter } from "@/components/filters/ClientFilter";
@@ -32,6 +32,7 @@ interface Account {
   isForeignCurrency?: boolean;
   isAnalytical?: boolean;
   isActive: boolean;
+  clientId: number;
 }
 
 interface TreeNode {
@@ -47,6 +48,7 @@ const accountSchema = z.object({
   subType: z.string().optional(),
   accountClass: z.string().optional(),
   category: z.string().optional(),
+  clientId: z.number().optional(),
   isSubaccountAllowed: z.boolean().optional(),
   isForeignCurrency: z.boolean().optional(),
   isAnalytical: z.boolean().optional(),
@@ -91,6 +93,8 @@ export default function ChartOfAccounts() {
   const [selectedType, setSelectedType] = useState<string>("");
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [sortField, setSortField] = useState<keyof Account | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const { mainCompany } = useAuth();
   const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading: clientsLoading } = useClientFilter('accounting');
   const { toast } = useToast();
@@ -116,6 +120,7 @@ export default function ChartOfAccounts() {
       subType: "",
       accountClass: "",
       category: "",
+      clientId: selectedClientIds[0], // Default to first selected client
       isSubaccountAllowed: false,
       isForeignCurrency: false,
       isAnalytical: false,
@@ -143,7 +148,7 @@ export default function ChartOfAccounts() {
   });
 
   const updateAccountMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: AccountForm }) => 
+    mutationFn: ({ id, data }: { id: number; data: AccountForm }) =>
       apiRequest('PUT', `/api/accounts/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/accounts'] });
@@ -175,7 +180,7 @@ export default function ChartOfAccounts() {
     },
     onError: (error: any) => {
       toast({
-        title: "Error", 
+        title: "Error",
         description: error.message || "Failed to delete account",
         variant: "destructive",
       });
@@ -183,10 +188,16 @@ export default function ChartOfAccounts() {
   });
 
   const onSubmit = (data: AccountForm) => {
+    // Ensure clientId is included
+    const submitData = {
+      ...data,
+      clientId: data.clientId || selectedClientIds[0],
+    };
+
     if (editingAccount) {
-      updateAccountMutation.mutate({ id: editingAccount.id, data });
+      updateAccountMutation.mutate({ id: editingAccount.id, data: submitData });
     } else {
-      createAccountMutation.mutate(data);
+      createAccountMutation.mutate(submitData);
     }
   };
 
@@ -200,6 +211,7 @@ export default function ChartOfAccounts() {
       subType: account.subType || "",
       accountClass: account.accountClass || "",
       category: account.category || "",
+      clientId: account.clientId,
       isSubaccountAllowed: !!account.isSubaccountAllowed,
       isForeignCurrency: !!account.isForeignCurrency,
       isAnalytical: !!account.isAnalytical,
@@ -241,6 +253,48 @@ export default function ChartOfAccounts() {
     return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
+  // Get client badge color based on client ID
+  const getClientColor = (clientId: number) => {
+    const colors = [
+      'bg-blue-100 text-blue-800 border-blue-200',
+      'bg-green-100 text-green-800 border-green-200',
+      'bg-purple-100 text-purple-800 border-purple-200',
+      'bg-orange-100 text-orange-800 border-orange-200',
+      'bg-pink-100 text-pink-800 border-pink-200',
+      'bg-indigo-100 text-indigo-800 border-indigo-200',
+    ];
+    // Use modulo to cycle through colors if there are more clients than colors
+    return colors[clientId % colors.length];
+  };
+
+  // Get client name from accessible clients
+  const getClientName = (clientId: number) => {
+    const client = accessibleClients.find(c => c.id === clientId);
+    return client ? client.name : `Client ${clientId}`;
+  };
+
+  // Handle column sorting
+  const handleSort = (field: keyof Account) => {
+    if (sortField === field) {
+      // Toggle direction
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New field, default to ascending
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  // Render sort icon
+  const SortIcon = ({ field }: { field: keyof Account }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 opacity-50" />;
+    }
+    return sortDirection === 'asc' ?
+      <ArrowUp className="w-4 h-4" /> :
+      <ArrowDown className="w-4 h-4" />;
+  };
+
   // Build tree structure from flat accounts list
   const treeData = useMemo(() => {
     if (!accounts) return [];
@@ -267,7 +321,7 @@ export default function ChartOfAccounts() {
     // Build tree using code hierarchy
     const buildTree = (account: Account, level: number = 0): TreeNode => {
       const children: TreeNode[] = [];
-      
+
       // Find all accounts that have this account as code parent
       accounts.forEach(acc => {
         const codeParent = getCodeParent(acc.code);
@@ -287,22 +341,42 @@ export default function ChartOfAccounts() {
       };
     };
 
-    // Get root accounts (no code parent and no explicit parent)
-    const roots = accounts
-      .filter(acc => {
-        const codeParent = getCodeParent(acc.code);
-        return !codeParent && !acc.parentId;
-      })
-      .map(acc => buildTree(acc, 0))
-      .sort((a, b) => a.account.code.localeCompare(b.account.code));
+    // Find root accounts (those without a parent based on code hierarchy)
+    const rootAccounts = accounts.filter(acc => {
+      const codeParent = getCodeParent(acc.code);
+      return !codeParent && !acc.parentId;
+    });
 
-    return roots;
-  }, [accounts]);
+    // Sort root accounts if sorting is enabled
+    let sortedRoots = [...rootAccounts];
+    if (sortField) {
+      sortedRoots.sort((a, b) => {
+        const aVal = a[sortField];
+        const bVal = b[sortField];
+
+        if (aVal === null || aVal === undefined) return 1;
+        if (bVal === null || bVal === undefined) return -1;
+
+        let comparison = 0;
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          comparison = aVal.localeCompare(bVal);
+        } else if (typeof aVal === 'number' && typeof bVal === 'number') {
+          comparison = aVal - bVal;
+        } else {
+          comparison = String(aVal).localeCompare(String(bVal));
+        }
+
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
+    }
+
+    return sortedRoots.map(acc => buildTree(acc));
+  }, [accounts, sortField, sortDirection]);
 
   // Flatten tree for rendering with visual hierarchy
   const flattenTree = (nodes: TreeNode[]): Array<{ node: TreeNode; isLastInGroup: boolean }> => {
     const result: Array<{ node: TreeNode; isLastInGroup: boolean }> = [];
-    
+
     nodes.forEach((node, index) => {
       result.push({ node, isLastInGroup: index === nodes.length - 1 });
       if (expandedIds.has(node.account.id)) {
@@ -390,7 +464,7 @@ export default function ChartOfAccounts() {
                   )}
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="type">Account Type</Label>
                 <Select
@@ -461,6 +535,31 @@ export default function ChartOfAccounts() {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <Label htmlFor="clientId">Client</Label>
+                <Select
+                  value={form.watch("clientId")?.toString() || ""}
+                  onValueChange={(value) => form.setValue("clientId", parseInt(value))}
+                  disabled={!!editingAccount} // Prevent changing client for existing accounts
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accessibleClients.map((client) => (
+                      <SelectItem key={client.id} value={client.id.toString()}>
+                        {client.name} ({client.code})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editingAccount && (
+                  <p className="text-xs text-muted-foreground">
+                    Client cannot be changed for existing accounts
+                  </p>
+                )}
+              </div>
+
               <div className="grid grid-cols-3 gap-4 pt-2">
                 <Controller
                   name="isSubaccountAllowed"
@@ -512,7 +611,7 @@ export default function ChartOfAccounts() {
                   Cancel
                 </Button>
                 <Button type="submit" disabled={createAccountMutation.isPending || updateAccountMutation.isPending}>
-                  {editingAccount 
+                  {editingAccount
                     ? (updateAccountMutation.isPending ? "Updating..." : "Update Account")
                     : (createAccountMutation.isPending ? "Creating..." : "Create Account")
                   }
@@ -548,9 +647,42 @@ export default function ChartOfAccounts() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">Code</TableHead>
-                    <TableHead className="w-[250px]">Description</TableHead>
-                    <TableHead className="w-[140px]">Type</TableHead>
+                    <TableHead className="w-[180px]">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('code')}
+                      >
+                        Code
+                        <SortIcon field="code" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-[250px]">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('name')}
+                      >
+                        Description
+                        <SortIcon field="name" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-[120px]">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('clientId')}
+                      >
+                        Client
+                        <SortIcon field="clientId" />
+                      </button>
+                    </TableHead>
+                    <TableHead className="w-[140px]">
+                      <button
+                        className="flex items-center gap-1 hover:text-foreground"
+                        onClick={() => handleSort('type')}
+                      >
+                        Type
+                        <SortIcon field="type" />
+                      </button>
+                    </TableHead>
                     <TableHead className="w-[160px]">Class</TableHead>
                     <TableHead className="w-[120px]">Category</TableHead>
                     <TableHead className="w-[100px] text-center">Subaccounts</TableHead>
@@ -590,6 +722,11 @@ export default function ChartOfAccounts() {
                             </div>
                           </TableCell>
                           <TableCell className="py-1">{account.name}</TableCell>
+                          <TableCell className="py-1">
+                            <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-medium border ${getClientColor(account.clientId)}`}>
+                              {getClientName(account.clientId)}
+                            </span>
+                          </TableCell>
                           <TableCell className="py-1">
                             <span className={`inline-flex px-2 py-0.5 rounded-md text-xs font-medium ${getTypeColor(account.type)}`}>
                               {formatType(account.type)}
@@ -635,7 +772,7 @@ export default function ChartOfAccounts() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                         No accounts found. Click "Add Account" to create your first account.
                       </TableCell>
                     </TableRow>

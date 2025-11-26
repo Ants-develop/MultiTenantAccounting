@@ -14,6 +14,7 @@ import {
 } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
+import { createDefaultAccountsForClient } from "../services/default-accounts";
 
 const router = express.Router();
 
@@ -572,7 +573,8 @@ router.post('/import', async (req, res) => {
     const results = {
       imported: 0,
       duplicates: 0,
-      errors: [] as Array<{ row: number; code: string; error: Record<string, string> }>
+      errors: [] as Array<{ row: number; code: string; error: Record<string, string> }>,
+      details: [] as Array<{ row: number; name: string; code: string; accountsCreated: number; status: string }>
     };
 
     // Get existing client codes for duplicate detection
@@ -671,6 +673,27 @@ router.post('/import', async (req, res) => {
           undefined,
           { name: newClient.name, code: newClient.code, source: 'batch_import' }
         );
+
+        // Create default chart of accounts for the imported client
+        let accountsCreated = 0;
+        try {
+          accountsCreated = await createDefaultAccountsForClient(newClient.id);
+          console.log(`✅ Created ${accountsCreated} default accounts for imported client ${newClient.code} (ID: ${newClient.id})`);
+        } catch (accountError) {
+          console.error(`⚠️  Failed to create default accounts for client ${newClient.code}:`, accountError);
+          // Don't fail the import if account creation fails
+        }
+
+        // Track progress details
+        results.details.push({
+          row: rowNumber,
+          name: newClient.name,
+          code: newClient.code,
+          accountsCreated,
+          status: 'success'
+        });
+
+        console.log(`[Import Progress] ${results.imported}/${clients.length} - Created ${newClient.name} with ${accountsCreated} accounts`);
 
       } catch (error) {
         console.error(`Error importing client at row ${rowNumber}:`, error);
