@@ -6,8 +6,8 @@ import { taskTemplates, clients } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import cron from "node-cron";
 import dayjs from "dayjs";
-import utc from "dayjs/plugin/utc";
-import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc.js";
+import timezone from "dayjs/plugin/timezone.js";
 import { instantiateTemplate } from "./template-instantiation";
 
 dayjs.extend(utc);

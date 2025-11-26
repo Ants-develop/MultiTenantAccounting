@@ -385,7 +385,7 @@ router.post("/:id/instantiate", async (req: any, res: any) => {
 });
 
 // PATCH /api/task-templates/:id/schedule - Update schedule configuration
-router.patch("/:id/schedule", checkModulePermission("tasks", "edit"), async (req: any, res: any) => {
+router.patch("/:id/schedule", async (req: any, res: any) => {
   try {
     const templateId = parseInt(req.params.id);
     const userId = req.session.userId;
@@ -403,6 +403,15 @@ router.patch("/:id/schedule", checkModulePermission("tasks", "edit"), async (req
 
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
+    }
+
+    // Check permission
+    if (!template.clientId) {
+      return res.status(400).json({ message: "Template has no associated client" });
+    }
+    const hasAccess = await checkModulePermission(userId, template.clientId, 'tasks', 'edit');
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     // Validate request body
@@ -496,9 +505,10 @@ router.patch("/:id/schedule", checkModulePermission("tasks", "edit"), async (req
 });
 
 // GET /api/task-templates/:id/schedule - Get schedule configuration
-router.get("/:id/schedule", checkModulePermission("tasks", "view"), async (req: any, res: any) => {
+router.get("/:id/schedule", async (req: any, res: any) => {
   try {
     const templateId = parseInt(req.params.id);
+    const userId = req.session.userId;
 
     if (isNaN(templateId)) {
       return res.status(400).json({ message: "Invalid template ID" });
@@ -513,6 +523,15 @@ router.get("/:id/schedule", checkModulePermission("tasks", "view"), async (req: 
 
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
+    }
+
+    // Check permission
+    if (!template.clientId) {
+      return res.status(400).json({ message: "Template has no associated client" });
+    }
+    const hasAccess = await checkModulePermission(userId, template.clientId, 'tasks', 'view');
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     res.json({
@@ -526,9 +545,10 @@ router.get("/:id/schedule", checkModulePermission("tasks", "view"), async (req: 
 });
 
 // POST /api/task-templates/:id/test-schedule - Test schedule calculation
-router.post("/:id/test-schedule", checkModulePermission("tasks", "view"), async (req: any, res: any) => {
+router.post("/:id/test-schedule", async (req: any, res: any) => {
   try {
     const templateId = parseInt(req.params.id);
+    const userId = req.session.userId;
 
     if (isNaN(templateId)) {
       return res.status(400).json({ message: "Invalid template ID" });
@@ -543,6 +563,15 @@ router.post("/:id/test-schedule", checkModulePermission("tasks", "view"), async 
 
     if (!template) {
       return res.status(404).json({ message: "Template not found" });
+    }
+
+    // Check permission
+    if (!template.clientId) {
+      return res.status(400).json({ message: "Template has no associated client" });
+    }
+    const hasAccess = await checkModulePermission(userId, template.clientId, 'tasks', 'view');
+    if (!hasAccess) {
+      return res.status(403).json({ message: "Access denied" });
     }
 
     // Get cron expression from request body or template config
