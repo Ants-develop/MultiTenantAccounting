@@ -8,6 +8,13 @@
       "when": 1764073228777,
       "tag": "0000_dark_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1764154496297,
+      "tag": "0001_groovy_misty_knight",
+      "breakpoints": true
     }
   ]
 }

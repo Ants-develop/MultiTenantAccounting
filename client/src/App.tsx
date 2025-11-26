@@ -30,6 +30,7 @@ import CRM from "@/pages/CRM";
 import Clients from "@/pages/admin/Clients";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
+import TaskList from "@/pages/tasks-bitrix/TaskList";
 import Messages from "@/pages/Messages";
 import Calendar from "@/pages/Calendar";
 
@@ -122,6 +123,9 @@ function ProtectedApp() {
           <Route path="/clients" component={Clients} />
           <Route path="/pipelines" component={PipelinesDashboard} />
           <Route path="/tasks" component={TasksDashboard} />
+          <Route path="/tasks-bitrix" component={TaskList} />
+          <Route path="/tasks-bitrix/:id" component={TaskList} />
+          <Route path="/tasks-bitrix/templates" component={TaskList} />
           <Route path="/messages" component={Messages} />
           <Route path="/calendar" component={Calendar} />
 

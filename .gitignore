@@ -266,6 +266,9 @@ dist
 tmp/
 temp/
 
+# Uploaded files
+uploads/
+
 # PM2 logs
 logs/
 *.log

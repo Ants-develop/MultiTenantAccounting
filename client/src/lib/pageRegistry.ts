@@ -31,6 +31,7 @@ import RSAdmin from "@/pages/rs/RSAdmin";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import TaskDetail from "@/pages/tasks/TaskDetail";
+import TaskList from "@/pages/tasks-bitrix/TaskList";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
 import JobsDashboard from "@/pages/jobs/JobsDashboard";
@@ -245,6 +246,22 @@ export const pageRegistry: PageConfig = {
     component: TaskDetail,
     path: "/tasks/:id",
     isDynamic: true,
+  },
+  "/tasks-bitrix": {
+    title: "Tasks (Bitrix24)",
+    component: TaskList,
+    path: "/tasks-bitrix",
+  },
+  "/tasks-bitrix/:id": {
+    title: "Task Detail",
+    component: TaskList,
+    path: "/tasks-bitrix/:id",
+    isDynamic: true,
+  },
+  "/tasks-bitrix/templates": {
+    title: "Task Templates",
+    component: TaskList,
+    path: "/tasks-bitrix/templates",
   },
   "/pipelines": {
     title: "Pipelines",

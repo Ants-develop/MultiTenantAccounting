@@ -1,11 +1,13 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric } from "drizzle-orm/pg-core";
+
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 const rs = pgSchema("rs");
 const accounting = pgSchema("accounting");
 const crm = pgSchema("crm");
+const tasksSchema = pgSchema("tasks");
 
 // Users table
 export const users = pgTable("users", {
@@ -1248,3 +1250,189 @@ export const messagesRelations = relations(messages, ({ one }) => ({
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertConversationParticipantSchema = createInsertSchema(conversationParticipants).omit({ id: true, joinedAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, updatedAt: true, isEdited: true, isDeleted: true });
+// Task Management Tables
+export const taskTemplates = tasksSchema.table("task_templates", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  data: jsonb("data").notNull(), // template payload
+  createdBy: integer("created_by").references(() => users.id),
+  isPublic: boolean("is_public").default(false),
+  scheduleEnabled: boolean("schedule_enabled").default(false),
+  scheduleConfig: jsonb("schedule_config").default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const tasksTable = tasksSchema.table("tasks", {
+  id: serial("id").primaryKey(),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  templateId: integer("template_id").references(() => taskTemplates.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("open"), // open/in_progress/review/done/cancelled
+  priority: text("priority").notNull().default("medium"), // low/medium/high/critical
+  tags: text("tags").array().default(sql`'{}'::text[]`),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  estimatedMinutes: integer("estimated_minutes"),
+  metadata: jsonb("metadata").default({}),
+  dueAt: timestamp("due_at"),
+  reminderAt: timestamp("reminder_at"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const taskChecklists = tasksSchema.table("task_checklists", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+  text: text("text").notNull(),
+  completed: boolean("completed").default(false),
+  assignedTo: integer("assigned_to").references(() => users.id),
+  orderIdx: integer("order_idx").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const taskDependencies = tasksSchema.table("task_dependencies", {
+  taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+  dependsOn: integer("depends_on").references(() => tasksTable.id, { onDelete: "restrict" }),
+}, (t) => ({
+  pk: primaryKey(t.taskId, t.dependsOn),
+}));
+
+export const taskAttachments = tasksSchema.table("task_attachments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+  uploadedBy: integer("uploaded_by").references(() => users.id),
+  filename: text("filename").notNull(),
+  filePath: text("file_path").notNull(),
+  fileSize: integer("file_size"),
+  mimeType: text("mime_type"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const taskComments = tasksSchema.table("task_comments", {
+  id: serial("id").primaryKey(),
+  taskId: integer("task_id").references(() => tasksTable.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => users.id),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Zod Schemas for Task Management
+export const insertTaskTemplateSchema = createInsertSchema(taskTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskSchema = createInsertSchema(tasksTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertTaskChecklistSchema = createInsertSchema(taskChecklists).omit({ id: true, createdAt: true });
+export const insertTaskDependencySchema = createInsertSchema(taskDependencies);
+export const insertTaskAttachmentSchema = createInsertSchema(taskAttachments).omit({ id: true, createdAt: true });
+export const insertTaskCommentSchema = createInsertSchema(taskComments).omit({ id: true, createdAt: true });
+
+
+
+export const tasksTableRelations = relations(tasksTable, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [tasksTable.clientId],
+    references: [clients.id],
+  }),
+  template: one(taskTemplates, {
+    fields: [tasksTable.templateId],
+    references: [taskTemplates.id],
+  }),
+  assignee: one(users, {
+    fields: [tasksTable.assignedTo],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [tasksTable.createdBy],
+    references: [users.id],
+  }),
+  checklists: many(taskChecklists),
+  dependencies: many(taskDependencies, { relationName: "dependencies" }),
+  dependents: many(taskDependencies, { relationName: "dependents" }),
+  attachments: many(taskAttachments),
+  comments: many(taskComments),
+}));
+
+export const taskChecklistsRelations = relations(taskChecklists, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskChecklists.taskId],
+    references: [tasksTable.id],
+  }),
+  assignee: one(users, {
+    fields: [taskChecklists.assignedTo],
+    references: [users.id],
+  }),
+}));
+
+export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskDependencies.taskId],
+    references: [tasksTable.id],
+    relationName: "dependencies",
+  }),
+  dependsOnTask: one(tasksTable, {
+    fields: [taskDependencies.dependsOn],
+    references: [tasksTable.id],
+    relationName: "dependents",
+  }),
+}));
+
+export const taskAttachmentsRelations = relations(taskAttachments, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskAttachments.taskId],
+    references: [tasksTable.id],
+  }),
+  uploader: one(users, {
+    fields: [taskAttachments.uploadedBy],
+    references: [users.id],
+  }),
+}));
+
+export const taskCommentsRelations = relations(taskComments, ({ one }) => ({
+  task: one(tasksTable, {
+    fields: [taskComments.taskId],
+    references: [tasksTable.id],
+  }),
+  user: one(users, {
+    fields: [taskComments.userId],
+    references: [users.id],
+  }),
+}));
+
+// Relations
+export const taskTemplatesRelations = relations(taskTemplates, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [taskTemplates.clientId],
+    references: [clients.id],
+  }),
+  creator: one(users, {
+    fields: [taskTemplates.createdBy],
+    references: [users.id],
+  }),
+  tasks: many(tasksTable),
+}));
+
+export const tasksRelations = relations(tasksTable, ({ one, many }) => ({
+  client: one(clients, {
+    fields: [tasksTable.clientId],
+    references: [clients.id],
+  }),
+  template: one(taskTemplates, {
+    fields: [tasksTable.templateId],
+    references: [taskTemplates.id],
+  }),
+  assignee: one(users, {
+    fields: [tasksTable.assignedTo],
+    references: [users.id],
+  }),
+  creator: one(users, {
+    fields: [tasksTable.createdBy],
+    references: [users.id],
+  }),
+  checklists: many(taskChecklists),
+  attachments: many(taskAttachments),
+  comments: many(taskComments),
+  dependencies: many(taskDependencies, { relationName: "dependencies" }),
+  dependents: many(taskDependencies, { relationName: "dependents" }),
+}));

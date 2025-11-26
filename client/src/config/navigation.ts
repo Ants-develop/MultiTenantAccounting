@@ -66,6 +66,12 @@ export const practiceManagementNavigation: NavigationItem[] = [
         permission: "TASKS_VIEW",
     },
     {
+        name: "Tasks (Bitrix24)",
+        href: "/tasks-bitrix",
+        icon: CheckSquare,
+        permission: "TASKS_VIEW",
+    },
+    {
         name: "Messages",
         href: "/messages",
         icon: MessageSquare,

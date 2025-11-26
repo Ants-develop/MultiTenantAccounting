@@ -32,6 +32,8 @@ import permissionsRouter from "./api/permissions";
 import pipelinesRouter from "./api/pipelines";
 import jobsRouter from "./api/jobs";
 import tasksRouter from "./api/tasks";
+import taskTemplatesRouter from "./api/task-templates";
+import tasksBitrixRouter from "./api/tasks-bitrix";
 import calendarRouter from "./api/calendar";
 import matrixRouter from "./api/matrix";
 import clientManagementRouter from "./api/client-management";
@@ -587,6 +589,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/pipelines', pipelinesRouter);
   app.use('/api/jobs', jobsRouter);
   app.use('/api/tasks', tasksRouter);
+  app.use('/api/task-templates', taskTemplatesRouter);
+  app.use('/api/tasks-bitrix', tasksBitrixRouter);
   app.use('/api/calendar', calendarRouter);
   app.use('/api/matrix', matrixRouter);
 
