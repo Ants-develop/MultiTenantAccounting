@@ -122,6 +122,12 @@ export const PERMISSIONS = {
   // RS Integration Module
   RS_VIEW: { module: 'rs', action: 'view', description: 'View RS integration data' },
   RS_EXPORT: { module: 'rs', action: 'export', description: 'Export RS data' },
+  
+  // Storage Module
+  STORAGE_VIEW: { module: 'storage', action: 'view', description: 'View storage buckets and files' },
+  STORAGE_CREATE: { module: 'storage', action: 'create', description: 'Create buckets and upload files' },
+  STORAGE_EDIT: { module: 'storage', action: 'edit', description: 'Rename files/folders, update metadata' },
+  STORAGE_DELETE: { module: 'storage', action: 'delete', description: 'Delete buckets, folders, and files' },
 } as const;
 
 // Role permissions mapping
@@ -158,6 +164,7 @@ export const ROLE_PERMISSIONS: Record<Role, (keyof typeof PERMISSIONS)[]> = {
     'TASKS_EDIT',
     'TASKS_COMPLETE',
     'RS_VIEW',
+    'STORAGE_VIEW',
   ],
   
   // Accountant - Full accounting operations except user/company management
@@ -219,6 +226,9 @@ export const ROLE_PERMISSIONS: Record<Role, (keyof typeof PERMISSIONS)[]> = {
     'RS_VIEW',
     'RS_EXPORT',
     'SETTINGS_VIEW',
+    'STORAGE_VIEW',
+    'STORAGE_CREATE',
+    'STORAGE_EDIT',
   ],
   
   // Manager - Full accounting + company management
@@ -298,6 +308,10 @@ export const ROLE_PERMISSIONS: Record<Role, (keyof typeof PERMISSIONS)[]> = {
     'USER_ASSIGN_ROLES',
     'COMPANY_VIEW',
     'COMPANY_EDIT',
+    'STORAGE_VIEW',
+    'STORAGE_CREATE',
+    'STORAGE_EDIT',
+    'STORAGE_DELETE',
   ],
   
   // Administrator - Full system access
@@ -380,6 +394,10 @@ export const ROLE_PERMISSIONS: Record<Role, (keyof typeof PERMISSIONS)[]> = {
     'COMPANY_CREATE',
     'COMPANY_EDIT',
     'COMPANY_DELETE',
+    'STORAGE_VIEW',
+    'STORAGE_CREATE',
+    'STORAGE_EDIT',
+    'STORAGE_DELETE',
   ],
 };
 

@@ -24,6 +24,7 @@ import Clients from "@/pages/admin/Clients";
 import ClientImport from "@/pages/admin/ClientImport";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
+import BackupRestore from "@/pages/admin/BackupRestore";
 import AccountingHome from "@/pages/accounting/AccountingHome";
 import AuditDashboard from "@/pages/audit/AuditDashboard";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
@@ -48,6 +49,7 @@ import TabulatorDemo from "@/pages/testing/TabulatorDemo";
 import CRM from "@/pages/CRM";
 import Messages from "@/pages/Messages";
 import Notifications from "@/pages/Notifications";
+import Storage from "@/pages/admin/Storage";
 
 export interface PageMetadata {
   title: string;
@@ -205,6 +207,11 @@ export const pageRegistry: PageConfig = {
     component: MSSQLImport,
     path: "/mssql-import",
   },
+  "/backup-restore": {
+    title: "Backup Restore",
+    component: BackupRestore,
+    path: "/backup-restore",
+  },
   "/admin/import-clients": {
     title: "Import Clients",
     component: ClientImport,
@@ -332,6 +339,11 @@ export const pageRegistry: PageConfig = {
     title: "Notifications",
     component: Notifications,
     path: "/notifications",
+  },
+  "/storage": {
+    title: "Storage",
+    component: Storage,
+    path: "/storage",
   },
 };
 

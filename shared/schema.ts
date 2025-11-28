@@ -1244,7 +1244,28 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
 }));
 
+// Backup & Restore History Table
+export const backupRestoreHistory = pgTable("backup_restore_history", {
+  id: serial("id").primaryKey(),
+  googleDriveFileId: text("google_drive_file_id"),
+  googleDriveFileName: text("google_drive_file_name").notNull(),
+  supabaseStoragePath: text("supabase_storage_path"),
+  fileHash: text("file_hash"),
+  storageSource: text("storage_source").notNull().default("google_drive"), // 'google_drive' or 'supabase_storage'
+  tempDatabaseName: text("temp_database_name"),
+  restoreStatus: text("restore_status").notNull().default("pending"), // 'pending', 'downloading', 'restoring', 'migrating', 'completed', 'failed'
+  clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
+  restoreOptions: jsonb("restore_options"),
+  startedAt: timestamp("started_at").defaultNow().notNull(),
+  completedAt: timestamp("completed_at"),
+  errorMessage: text("error_message"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertConversationParticipantSchema = createInsertSchema(conversationParticipants).omit({ id: true, joinedAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, updatedAt: true, isEdited: true, isDeleted: true });
+export const insertBackupRestoreHistorySchema = createInsertSchema(backupRestoreHistory).omit({ id: true, createdAt: true, updatedAt: true });

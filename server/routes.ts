@@ -39,6 +39,8 @@ import emailRouter from "./api/email";
 import automationsRouter from "./api/automations";
 import clientPortalRouter from "./api/client-portal";
 import notificationsRouter from "./routes/notifications";
+import backupRestoreRouter from "./api/backup-restore";
+import storageRouter from "./api/storage";
 
 declare module "express-session" {
   interface SessionData {
@@ -598,6 +600,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Client Portal
   app.use('/api/client-portal', clientPortalRouter);
+  app.use('/api/backup-restore', requireAuth, requireGlobalAdmin, backupRestoreRouter);
+  
+  // Storage Module
+  app.use('/api/storage', storageRouter);
 
   // Other Modules
   // Main company endpoints

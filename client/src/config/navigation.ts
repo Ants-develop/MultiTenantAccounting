@@ -20,7 +20,9 @@ import {
     Database,
     Upload,
     Bell,
-    Link
+    Link,
+    Archive,
+    HardDrive
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -168,6 +170,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
+        name: "Backup & Restore",
+        href: "/backup-restore",
+        icon: Archive,
+        requiresGlobalAdmin: true,
+    },
+    {
         name: "Bank Import",
         href: "/bank/import",
         icon: Upload,
@@ -190,6 +198,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         href: "/notifications",
         icon: Bell,
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "Storage",
+        href: "/storage",
+        icon: HardDrive,
+        permission: "STORAGE_VIEW",
     },
     {
         name: "Testing",
