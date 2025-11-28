@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS "activity_logs" (
 	"timestamp" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."automations" (
+CREATE TABLE IF NOT EXISTS "tasks"."automations" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"name" text NOT NULL,
@@ -65,7 +65,7 @@ CREATE TABLE "tasks"."automations" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "bank"."bank_accounts" (
+CREATE TABLE IF NOT EXISTS "bank"."bank_accounts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"account_name" text NOT NULL,
@@ -81,7 +81,7 @@ CREATE TABLE "bank"."bank_accounts" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "accounting"."bills" (
+CREATE TABLE IF NOT EXISTS "accounting"."bills" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"vendor_id" integer NOT NULL,
@@ -96,7 +96,7 @@ CREATE TABLE "accounting"."bills" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "checklist_templates" (
+CREATE TABLE IF NOT EXISTS "checklist_templates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"category" text,
@@ -108,7 +108,7 @@ CREATE TABLE "checklist_templates" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_checklists" (
+CREATE TABLE IF NOT EXISTS "crm"."client_checklists" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"template_id" integer,
@@ -119,7 +119,7 @@ CREATE TABLE "crm"."client_checklists" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_documents" (
+CREATE TABLE IF NOT EXISTS "crm"."client_documents" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -134,7 +134,7 @@ CREATE TABLE "crm"."client_documents" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_onboarding_forms" (
+CREATE TABLE IF NOT EXISTS "crm"."client_onboarding_forms" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"form_type" text NOT NULL,
@@ -145,7 +145,7 @@ CREATE TABLE "crm"."client_onboarding_forms" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_onboarding_steps" (
+CREATE TABLE IF NOT EXISTS "crm"."client_onboarding_steps" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"step_name" text NOT NULL,
@@ -157,7 +157,7 @@ CREATE TABLE "crm"."client_onboarding_steps" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_service_packages" (
+CREATE TABLE IF NOT EXISTS "crm"."client_service_packages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"package_name" text NOT NULL,
@@ -169,7 +169,7 @@ CREATE TABLE "crm"."client_service_packages" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "crm"."client_team_assignments" (
+CREATE TABLE IF NOT EXISTS "crm"."client_team_assignments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
@@ -178,7 +178,7 @@ CREATE TABLE "crm"."client_team_assignments" (
 	"assigned_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "clients" (
+CREATE TABLE IF NOT EXISTS "clients" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"code" text NOT NULL,
@@ -200,7 +200,7 @@ CREATE TABLE "clients" (
 	CONSTRAINT "clients_tenant_code_unique" UNIQUE("tenant_code")
 );
 --> statement-breakpoint
-CREATE TABLE "company_settings" (
+CREATE TABLE IF NOT EXISTS "company_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"email_notifications" boolean DEFAULT true,
@@ -234,7 +234,7 @@ CREATE TABLE "company_settings" (
 	CONSTRAINT "company_settings_client_id_unique" UNIQUE("client_id")
 );
 --> statement-breakpoint
-CREATE TABLE "conversation_participants" (
+CREATE TABLE IF NOT EXISTS "conversation_participants" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"conversation_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
@@ -243,7 +243,7 @@ CREATE TABLE "conversation_participants" (
 	"is_muted" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "conversations" (
+CREATE TABLE IF NOT EXISTS "conversations" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"title" text,
 	"type" text DEFAULT 'direct' NOT NULL,
@@ -255,7 +255,7 @@ CREATE TABLE "conversations" (
 	"is_archived" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "accounting"."customers" (
+CREATE TABLE IF NOT EXISTS "accounting"."customers" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -266,7 +266,7 @@ CREATE TABLE "accounting"."customers" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "email"."email_accounts" (
+CREATE TABLE IF NOT EXISTS "email"."email_accounts" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer,
 	"client_id" integer,
@@ -289,7 +289,7 @@ CREATE TABLE "email"."email_accounts" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "email"."email_messages" (
+CREATE TABLE IF NOT EXISTS "email"."email_messages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"email_account_id" integer NOT NULL,
 	"client_id" integer,
@@ -311,7 +311,7 @@ CREATE TABLE "email"."email_messages" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "email"."email_routing_rules" (
+CREATE TABLE IF NOT EXISTS "email"."email_routing_rules" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer,
 	"rule_type" text NOT NULL,
@@ -324,7 +324,7 @@ CREATE TABLE "email"."email_routing_rules" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "email"."email_templates" (
+CREATE TABLE IF NOT EXISTS "email"."email_templates" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"subject" text NOT NULL,
@@ -338,7 +338,7 @@ CREATE TABLE "email"."email_templates" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."events" (
+CREATE TABLE IF NOT EXISTS "tasks"."events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"title" text NOT NULL,
@@ -358,7 +358,7 @@ CREATE TABLE "tasks"."events" (
 );
 --> statement-breakpoint
 --> statement-breakpoint
-CREATE TABLE "accounting"."invoices" (
+CREATE TABLE IF NOT EXISTS "accounting"."invoices" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"customer_id" integer NOT NULL,
@@ -373,7 +373,7 @@ CREATE TABLE "accounting"."invoices" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."jobs" (
+CREATE TABLE IF NOT EXISTS "tasks"."jobs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"pipeline_id" integer,
@@ -392,7 +392,7 @@ CREATE TABLE "tasks"."jobs" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "accounting"."journal_entries" (
+CREATE TABLE IF NOT EXISTS "accounting"."journal_entries" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"entry_number" text NOT NULL,
@@ -455,7 +455,7 @@ CREATE TABLE "accounting"."journal_entries" (
 	CONSTRAINT "journal_entries_client_id_entry_number_key" UNIQUE("client_id", "entry_number")
 );
 --> statement-breakpoint
-CREATE TABLE "accounting"."journal_entry_lines" (
+CREATE TABLE IF NOT EXISTS "accounting"."journal_entry_lines" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"journal_entry_id" integer NOT NULL,
 	"account_id" integer NOT NULL,
@@ -465,7 +465,7 @@ CREATE TABLE "accounting"."journal_entry_lines" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "main_company_settings" (
+CREATE TABLE IF NOT EXISTS "main_company_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"code" text NOT NULL,
@@ -505,7 +505,7 @@ CREATE TABLE "main_company_settings" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "messages" (
+CREATE TABLE IF NOT EXISTS "messages" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"conversation_id" integer NOT NULL,
 	"sender_id" integer NOT NULL,
@@ -518,7 +518,7 @@ CREATE TABLE "messages" (
 	"is_deleted" boolean DEFAULT false NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "migration_errors" (
+CREATE TABLE IF NOT EXISTS "migration_errors" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"migration_id" text NOT NULL,
 	"timestamp" timestamp DEFAULT now() NOT NULL,
@@ -529,7 +529,7 @@ CREATE TABLE "migration_errors" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "migration_history" (
+CREATE TABLE IF NOT EXISTS "migration_history" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"migration_id" text NOT NULL,
 	"type" text NOT NULL,
@@ -550,7 +550,7 @@ CREATE TABLE "migration_history" (
 	CONSTRAINT "migration_history_migration_id_unique" UNIQUE("migration_id")
 );
 --> statement-breakpoint
-CREATE TABLE "migration_logs" (
+CREATE TABLE IF NOT EXISTS "migration_logs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"migration_id" text NOT NULL,
 	"timestamp" timestamp DEFAULT now() NOT NULL,
@@ -560,7 +560,7 @@ CREATE TABLE "migration_logs" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "bank"."normalized_bank_transactions" (
+CREATE TABLE IF NOT EXISTS "bank"."normalized_bank_transactions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"bank_account_id" integer NOT NULL,
@@ -583,7 +583,7 @@ CREATE TABLE "bank"."normalized_bank_transactions" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "notifications" (
+CREATE TABLE IF NOT EXISTS "notifications" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"type" text NOT NULL,
@@ -595,7 +595,7 @@ CREATE TABLE "notifications" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."pipelines" (
+CREATE TABLE IF NOT EXISTS "tasks"."pipelines" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"name" text NOT NULL,
@@ -607,7 +607,7 @@ CREATE TABLE "tasks"."pipelines" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "bank"."raw_bank_transactions" (
+CREATE TABLE IF NOT EXISTS "bank"."raw_bank_transactions" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"bank_account_id" integer,
@@ -641,7 +641,7 @@ CREATE TABLE "bank"."raw_bank_transactions" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "rs"."users" (
+CREATE TABLE IF NOT EXISTS "rs"."users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"company_name" text NOT NULL,
 	"s_user" text NOT NULL,
@@ -1310,7 +1310,7 @@ CREATE TABLE IF NOT EXISTS "audit"."writeoff_stock" (
 	PRIMARY KEY (tenant_code, posting_month, account_number, analytic)
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."subtasks" (
+CREATE TABLE IF NOT EXISTS "tasks"."subtasks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"task_id" integer NOT NULL,
 	"title" text NOT NULL,
@@ -1320,7 +1320,7 @@ CREATE TABLE "tasks"."subtasks" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."task_assignments" (
+CREATE TABLE IF NOT EXISTS "tasks"."task_assignments" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"task_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
@@ -1329,7 +1329,7 @@ CREATE TABLE "tasks"."task_assignments" (
 	"assigned_by" integer
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."tasks" (
+CREATE TABLE IF NOT EXISTS "tasks"."tasks" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"job_id" integer,
@@ -1354,7 +1354,7 @@ CREATE TABLE "tasks"."tasks" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."activity_log" (
+CREATE TABLE IF NOT EXISTS "tasks"."activity_log" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"workspace_id" integer,
 	"user_id" integer,
@@ -1367,7 +1367,7 @@ CREATE TABLE "tasks"."activity_log" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "user_client_features" (
+CREATE TABLE IF NOT EXISTS "user_client_features" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"client_id" integer NOT NULL,
@@ -1381,7 +1381,7 @@ CREATE TABLE "user_client_features" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "user_client_modules" (
+CREATE TABLE IF NOT EXISTS "user_client_modules" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"client_id" integer NOT NULL,
@@ -1394,7 +1394,7 @@ CREATE TABLE "user_client_modules" (
 	"updated_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "user_companies" (
+CREATE TABLE IF NOT EXISTS "user_companies" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer,
 	"client_id" integer NOT NULL,
@@ -1403,7 +1403,7 @@ CREATE TABLE "user_companies" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"username" text NOT NULL,
 	"email" text NOT NULL,
@@ -1418,7 +1418,7 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
-CREATE TABLE "accounting"."vendors" (
+CREATE TABLE IF NOT EXISTS "accounting"."vendors" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"client_id" integer NOT NULL,
 	"name" text NOT NULL,
@@ -1429,7 +1429,7 @@ CREATE TABLE "accounting"."vendors" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "tasks"."workspaces" (
+CREATE TABLE IF NOT EXISTS "tasks"."workspaces" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"code" text,
