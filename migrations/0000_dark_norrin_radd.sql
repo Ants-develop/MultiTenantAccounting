@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS "accounting"."accounts" (
 	"created_at" timestamp DEFAULT now()
 );
 --> statement-breakpoint
-CREATE TABLE "activity_logs" (
+CREATE TABLE IF NOT EXISTS "activity_logs" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer,
 	"client_id" integer,
