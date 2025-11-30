@@ -1821,6 +1821,11 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Helper Function (010)
+-- Drop any existing versions first to avoid "function name is not unique" error
+DROP FUNCTION IF EXISTS tenant_code_to_int(TEXT);
+DROP FUNCTION IF EXISTS tenant_code_to_int(VARCHAR);
+DROP FUNCTION IF EXISTS tenant_code_to_int(VARCHAR(50));
+
 CREATE OR REPLACE FUNCTION tenant_code_to_int(tenant_code_val TEXT)
 RETURNS INTEGER AS $$
 BEGIN
@@ -2219,12 +2224,15 @@ DROP FUNCTION IF EXISTS update_updated_at_column();
 DROP FUNCTION IF EXISTS update_migration_history_updated_at();
 DROP FUNCTION IF EXISTS email.update_email_updated_at();
 DROP FUNCTION IF EXISTS crm.update_crm_updated_at();
-DROP FUNCTION IF EXISTS tasks.update_updated_at_column();
+DROP FUNCTION IF EXISTS tasks.update_updated_at_column() CASCADE;
 DROP FUNCTION IF EXISTS rs.set_updated_at();
 DROP FUNCTION IF EXISTS bank.update_bank_updated_at();
 DROP FUNCTION IF EXISTS update_clients_updated_at();
 DROP FUNCTION IF EXISTS update_company_settings_updated_at();
+-- Drop all versions of tenant_code_to_int to avoid "function name is not unique" error
 DROP FUNCTION IF EXISTS tenant_code_to_int(TEXT);
+DROP FUNCTION IF EXISTS tenant_code_to_int(VARCHAR);
+DROP FUNCTION IF EXISTS tenant_code_to_int(VARCHAR(50));
 
 -- Drop all schemas
 DROP SCHEMA IF EXISTS email CASCADE;
