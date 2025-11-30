@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
@@ -325,9 +325,6 @@ export default function MSSQLImport() {
   const [showHistoricalMigrations, setShowHistoricalMigrations] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
-  // Google Drive restore state
-  const [googleDriveFileId, setGoogleDriveFileId] = useState('');
-  const [yearOffset, setYearOffset] = useState(-2000);
 
   const { user } = useAuth();
   const { toast } = useToast();
@@ -457,6 +454,7 @@ export default function MSSQLImport() {
     },
     enabled: !!selectedClientId,
   });
+
 
   // Start migration mutation
   const startMigrationMutation = useMutation<MigrationResult, Error, MigrationForm>({
@@ -704,53 +702,6 @@ export default function MSSQLImport() {
     },
   });
 
-  // Google Drive restore mutation
-  const restoreFromDriveMutation = useMutation<MigrationResult, Error, { fileId: string; fileName: string; yearOffset: number }>({
-    mutationFn: async (data) => {
-      console.log('Starting Google Drive restore:', { data, selectedTenant, selectedClientId });
-
-      if (!selectedClientId) {
-        throw new Error("No client selected. Please select a valid client.");
-      }
-      if (!selectedTenant) {
-        throw new Error("No tenant selected. Please select a tenant code.");
-      }
-
-      const response = await apiRequest('POST', '/api/mssql/restore-from-drive', {
-        fileId: data.fileId,
-        fileName: data.fileName,
-        yearOffset: data.yearOffset,
-        migrationType: 'general-ledger',
-        tenantCode: selectedTenant.tenantCode,
-        clientId: selectedClientId,
-        batchSize: 1000,
-      });
-      return response.json();
-    },
-    onSuccess: (result) => {
-      if (result.success) {
-        toast({
-          title: "Restore Started",
-          description: "Downloading and restoring .bak file from Google Drive. This may take several minutes.",
-        });
-        setIsPolling(true);
-        refetchMigrationStatus();
-      } else {
-        toast({
-          title: "Restore Failed",
-          description: result.message,
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleStartMigration = (data: MigrationForm) => {
     console.log('handleStartMigration called with:', { data, selectedTenant, selectedClientId });
@@ -820,6 +771,41 @@ export default function MSSQLImport() {
     const diffSecs = Math.floor((diffMs % 60000) / 1000);
     return `${diffMins}m ${diffSecs}s`;
   };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
+  };
+
+  const formatDate = (dateString: string): string => {
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Completed</Badge>;
+      case "failed":
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Failed</Badge>;
+      case "pending":
+        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+      case "downloading":
+      case "uploading":
+      case "restoring":
+      case "migrating":
+        return <Badge className="bg-blue-600"><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> {status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
 
   // Filter tenant codes based on search query
   const filteredTenantCodes = tenantCodes.filter((tenant) => {
@@ -972,94 +958,6 @@ export default function MSSQLImport() {
         </CardContent>
       </Card>
 
-      {/* Google Drive .bak File Import */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Download className="w-5 h-5 mr-2" />
-            Google Drive .bak File Import
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Download .bak file from Google Drive, restore to MSSQL, adjust dates, and import to PostgreSQL
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <Label htmlFor="googleDriveFileId">Google Drive File ID</Label>
-            <Input
-              id="googleDriveFileId"
-              placeholder="Enter Google Drive file ID (from share link)"
-              value={googleDriveFileId}
-              onChange={(e) => setGoogleDriveFileId(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Get the file ID from the Google Drive share link
-            </p>
-          </div>
-
-          <div>
-            <Label htmlFor="yearOffset">Date Adjustment (years)</Label>
-            <Input
-              id="yearOffset"
-              type="number"
-              placeholder="-2000"
-              value={yearOffset}
-              onChange={(e) => setYearOffset(parseInt(e.target.value) || -2000)}
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Number of years to add to all dates. Default: -2000 (subtract 2000 years)
-            </p>
-            {yearOffset !== -2000 && (
-              <p className="text-xs text-amber-600 mt-1">
-                ⚠️ Custom year offset: {yearOffset > 0 ? '+' : ''}{yearOffset} years
-              </p>
-            )}
-          </div>
-
-          <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md border border-blue-200 dark:border-blue-800">
-            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-              Process Steps:
-            </h4>
-            <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
-              <li>Download .bak file from Google Drive</li>
-              <li>Upload to Supabase Storage for archival</li>
-              <li>Restore .bak file to MSSQL Server</li>
-              <li>Adjust dates in GeneralLedger (subtract 2000 years)</li>
-              <li>Transfer data to Audit database</li>
-              <li>Migrate from Audit to PostgreSQL</li>
-              <li>Clean up temporary database</li>
-            </ol>
-          </div>
-
-          <Button
-            onClick={() => restoreFromDriveMutation.mutate({
-              fileId: googleDriveFileId,
-              fileName: `backup_${Date.now()}.bak`,
-              yearOffset: yearOffset,
-            })}
-            disabled={!googleDriveFileId || !selectedClientId || !selectedTenant || restoreFromDriveMutation.isPending}
-            className="w-full"
-          >
-            {restoreFromDriveMutation.isPending ? (
-              <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Download, Restore & Import
-              </>
-            )}
-          </Button>
-
-          {(!selectedClientId || !selectedTenant) && (
-            <p className="text-xs text-amber-600">
-              ⚠️ Please select a client and tenant code first
-            </p>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Active Migration Status */}
       {statusLoading ? (
@@ -1958,6 +1856,7 @@ export default function MSSQLImport() {
           </form>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

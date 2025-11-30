@@ -170,9 +170,15 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
-        name: "Backup & Restore",
+        name: "Backup Restore",
         href: "/backup-restore",
         icon: Archive,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "MSSQL Migration",
+        href: "/mssql-migration",
+        icon: Upload,
         requiresGlobalAdmin: true,
     },
     {

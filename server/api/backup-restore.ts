@@ -6,9 +6,16 @@ import { listBackupFiles, getFileMetadata, generateAuthUrl, exchangeCodeForToken
 import {
   restoreBackupFromDrive,
   restoreBackupFromStorage,
+  restoreBackupFromDownload,
   getRestoreStatus,
   listRestoreHistory,
 } from "../services/mssql-restore";
+import {
+  downloadBackupFromDrive,
+  getDownloadRecord,
+  listDownloads,
+  deleteDownload,
+} from "../services/backup-download";
 import {
   listBackupsFromStorage,
   uploadBackupToStorage,
@@ -17,7 +24,9 @@ import {
   ensureBackupsBucket,
 } from "../services/backup-storage";
 import { db } from "../db";
-import { backupRestoreHistory } from "@shared/schema";
+import { mssqlRestores } from "@shared/schema";
+// Backward compatibility
+const backupRestoreHistory = mssqlRestores;
 import { sql as drizzleSql, desc, eq, and } from "drizzle-orm";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 import { calculateFileHash } from "../services/google-drive";
@@ -146,15 +155,86 @@ router.get("/drive-files", async (req: any, res: any) => {
 /**
  * GET /api/backup-restore/storage-files
  * List backup files from Supabase Storage
+ * Returns empty array if storage is not configured or bucket doesn't exist
  */
 router.get("/storage-files", async (req: any, res: any) => {
   try {
     const backups = await listBackupsFromStorage();
     res.json(backups);
   } catch (error: any) {
-    console.error("Error listing storage backups:", error);
+    // Gracefully handle errors - return empty array instead of failing
+    // This allows the UI to work even if Supabase Storage is not configured
+    console.error("Error listing storage backups (returning empty array):", error.message);
+    res.json([]);
+  }
+});
+
+/**
+ * POST /api/backup-restore/download
+ * Download .bak file from Google Drive to local server storage (Phase 1)
+ */
+router.post("/download", async (req: any, res: any) => {
+  try {
+    const { fileId, fileName } = req.body;
+    const userId = req.session?.userId;
+
+    if (!fileId || !fileName) {
+      return res.status(400).json({ error: "fileId and fileName are required" });
+    }
+
+    const result = await downloadBackupFromDrive(fileId, fileName, userId);
+
+    res.json({
+      downloadId: result.downloadId,
+      localFilePath: result.localFilePath,
+      fileSize: result.fileSize,
+      fileHash: result.fileHash,
+      message: "Download started successfully",
+    });
+  } catch (error: any) {
+    console.error("Error downloading backup:", error);
     res.status(500).json({ 
-      error: error.message || "Failed to list Supabase Storage backups",
+      error: error.message || "Failed to download backup file",
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/downloads
+ * List all downloads (Phase 1)
+ */
+router.get("/downloads", async (req: any, res: any) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+    const downloads = await listDownloads(limit, offset);
+    res.json(downloads);
+  } catch (error: any) {
+    console.error("Error listing downloads:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to list downloads",
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/downloads/:id
+ * Get download details (Phase 1)
+ */
+router.get("/downloads/:id", async (req: any, res: any) => {
+  try {
+    const downloadId = parseInt(req.params.id);
+    const download = await getDownloadRecord(downloadId);
+    
+    if (!download) {
+      return res.status(404).json({ error: "Download not found" });
+    }
+
+    res.json(download);
+  } catch (error: any) {
+    console.error("Error getting download:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to get download",
     });
   }
 });
@@ -177,19 +257,21 @@ router.post("/upload-to-storage", upload.single("file"), async (req: any, res: a
       fileName
     );
 
-    // Create history record
+    // Create history record (legacy - for backward compatibility)
     const [record] = await db
-      .insert(backupRestoreHistory)
+      .insert(mssqlRestores)
       .values({
         supabaseStoragePath: result.path,
         googleDriveFileName: fileName,
         fileHash: result.hash,
         storageSource: 'supabase_storage',
         restoreStatus: 'completed',
+        restoredDbName: `STORAGE_${Date.now()}`, // Placeholder
+        restoreTimestamp: new Date(),
         clientId: null, // Global storage, no clientId
-        startedAt: new Date(),
         completedAt: new Date(),
         createdBy: req.session.userId,
+        isActive: false, // Not a real restore
       })
       .returning();
 
@@ -414,6 +496,216 @@ router.delete("/storage-files/*", async (req: any, res: any) => {
     console.error("Error deleting backup from storage:", error);
     res.status(500).json({ 
       error: error.message || "Failed to delete backup from storage",
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/restored-databases
+ * List all restored MSSQL databases
+ */
+router.get("/restored-databases", requireAuth, async (req: any, res: any) => {
+  try {
+    const clientId = req.query.clientId ? parseInt(req.query.clientId) : undefined;
+    const isActive = req.query.isActive !== 'false'; // Default to true
+
+    let query = db.select().from(mssqlRestores);
+
+    if (clientId) {
+      query = query.where(and(
+        eq(mssqlRestores.clientId, clientId),
+        eq(mssqlRestores.isActive, isActive)
+      )) as any;
+    } else {
+      query = query.where(eq(mssqlRestores.isActive, isActive)) as any;
+    }
+
+    const records = await query
+      .orderBy(desc(mssqlRestores.restoreTimestamp))
+      .limit(100);
+
+    res.json(records);
+  } catch (error: any) {
+    console.error("Error fetching restored databases:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to fetch restored databases",
+    });
+  }
+});
+
+/**
+ * POST /api/backup-restore/migrate
+ * Execute migration from restored database
+ */
+router.post("/migrate", requireAuth, async (req: any, res: any) => {
+  try {
+    const { restoreId, migrationType, tenantCode, clientId, batchSize, postingsPeriodFrom, postingsPeriodTo } = req.body;
+
+    if (!restoreId || !migrationType || !tenantCode || !clientId) {
+      return res.status(400).json({ 
+        error: "Missing required fields: restoreId, migrationType, tenantCode, clientId" 
+      });
+    }
+
+    // Get restore record
+    const [restoreRecord] = await db
+      .select()
+      .from(mssqlRestores)
+      .where(eq(mssqlRestores.id, restoreId))
+      .limit(1);
+
+    if (!restoreRecord) {
+      return res.status(404).json({ error: "Restore record not found" });
+    }
+
+    if (restoreRecord.restoreStatus !== 'completed') {
+      return res.status(400).json({ 
+        error: `Cannot migrate from database with status: ${restoreRecord.restoreStatus}` 
+      });
+    }
+
+    // Import migration functions
+    const { migrateGeneralLedger, exportToAudit, connectMSSQL } = await import('../services/mssql-migration');
+
+    // Connect to restored database
+    const mssqlPool = await connectMSSQL(restoreRecord.restoredDbName);
+
+    let migrationLogId: number | null = null;
+
+    try {
+      // Create migration log record
+      const { backupMigrationLogs } = await import('@shared/schema');
+      const [logRecord] = await db
+        .insert(backupMigrationLogs)
+        .values({
+          restoreId: restoreId,
+          sourceTable: migrationType === 'general-ledger' ? 'GeneralLedger' : 'Audit',
+          targetTable: migrationType === 'general-ledger' ? 'general_ledger' : 'audit',
+          status: 'running',
+          migrationTimestamp: new Date(),
+          createdBy: req.session.userId,
+        })
+        .returning();
+
+      migrationLogId = logRecord.id;
+
+      // Execute migration based on type
+      if (migrationType === 'general-ledger') {
+        await migrateGeneralLedger(
+          mssqlPool,
+          tenantCode,
+          clientId,
+          batchSize || 1000,
+          postingsPeriodFrom,
+          postingsPeriodTo
+        );
+      } else if (migrationType === 'audit') {
+        await exportToAudit(
+          mssqlPool,
+          tenantCode,
+          clientId,
+          batchSize || 1000
+        );
+      } else {
+        throw new Error(`Unsupported migration type: ${migrationType}`);
+      }
+
+      // Update migration log
+      await db
+        .update(backupMigrationLogs)
+        .set({
+          status: 'completed',
+          updatedAt: new Date(),
+        })
+        .where(eq(backupMigrationLogs.id, migrationLogId));
+
+      await mssqlPool.close();
+
+      res.json({ 
+        success: true, 
+        message: "Migration completed successfully",
+        migrationLogId 
+      });
+    } catch (error: any) {
+      // Update migration log with error
+      if (migrationLogId) {
+        const { backupMigrationLogs } = await import('@shared/schema');
+        await db
+          .update(backupMigrationLogs)
+          .set({
+            status: 'failed',
+            errorLog: error.message,
+            updatedAt: new Date(),
+          })
+          .where(eq(backupMigrationLogs.id, migrationLogId));
+      }
+
+      await mssqlPool.close();
+      throw error;
+    }
+  } catch (error: any) {
+    console.error("Error executing migration:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to execute migration",
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/migration-logs
+ * Get migration history
+ */
+router.get("/migration-logs", requireAuth, async (req: any, res: any) => {
+  try {
+    const restoreId = req.query.restoreId ? parseInt(req.query.restoreId) : undefined;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 50;
+    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+
+    const { backupMigrationLogs } = await import('@shared/schema');
+    let query = db.select().from(backupMigrationLogs);
+
+    if (restoreId) {
+      query = query.where(eq(backupMigrationLogs.restoreId, restoreId)) as any;
+    }
+
+    const records = await query
+      .orderBy(desc(backupMigrationLogs.migrationTimestamp))
+      .limit(limit)
+      .offset(offset);
+
+    res.json(records);
+  } catch (error: any) {
+    console.error("Error fetching migration logs:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to fetch migration logs",
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/migration-logs/:id
+ * Get specific migration log details
+ */
+router.get("/migration-logs/:id", requireAuth, async (req: any, res: any) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { backupMigrationLogs } = await import('@shared/schema');
+
+    const [record] = await db
+      .select()
+      .from(backupMigrationLogs)
+      .where(eq(backupMigrationLogs.id, id))
+      .limit(1);
+
+    if (!record) {
+      return res.status(404).json({ error: "Migration log not found" });
+    }
+
+    res.json(record);
+  } catch (error: any) {
+    console.error("Error fetching migration log:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to fetch migration log",
     });
   }
 });

@@ -1244,19 +1244,39 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
 }));
 
-// Backup & Restore History Table
-export const backupRestoreHistory = pgTable("backup_restore_history", {
+// Google Drive Downloads Table (Phase 1)
+export const gdriveDownloads = pgTable("gdrive_downloads", {
   id: serial("id").primaryKey(),
-  googleDriveFileId: text("google_drive_file_id"),
+  gdriveFileId: text("gdrive_file_id").notNull(),
+  filename: text("filename").notNull(),
+  downloadTimestamp: timestamp("download_timestamp").defaultNow().notNull(),
+  fileSizeBytes: numeric("file_size_bytes"),
+  localFilePath: text("local_file_path").notNull(),
+  status: text("status").notNull().default("pending"), // 'pending', 'downloading', 'completed', 'failed'
+  fileHash: text("file_hash"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// MSSQL Restores Table (Phase 2) - Enhanced from backup_restore_history
+export const mssqlRestores = pgTable("mssql_restores", {
+  id: serial("id").primaryKey(),
+  downloadId: integer("download_id").references(() => gdriveDownloads.id, { onDelete: "set null" }),
+  googleDriveFileId: text("google_drive_file_id"), // Keep for backward compatibility
   googleDriveFileName: text("google_drive_file_name").notNull(),
   supabaseStoragePath: text("supabase_storage_path"),
   fileHash: text("file_hash"),
   storageSource: text("storage_source").notNull().default("google_drive"), // 'google_drive' or 'supabase_storage'
-  tempDatabaseName: text("temp_database_name"),
+  restoredDbName: text("restored_db_name").notNull(), // Renamed from tempDatabaseName
+  restoreTimestamp: timestamp("restore_timestamp").defaultNow().notNull(), // Renamed from startedAt
+  originalBackupDate: timestamp("original_backup_date"), // From MSSQL backup header
+  databaseSizeMb: decimal("database_size_mb", { precision: 10, scale: 2 }), // Calculated after restore
+  isActive: boolean("is_active").default(true), // For cleanup tracking
+  localBackupPath: text("local_backup_path"), // Path to downloaded .bak file
   restoreStatus: text("restore_status").notNull().default("pending"), // 'pending', 'downloading', 'restoring', 'migrating', 'completed', 'failed'
   clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
   restoreOptions: jsonb("restore_options"),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
   createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -1264,8 +1284,32 @@ export const backupRestoreHistory = pgTable("backup_restore_history", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Backup Migration Logs Table (Phase 3) - Tracks migrations from restored MSSQL databases to PostgreSQL
+export const backupMigrationLogs = pgTable("backup_migration_logs", {
+  id: serial("id").primaryKey(),
+  restoreId: integer("restore_id").references(() => mssqlRestores.id, { onDelete: "cascade" }),
+  sourceTable: text("source_table").notNull(),
+  targetTable: text("target_table").notNull(),
+  recordsProcessed: integer("records_processed").default(0),
+  recordsInserted: integer("records_inserted").default(0),
+  recordsFailed: integer("records_failed").default(0),
+  migrationTimestamp: timestamp("migration_timestamp").defaultNow().notNull(),
+  status: text("status").notNull().default("pending"), // 'pending', 'running', 'completed', 'failed'
+  errorLog: text("error_log"),
+  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Legacy table name for backward compatibility (will be migrated)
+export const backupRestoreHistory = mssqlRestores;
+
 // Insert schemas
 export const insertConversationSchema = createInsertSchema(conversations).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertConversationParticipantSchema = createInsertSchema(conversationParticipants).omit({ id: true, joinedAt: true });
 export const insertMessageSchema = createInsertSchema(messages).omit({ id: true, createdAt: true, updatedAt: true, isEdited: true, isDeleted: true });
-export const insertBackupRestoreHistorySchema = createInsertSchema(backupRestoreHistory).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertGdriveDownloadsSchema = createInsertSchema(gdriveDownloads).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertMssqlRestoresSchema = createInsertSchema(mssqlRestores).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertBackupMigrationLogsSchema = createInsertSchema(backupMigrationLogs).omit({ id: true, createdAt: true, updatedAt: true });
+// Legacy schema for backward compatibility
+export const insertBackupRestoreHistorySchema = insertMssqlRestoresSchema;

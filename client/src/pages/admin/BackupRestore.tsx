@@ -1,92 +1,40 @@
 import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Database,
-  Download,
-  RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  XCircle,
-  Clock,
-  Play,
-  Square,
-  FileArchive,
-  Settings,
-  Key,
-  Copy,
-  ExternalLink,
-  Upload,
-  HardDrive,
-  Cloud,
-  Trash2,
+  FileArchive, RefreshCw, AlertTriangle, CheckCircle, XCircle,
+  Play, Clock, Cloud, HardDrive, Key, Copy, ChevronDown, ChevronRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { backupRestoreApi, DriveFile, RestoreStatus, RestoreOptions, RestoreHistory, ConfigStatus, StorageBackup } from "@/api/backup-restore";
 import { apiRequest } from "@/lib/queryClient";
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 Bytes";
-  const k = 1024;
-  const sizes = ["Bytes", "KB", "MB", "GB"];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
-}
-
-function formatDate(dateString: string): string {
-  try {
-    return new Date(dateString).toLocaleString();
-  } catch {
-    return dateString;
-  }
-}
-
-function getStatusBadge(status: string) {
-  switch (status) {
-    case "completed":
-      return <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Completed</Badge>;
-    case "failed":
-      return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Failed</Badge>;
-    case "pending":
-      return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
-    case "downloading":
-    case "uploading":
-    case "restoring":
-    case "migrating":
-      return <Badge className="bg-blue-600"><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> {status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
-    default:
-      return <Badge variant="outline">{status}</Badge>;
-  }
-}
+import { backupRestoreApi, DriveFile, StorageBackup, RestoreOptions, RestoreHistory, ConfigStatus } from "@/api/backup-restore";
 
 export default function BackupRestore() {
-
-  const [selectedFile, setSelectedFile] = useState<DriveFile | null>(null);
+  const [selectedDriveFile, setSelectedDriveFile] = useState<DriveFile | null>(null);
   const [selectedStorageBackup, setSelectedStorageBackup] = useState<StorageBackup | null>(null);
-  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
-  const [restoreOptions, setRestoreOptions] = useState<RestoreOptions>({
-    migrationType: "general-ledger",
-    batchSize: 1000,
-  });
-  const [activeRestoreId, setActiveRestoreId] = useState<number | null>(null);
-  const [monitoringRestore, setMonitoringRestore] = useState(false);
+  const [isRestoreConfirmOpen, setIsRestoreConfirmOpen] = useState(false);
   const [isOAuthModalOpen, setIsOAuthModalOpen] = useState(false);
   const [authUrl, setAuthUrl] = useState<string>("");
   const [authCode, setAuthCode] = useState<string>("");
   const [refreshToken, setRefreshToken] = useState<string>("");
   const [oauthStep, setOauthStep] = useState<"url" | "code" | "success">("url");
-  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [activeRestoreId, setActiveRestoreId] = useState<number | null>(null);
+  const [monitoringRestore, setMonitoringRestore] = useState(false);
+  const [showRestoreHistory, setShowRestoreHistory] = useState(false);
+  const [driveFilesLimit, setDriveFilesLimit] = useState(5);
+  const [storageBackupsLimit, setStorageBackupsLimit] = useState(5);
+  const [googleDriveFileId, setGoogleDriveFileId] = useState('');
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -106,7 +54,7 @@ export default function BackupRestore() {
     retry: false,
   });
 
-  // Fetch storage backups
+  // Fetch storage backups (only if configured)
   const { data: storageBackups = [], isLoading: storageLoading, refetch: refetchStorage } = useQuery<StorageBackup[]>({
     queryKey: ["/api/backup-restore/storage-files"],
     queryFn: () => backupRestoreApi.listStorageBackups(),
@@ -116,7 +64,7 @@ export default function BackupRestore() {
   // Fetch restore history
   const { data: restoreHistory = [], refetch: refetchHistory } = useQuery<RestoreHistory[]>({
     queryKey: ["/api/backup-restore/history"],
-    queryFn: () => backupRestoreApi.fetchRestoreHistory(),
+    queryFn: () => backupRestoreApi.fetchRestoreHistory(undefined),
   });
 
   // Monitor active restore
@@ -146,14 +94,32 @@ export default function BackupRestore() {
     return () => clearInterval(interval);
   }, [activeRestoreId, monitoringRestore, queryClient, refetchStorage, toast]);
 
-  // Start restore mutation
-  const startRestoreMutation = useMutation({
-    mutationFn: (data: { fileId?: string; fileName?: string; storagePath?: string; options: RestoreOptions }) =>
-      backupRestoreApi.startRestore(data.fileId, data.fileName, data.storagePath, data.options),
+  // Enhanced restore mutation supporting both Google Drive and Supabase Storage
+  const restoreFromDriveMutation = useMutation<
+    { restoreId: number; message: string },
+    Error,
+    { fileId?: string; fileName?: string; storagePath?: string; options?: RestoreOptions }
+  >({
+    mutationFn: async (data) => {
+      // Build restore options - just restore, no migration
+      const options: RestoreOptions = {
+        clientId: undefined, // Client selection is not needed for restore
+      };
+
+      const result = await backupRestoreApi.startRestore(
+        data.fileId,
+        data.fileName,
+        data.storagePath,
+        options
+      );
+      return result;
+    },
     onSuccess: (result) => {
       setActiveRestoreId(result.restoreId);
       setMonitoringRestore(true);
-      setIsRestoreDialogOpen(false);
+      setIsRestoreConfirmOpen(false);
+      setSelectedDriveFile(null);
+      setSelectedStorageBackup(null);
       toast({
         title: "Success",
         description: "Restore process started",
@@ -168,120 +134,118 @@ export default function BackupRestore() {
     },
   });
 
-  // Upload to storage mutation
-  const uploadToStorageMutation = useMutation({
-    mutationFn: (data: { file: File }) =>
-      backupRestoreApi.uploadBackupToStorage(data.file),
-    onSuccess: () => {
-      setIsUploadDialogOpen(false);
-      setUploadFile(null);
-      refetchStorage();
-      queryClient.invalidateQueries({ queryKey: ["/api/backup-restore/history"] });
-      toast({
-        title: "Success",
-        description: "Backup uploaded to Supabase Storage successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to upload backup",
-        variant: "destructive",
-      });
-    },
-  });
+  const handleConfirmRestore = () => {
+    const options: RestoreOptions = {};
 
-  // Delete from storage mutation
-  const deleteFromStorageMutation = useMutation({
-    mutationFn: (storagePath: string) => backupRestoreApi.deleteBackupFromStorage(storagePath),
-    onSuccess: () => {
-      refetchStorage();
-      queryClient.invalidateQueries({ queryKey: ["/api/backup-restore/history"] });
-      toast({
-        title: "Success",
-        description: "Backup deleted successfully",
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete backup",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleStartRestore = () => {
-    if (selectedFile) {
-      startRestoreMutation.mutate({
-        fileId: selectedFile.id,
-        fileName: selectedFile.name,
-        options: restoreOptions,
+    if (selectedDriveFile) {
+      restoreFromDriveMutation.mutate({
+        fileId: selectedDriveFile.id,
+        fileName: selectedDriveFile.name,
+        options,
       });
     } else if (selectedStorageBackup) {
-      startRestoreMutation.mutate({
+      restoreFromDriveMutation.mutate({
         storagePath: selectedStorageBackup.path,
-        options: restoreOptions,
+        options,
+      });
+    } else if (googleDriveFileId) {
+      // Fallback to manual file ID
+      restoreFromDriveMutation.mutate({
+        fileId: googleDriveFileId,
+        fileName: `backup_${Date.now()}.bak`,
+        options,
       });
     }
   };
 
-  const handleUploadToStorage = () => {
-    if (!uploadFile) {
-      toast({
-        title: "Error",
-        description: "Please select a file",
-        variant: "destructive",
-      });
-      return;
-    }
-    uploadToStorageMutation.mutate({
-      file: uploadFile,
-    });
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + " " + sizes[i];
   };
 
-  const handleDeleteFromStorage = (storagePath: string) => {
-    if (confirm("Are you sure you want to delete this backup from Supabase Storage?")) {
-      deleteFromStorageMutation.mutate(storagePath);
+  const formatDate = (dateString: string): string => {
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "completed":
+        return <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Completed</Badge>;
+      case "failed":
+        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Failed</Badge>;
+      case "pending":
+        return <Badge variant="outline"><Clock className="h-3 w-3 mr-1" /> Pending</Badge>;
+      case "downloading":
+      case "uploading":
+      case "restoring":
+      case "migrating":
+        return <Badge className="bg-blue-600"><RefreshCw className="h-3 w-3 mr-1 animate-spin" /> {status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <FileArchive className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold">Backup & Restore</h1>
-            <p className="text-muted-foreground">
-              Manage database backups from Google Drive and Supabase Storage
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground flex items-center">
+            <FileArchive className="w-6 h-6 mr-2" />
+            Backup Restore
+          </h1>
+          <p className="text-muted-foreground">
+            Restore .bak files from Google Drive or Supabase Storage to MSSQL
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => refetchFiles()} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
+        <div className="flex space-x-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              refetchFiles();
+              refetchStorage();
+            }}
+            disabled={filesLoading || storageLoading}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${filesLoading || storageLoading ? 'animate-spin' : ''}`} />
             Refresh
-          </Button>
-          <Button onClick={() => setIsUploadDialogOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload to Storage
           </Button>
         </div>
       </div>
 
-      {/* Configuration Status */}
-      {configStatus && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Configuration Status</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
+      {/* Backup Restore Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <FileArchive className="w-5 h-5 mr-2" />
+                Backup Restore
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Restore .bak files from Google Drive or Supabase Storage
+              </p>
+            </div>
+            <Button onClick={() => refetchFiles()} variant="outline" size="sm">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Configuration Status */}
+          {configStatus && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <Cloud className="h-4 w-4" />
-                  <span className="font-medium">Google Drive</span>
+                  <span className="font-medium text-sm">Google Drive</span>
                   {configStatus.googleDrive.configured ? (
                     <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Configured</Badge>
                   ) : (
@@ -289,340 +253,359 @@ export default function BackupRestore() {
                   )}
                 </div>
                 {!configStatus.googleDrive.configured && (
-                  <ul className="text-sm text-muted-foreground ml-6 list-disc">
-                    {configStatus.googleDrive.missing.clientId && <li>Missing CLIENT_ID</li>}
-                    {configStatus.googleDrive.missing.clientSecret && <li>Missing CLIENT_SECRET</li>}
-                    {configStatus.googleDrive.missing.refreshToken && <li>Missing REFRESH_TOKEN</li>}
-                  </ul>
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <HardDrive className="h-4 w-4" />
-                  <span className="font-medium">Supabase Storage</span>
-                  {configStatus.supabase.configured ? (
-                    <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Configured</Badge>
-                  ) : (
-                    <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" /> Not Configured</Badge>
-                  )}
-                </div>
-                {!configStatus.supabase.configured && (
-                  <ul className="text-sm text-muted-foreground ml-6 list-disc">
-                    {configStatus.supabase.missing.url && <li>Missing SUPABASE_URL</li>}
-                    {configStatus.supabase.missing.serviceRoleKey && <li>Missing SUPABASE_SERVICE_ROLE_KEY</li>}
-                  </ul>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <Tabs defaultValue="google-drive" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="google-drive">Google Drive</TabsTrigger>
-          <TabsTrigger value="supabase-storage">Supabase Storage</TabsTrigger>
-          <TabsTrigger value="history">Restore History</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="google-drive" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Google Drive Backups</CardTitle>
-                  <CardDescription>
-                    Select a .bak file from Google Drive to restore
-                  </CardDescription>
-                </div>
-                {!configStatus?.googleDrive.configured && (
-                  <Button onClick={() => setIsOAuthModalOpen(true)} variant="outline">
+                  <Button
+                    onClick={() => setIsOAuthModalOpen(true)}
+                    variant="outline"
+                    size="sm"
+                    className="mt-2"
+                  >
                     <Key className="h-4 w-4 mr-2" />
                     Configure Google Drive
                   </Button>
                 )}
               </div>
-            </CardHeader>
-            <CardContent>
+              {configStatus.supabase.configured && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <HardDrive className="h-4 w-4" />
+                    <span className="font-medium text-sm">Supabase Storage</span>
+                    <Badge className="bg-green-600"><CheckCircle className="h-3 w-3 mr-1" /> Configured</Badge>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <Tabs defaultValue="google-drive" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="google-drive">Google Drive</TabsTrigger>
+              {configStatus?.supabase.configured && (
+                <TabsTrigger value="supabase-storage">Supabase Storage</TabsTrigger>
+              )}
+            </TabsList>
+
+            <TabsContent value="google-drive" className="space-y-4">
               {filesLoading ? (
                 <div className="text-center py-8">Loading Google Drive files...</div>
               ) : filesError ? (
                 <div className="text-center py-8 text-destructive">
                   Error loading files: {filesError instanceof Error ? filesError.message : "Unknown error"}
+                  {!configStatus?.googleDrive.configured && (
+                    <div className="mt-2">
+                      <Button onClick={() => setIsOAuthModalOpen(true)} variant="outline" size="sm">
+                        <Key className="h-4 w-4 mr-2" />
+                        Configure Google Drive
+                      </Button>
+                    </div>
+                  )}
                 </div>
               ) : driveFiles.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No .bak files found in Google Drive
+                  <div className="mb-4">
+                    <FileArchive className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p>No .bak files found in Google Drive</p>
+                    {!configStatus?.googleDrive.configured && (
+                      <Button onClick={() => setIsOAuthModalOpen(true)} variant="outline" className="mt-4">
+                        <Key className="h-4 w-4 mr-2" />
+                        Configure Google Drive
+                      </Button>
+                    )}
+                  </div>
+                  {/* Fallback: Manual file ID input */}
+                  <div className="mt-4 p-4 border rounded-lg">
+                    <Label htmlFor="googleDriveFileId">Or enter Google Drive File ID manually</Label>
+                    <Input
+                      id="googleDriveFileId"
+                      placeholder="Enter Google Drive file ID (from share link)"
+                      value={googleDriveFileId}
+                      onChange={(e) => setGoogleDriveFileId(e.target.value)}
+                      className="mt-2"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Get the file ID from the Google Drive share link
+                    </p>
+                  </div>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>File Name</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Modified</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {driveFiles.map((file) => (
-                      <TableRow
-                        key={file.id}
-                        className={selectedFile?.id === file.id ? "bg-muted" : ""}
-                        onClick={() => setSelectedFile(file)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <TableCell className="font-medium">{file.name}</TableCell>
-                        <TableCell>{formatFileSize(file.size)}</TableCell>
-                        <TableCell>{formatDate(file.modifiedTime)}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelectedFile(file);
-                              setIsRestoreDialogOpen(true);
-                            }}
-                          >
-                            <Play className="h-4 w-4 mr-2" />
-                            Restore
-                          </Button>
-                        </TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>File Name</TableHead>
+                        <TableHead>Size</TableHead>
+                        <TableHead>Modified</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="supabase-storage" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Supabase Storage Backups</CardTitle>
-              <CardDescription>
-                Backups stored in Supabase Storage (automatically uploaded from Google Drive or manually uploaded)
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {storageLoading ? (
-                <div className="text-center py-8">Loading storage backups...</div>
-              ) : storageBackups.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No backups found in Supabase Storage
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>File Name</TableHead>
-                      <TableHead>Path</TableHead>
-                      <TableHead>Size</TableHead>
-                      <TableHead>Uploaded</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {storageBackups.map((backup) => (
-                      <TableRow
-                        key={backup.path}
-                        className={selectedStorageBackup?.path === backup.path ? "bg-muted" : ""}
-                        onClick={() => setSelectedStorageBackup(backup)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <TableCell className="font-medium">{backup.name}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{backup.path}</TableCell>
-                        <TableCell>{formatFileSize(backup.size)}</TableCell>
-                        <TableCell>{formatDate(backup.created_at)}</TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex gap-2">
+                    </TableHeader>
+                    <TableBody>
+                      {driveFiles.slice(0, driveFilesLimit).map((file) => (
+                        <TableRow
+                          key={file.id}
+                          className={selectedDriveFile?.id === file.id ? "bg-muted" : ""}
+                          onClick={() => setSelectedDriveFile(file)}
+                          style={{ cursor: "pointer" }}
+                        >
+                          <TableCell className="font-medium">{file.name}</TableCell>
+                          <TableCell>{formatFileSize(file.size)}</TableCell>
+                          <TableCell>{formatDate(file.modifiedTime)}</TableCell>
+                          <TableCell onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               onClick={() => {
-                                setSelectedStorageBackup(backup);
-                                setIsRestoreDialogOpen(true);
+                                setSelectedDriveFile(file);
+                                setIsRestoreConfirmOpen(true);
                               }}
                             >
                               <Play className="h-4 w-4 mr-2" />
                               Restore
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteFromStorage(backup.path)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {driveFiles.length > 5 && (
+                    <div className="mt-4 flex justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (driveFilesLimit >= driveFiles.length) {
+                            setDriveFilesLimit(5);
+                          } else {
+                            setDriveFilesLimit(driveFiles.length);
+                          }
+                        }}
+                      >
+                        {driveFilesLimit >= driveFiles.length ? (
+                          <>
+                            <ChevronDown className="h-4 w-4 mr-2" />
+                            Show Less
+                          </>
+                        ) : (
+                          <>
+                            Show More ({driveFiles.length - driveFilesLimit} more)
+                            <ChevronRight className="h-4 w-4 ml-2" />
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  {/* Fallback: Manual file ID input */}
+                  <div className="p-4 border rounded-lg">
+                    <Label htmlFor="googleDriveFileId">Or enter Google Drive File ID manually</Label>
+                    <Input
+                      id="googleDriveFileId"
+                      placeholder="Enter Google Drive file ID (from share link)"
+                      value={googleDriveFileId}
+                      onChange={(e) => setGoogleDriveFileId(e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+                </>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="history" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Restore History</CardTitle>
-              <CardDescription>
-                History of all backup restore operations
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {restoreHistory.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No restore history found
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>File Name</TableHead>
-                      <TableHead>Source</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Started</TableHead>
-                      <TableHead>Completed</TableHead>
-                      <TableHead>Error</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {restoreHistory.map((record) => (
-                      <TableRow key={record.id}>
-                        <TableCell className="font-medium">{record.googleDriveFileName}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {record.storageSource === 'google_drive' ? (
-                              <><Cloud className="h-3 w-3 mr-1" /> Google Drive</>
-                            ) : (
-                              <><HardDrive className="h-3 w-3 mr-1" /> Supabase Storage</>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{getStatusBadge(record.restoreStatus)}</TableCell>
-                        <TableCell>{formatDate(record.startedAt)}</TableCell>
-                        <TableCell>{record.completedAt ? formatDate(record.completedAt) : "-"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {record.errorMessage || "-"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Restore Dialog */}
-      <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Restore Backup</DialogTitle>
-            <DialogDescription>
-              Configure restore options for {selectedFile?.name || selectedStorageBackup?.name}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Migration Type</Label>
-              <Select
-                value={restoreOptions.migrationType || "general-ledger"}
-                onValueChange={(value: any) => setRestoreOptions({ ...restoreOptions, migrationType: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general-ledger">General Ledger</SelectItem>
-                  <SelectItem value="audit">Audit</SelectItem>
-                  <SelectItem value="rs">RS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Batch Size</Label>
-              <Input
-                type="number"
-                value={restoreOptions.batchSize || 1000}
-                onChange={(e) => setRestoreOptions({ ...restoreOptions, batchSize: parseInt(e.target.value) || 1000 })}
-              />
-            </div>
-            {restoreOptions.migrationType === "general-ledger" && (
-              <>
-                <div>
-                  <Label>Postings Period From</Label>
-                  <Input
-                    type="date"
-                    value={restoreOptions.postingsPeriodFrom || ""}
-                    onChange={(e) => setRestoreOptions({ ...restoreOptions, postingsPeriodFrom: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>Postings Period To</Label>
-                  <Input
-                    type="date"
-                    value={restoreOptions.postingsPeriodTo || ""}
-                    onChange={(e) => setRestoreOptions({ ...restoreOptions, postingsPeriodTo: e.target.value })}
-                  />
-                </div>
-              </>
+            {configStatus?.supabase.configured && (
+              <TabsContent value="supabase-storage" className="space-y-4">
+                {storageLoading ? (
+                  <div className="text-center py-8">Loading storage backups...</div>
+                ) : storageBackups.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No backups found in Supabase Storage
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>File Name</TableHead>
+                          <TableHead>Path</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Uploaded</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {storageBackups.slice(0, storageBackupsLimit).map((backup) => (
+                          <TableRow
+                            key={backup.path}
+                            className={selectedStorageBackup?.path === backup.path ? "bg-muted" : ""}
+                            onClick={() => setSelectedStorageBackup(backup)}
+                            style={{ cursor: "pointer" }}
+                          >
+                            <TableCell className="font-medium">{backup.name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{backup.path}</TableCell>
+                            <TableCell>{formatFileSize(backup.size)}</TableCell>
+                            <TableCell>{formatDate(backup.created_at)}</TableCell>
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedStorageBackup(backup);
+                                  setIsRestoreConfirmOpen(true);
+                                }}
+                              >
+                                <Play className="h-4 w-4 mr-2" />
+                                Restore MSSQL
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                    {storageBackups.length > 5 && (
+                      <div className="mt-4 flex justify-center">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            if (storageBackupsLimit >= storageBackups.length) {
+                              setStorageBackupsLimit(5);
+                            } else {
+                              setStorageBackupsLimit(storageBackups.length);
+                            }
+                          }}
+                        >
+                          {storageBackupsLimit >= storageBackups.length ? (
+                            <>
+                              <ChevronDown className="h-4 w-4 mr-2" />
+                              Show Less
+                            </>
+                          ) : (
+                            <>
+                              Show More ({storageBackups.length - storageBackupsLimit} more)
+                              <ChevronRight className="h-4 w-4 ml-2" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </TabsContent>
             )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleStartRestore} disabled={startRestoreMutation.isPending}>
-              {startRestoreMutation.isPending ? "Starting..." : "Start Restore"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </Tabs>
 
-      {/* Upload to Storage Dialog */}
-      <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload Backup to Supabase Storage</DialogTitle>
-            <DialogDescription>
-              Upload a .bak file directly to Supabase Storage
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Select .bak File</Label>
-              <Input
-                type="file"
-                accept=".bak"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    setUploadFile(file);
+          {/* Restore History */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-4">
+              <CardTitle className="text-lg">Restore History</CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowRestoreHistory(!showRestoreHistory);
+                  if (!showRestoreHistory) {
+                    refetchHistory();
                   }
                 }}
-              />
-              {uploadFile && (
-                <p className="text-sm text-muted-foreground mt-2">
-                  Selected: {uploadFile.name} ({formatFileSize(uploadFile.size)})
-                </p>
-              )}
+              >
+                {showRestoreHistory ? (
+                  <>
+                    <ChevronDown className="w-4 h-4 mr-2" />
+                    Hide History
+                  </>
+                ) : (
+                  <>
+                    <ChevronRight className="w-4 h-4 mr-2" />
+                    Show History
+                  </>
+                )}
+              </Button>
             </div>
+            {showRestoreHistory && (
+              <div className="mt-4">
+                {restoreHistory.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                    <p className="text-sm">No restore history found</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-96">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>File Name</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Started</TableHead>
+                          <TableHead>Completed</TableHead>
+                          <TableHead>Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {restoreHistory.map((record) => (
+                          <TableRow key={record.id}>
+                            <TableCell className="font-medium">{record.googleDriveFileName}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {record.storageSource === 'google_drive' ? (
+                                  <><Cloud className="h-3 w-3 mr-1" /> Google Drive</>
+                                ) : (
+                                  <><HardDrive className="h-3 w-3 mr-1" /> Supabase Storage</>
+                                )}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{getStatusBadge(record.restoreStatus)}</TableCell>
+                            <TableCell>{formatDate(record.startedAt)}</TableCell>
+                            <TableCell>{record.completedAt ? formatDate(record.completedAt) : "-"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              {record.errorMessage || "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+                )}
+              </div>
+            )}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleUploadToStorage} disabled={uploadToStorageMutation.isPending || !uploadFile}>
-              {uploadToStorageMutation.isPending ? "Uploading..." : "Upload"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </CardContent>
+      </Card>
+
+      {/* Restore Confirmation Dialog */}
+      <AlertDialog open={isRestoreConfirmOpen} onOpenChange={setIsRestoreConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore MSSQL Database</AlertDialogTitle>
+            <AlertDialogDescription>
+              <div className="space-y-3 mt-2">
+                <p>
+                  Are you sure you want to restore <strong>{selectedDriveFile?.name || selectedStorageBackup?.name || 'this backup'}</strong>?
+                </p>
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm">
+                      <p className="font-medium text-amber-900 dark:text-amber-100 mb-1">
+                        This will:
+                      </p>
+                      <ul className="list-disc list-inside text-amber-800 dark:text-amber-200 space-y-1">
+                        <li>Download the .bak file to the server's local storage</li>
+                        <li>Restore it to MSSQL (previous restored database will be replaced)</li>
+                      </ul>
+                      <p className="text-amber-800 dark:text-amber-200 mt-2">
+                        After restore, you can migrate data to PostgreSQL from the Migration page.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmRestore}
+              disabled={restoreFromDriveMutation.isPending}
+            >
+              {restoreFromDriveMutation.isPending ? "Starting..." : "Restore MSSQL"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* OAuth Configuration Modal */}
       <Dialog open={isOAuthModalOpen} onOpenChange={setIsOAuthModalOpen}>
@@ -729,11 +712,11 @@ export default function BackupRestore() {
               </div>
             </TabsContent>
           </Tabs>
-          <DialogFooter>
+          <div className="flex justify-end pt-4">
             <Button variant="outline" onClick={() => setIsOAuthModalOpen(false)}>
               Close
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

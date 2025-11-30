@@ -172,7 +172,21 @@ export async function listBackupsFromStorage(): Promise<Array<{
   updated_at: string;
 }>> {
   try {
-    await ensureBackupsBucket();
+    // Check if bucket exists without creating it
+    const { data: buckets, error: listError } = await supabaseAdmin.storage.listBuckets();
+    
+    if (listError) {
+      console.warn('Failed to list buckets, returning empty array:', listError.message);
+      return [];
+    }
+
+    const bucketExists = buckets?.some(b => b.name === BACKUP_BUCKET_NAME);
+    
+    if (!bucketExists) {
+      // Bucket doesn't exist - return empty array instead of creating it
+      console.log(`Backups bucket does not exist, returning empty array`);
+      return [];
+    }
 
     // List all folders (date folders) in the root
     const { data: folders, error: foldersError } = await supabaseAdmin.storage
@@ -182,7 +196,8 @@ export async function listBackupsFromStorage(): Promise<Array<{
       });
 
     if (foldersError) {
-      throw new Error(`Failed to list folders: ${foldersError.message}`);
+      console.warn('Failed to list folders, returning empty array:', foldersError.message);
+      return [];
     }
 
     const backups: Array<{
@@ -237,8 +252,10 @@ export async function listBackupsFromStorage(): Promise<Array<{
 
     return backups;
   } catch (error: any) {
-    console.error('Error listing backups from storage:', error);
-    throw error;
+    // Gracefully handle errors - return empty array instead of throwing
+    // This allows the UI to work even if Supabase Storage is not configured or bucket doesn't exist
+    console.warn('Error listing backups from storage (returning empty array):', error.message);
+    return [];
   }
 }
 

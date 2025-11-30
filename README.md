@@ -110,7 +110,7 @@ docker-compose logs mssql
 
 # Test connection
 docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U SA -P "asQW12ZX12!!" \
+  -S localhost -U SA -P "xxxxxxxxxx" \
   -Q "SELECT @@VERSION"
 ```
 
@@ -120,7 +120,7 @@ docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
 MSSQL_SERVER=localhost
 MSSQL_PORT=1433
 MSSQL_USER=sa
-MSSQL_PASSWORD=asQW12ZX12!!
+MSSQL_PASSWORD="xxxxxxxxx"
 MSSQL_DATABASE=Audit
 MSSQL_ENCRYPT=true
 MSSQL_TRUST_SERVER_CERTIFICATE=true

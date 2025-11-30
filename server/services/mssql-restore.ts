@@ -1,12 +1,11 @@
-// MSSQL Restore Service with Supabase Storage Integration
+// MSSQL Restore Service (Phase 2)
 import { db } from '../db';
-import { backupRestoreHistory } from '@shared/schema';
+import { mssqlRestores, gdriveDownloads } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
+import { getDownloadRecord } from './backup-download';
 import { downloadFileFromDrive, calculateFileHash } from './google-drive';
 import {
-  uploadBackupToStorage,
   downloadBackupFromStorage,
-  ensureBackupsBucket,
 } from './backup-storage';
 import path from 'path';
 import fs from 'fs/promises';
@@ -14,6 +13,9 @@ import { cleanupTempFile } from './google-drive';
 import sql from 'mssql';
 import { connectMSSQL, migrateGeneralLedger, exportToAudit } from './mssql-migration';
 import os from 'os';
+
+// Backward compatibility
+const backupRestoreHistory = mssqlRestores;
 
 export interface RestoreProgress {
   status: 'downloading' | 'uploading' | 'restoring' | 'migrating' | 'completed' | 'failed';
@@ -48,6 +50,79 @@ function getMSSQLConfig(database: string = 'master') {
     requestTimeout: 300000, // 5 minutes
     connectionTimeout: 30000, // 30 seconds
   };
+}
+
+/**
+ * Get backup header information from .bak file
+ * Extracts original backup date and other metadata
+ */
+export async function getBackupHeaderInfo(bakFilePath: string): Promise<{
+  backupDate: Date | null;
+  databaseName: string | null;
+  backupType: string | null;
+}> {
+  const pool = await sql.connect(getMSSQLConfig('master'));
+
+  try {
+    const headerResult = await pool.request()
+      .query(`RESTORE HEADERONLY FROM DISK = N'${bakFilePath}'`);
+
+    if (headerResult.recordset.length === 0) {
+      return { backupDate: null, databaseName: null, backupType: null };
+    }
+
+    const header = headerResult.recordset[0];
+    const backupDate = header.BackupStartDate ? new Date(header.BackupStartDate) : null;
+    const databaseName = header.DatabaseName || null;
+    const backupType = header.BackupType ? 
+      (header.BackupType === 1 ? 'Full' : header.BackupType === 2 ? 'Differential' : 'Log') : null;
+
+    return { backupDate, databaseName, backupType };
+  } catch (error: any) {
+    console.warn('Error reading backup header:', error.message);
+    return { backupDate: null, databaseName: null, backupType: null };
+  } finally {
+    await pool.close();
+  }
+}
+
+/**
+ * Calculate database size in MB
+ */
+export async function getDatabaseSize(databaseName: string): Promise<number> {
+  const pool = await sql.connect(getMSSQLConfig('master'));
+
+  try {
+    const sizeResult = await pool.request()
+      .query(`
+        SELECT 
+          SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS bigint) * 8192.) / 1024 / 1024 AS size_mb
+        FROM sys.database_files
+        WHERE type = 0
+      `);
+
+    const size = sizeResult.recordset[0]?.size_mb || 0;
+    return Math.round(size * 100) / 100; // Round to 2 decimal places
+  } catch (error: any) {
+    console.warn(`Error calculating database size for ${databaseName}:`, error.message);
+    return 0;
+  } finally {
+    await pool.close();
+  }
+}
+
+/**
+ * Generate temporary database name in format: TMP_RESTORE_[timestamp]
+ */
+export function generateTempDatabaseName(): string {
+  const now = new Date();
+  const timestamp = now.toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}/, '')
+    .replace('T', '_')
+    .slice(0, 15); // Format: YYYYMMDD_HHMMSS
+  
+  return `TMP_RESTORE_${timestamp}`;
 }
 
 /**
@@ -179,7 +254,130 @@ export async function dropTemporaryDatabase(databaseName: string): Promise<void>
 }
 
 /**
- * Restore backup from Google Drive and upload to Supabase Storage
+ * Enhanced restore function (Phase 2) - Restore from downloaded file
+ * Accepts downloadId (from Phase 1) or local file path
+ * Extracts metadata and calculates database size
+ */
+export async function restoreBackupFromDownload(
+  downloadIdOrPath: number | string,
+  options: RestoreOptions,
+  onProgress?: (progress: RestoreProgress) => void
+): Promise<number> {
+  let localFilePath: string;
+  let downloadId: number | null = null;
+  let fileName: string;
+
+  // Determine if we have a downloadId or a file path
+  if (typeof downloadIdOrPath === 'number') {
+    // Get download record
+    const downloadRecord = await getDownloadRecord(downloadIdOrPath);
+    if (!downloadRecord || downloadRecord.status !== 'completed') {
+      throw new Error(`Download ${downloadIdOrPath} not found or not completed`);
+    }
+    localFilePath = downloadRecord.localFilePath;
+    fileName = downloadRecord.filename;
+    downloadId = downloadIdOrPath;
+  } else {
+    // Direct file path provided
+    localFilePath = downloadIdOrPath;
+    fileName = path.basename(localFilePath);
+  }
+
+  // Generate database name using TMP_RESTORE_[timestamp] format
+  const databaseName = generateTempDatabaseName();
+
+  // Create restore record
+  const [restoreRecord] = await db
+    .insert(mssqlRestores)
+    .values({
+      downloadId,
+      googleDriveFileName: fileName,
+      restoredDbName: databaseName,
+      localBackupPath: localFilePath,
+      restoreStatus: 'restoring',
+      restoreTimestamp: new Date(),
+      clientId: options.clientId || null,
+      restoreOptions: options as any,
+      isActive: true,
+    })
+    .returning();
+
+  const restoreId = restoreRecord.id;
+
+  try {
+    // Step 1: Extract backup header information
+    onProgress?.({
+      status: 'restoring',
+      progress: 10,
+      message: 'Reading backup header information...',
+    });
+
+    const headerInfo = await getBackupHeaderInfo(localFilePath);
+
+    // Step 2: Restore database
+    onProgress?.({
+      status: 'restoring',
+      progress: 20,
+      message: `Restoring database ${databaseName}...`,
+    });
+
+    await restoreMSSQLBackup(localFilePath, databaseName, (msg) => {
+      onProgress?.({ status: 'restoring', progress: 30, message: msg });
+    });
+
+    // Step 3: Calculate database size
+    onProgress?.({
+      status: 'restoring',
+      progress: 60,
+      message: 'Calculating database size...',
+    });
+
+    const databaseSizeMb = await getDatabaseSize(databaseName);
+
+    // Step 4: Update restore record with metadata
+    await db
+      .update(mssqlRestores)
+      .set({
+        originalBackupDate: headerInfo.backupDate,
+        databaseSizeMb: databaseSizeMb.toString(),
+        restoreStatus: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    onProgress?.({
+      status: 'completed',
+      progress: 100,
+      message: `Database ${databaseName} restored successfully (${databaseSizeMb} MB)`,
+    });
+
+    return restoreId;
+  } catch (error: any) {
+    console.error('Error in restoreBackupFromDownload:', error);
+
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'failed',
+        errorMessage: error.message,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    onProgress?.({
+      status: 'failed',
+      progress: 0,
+      message: `Restore failed: ${error.message}`,
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Restore backup from Google Drive (legacy - for backward compatibility)
  * Complete workflow matching PowerShell script
  */
 export async function restoreBackupFromDrive(
@@ -190,22 +388,25 @@ export async function restoreBackupFromDrive(
 ): Promise<number> {
   const userId = options.clientId || null;
 
-  // Create restore history record
+  // Create restore history record (legacy - for backward compatibility)
   const [restoreRecord] = await db
-    .insert(backupRestoreHistory)
+    .insert(mssqlRestores)
     .values({
       googleDriveFileId: fileId,
       googleDriveFileName: fileName,
       storageSource: 'google_drive',
       restoreStatus: 'downloading',
+      restoredDbName: `AntsDBRestore_${Date.now()}`, // Temporary, will be updated
+      restoreTimestamp: new Date(),
       clientId: options.clientId || null,
       restoreOptions: options as any,
-      startedAt: new Date(),
+      isActive: true,
     })
     .returning();
 
   const restoreId = restoreRecord.id;
-  const databaseName = `AntsDBRestore_${restoreId}`;
+  // Generate database name using TMP_RESTORE_[timestamp] format (consistent with restoreBackupFromDownload)
+  const databaseName = generateTempDatabaseName();
   let tempFilePath: string | null = null;
 
   try {
@@ -223,109 +424,54 @@ export async function restoreBackupFromDrive(
     tempFilePath = path.join(os.tmpdir(), `backup_${Date.now()}.bak`);
     await fs.writeFile(tempFilePath, fileBuffer);
 
-    onProgress?.({
-      status: 'uploading',
-      progress: 20,
-      message: 'Uploading backup to Supabase Storage...',
-    });
-
-    // Step 2: Upload to Supabase Storage for archival
-    const storageResult = await uploadBackupToStorage(
-      fileBuffer,
-      fileName
-    );
-
-    // Update restore record with Supabase Storage info
+    // Update restore record with file hash and database name
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
-        supabaseStoragePath: storageResult.path,
-        fileHash: storageResult.hash,
+        fileHash: fileHash,
+        restoredDbName: databaseName,
+        localBackupPath: tempFilePath,
         restoreStatus: 'restoring',
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
-    // Step 3: Restore .bak file to MSSQL Server
+    // Step 2: Restore .bak file to MSSQL Server
     onProgress?.({
       status: 'restoring',
-      progress: 30,
+      progress: 20,
       message: 'Restoring database from .bak file...',
     });
 
     await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
-      onProgress?.({ status: 'restoring', progress: 40, message: msg });
+      onProgress?.({ status: 'restoring', progress: 30, message: msg });
     });
 
-    // Step 4: Adjust dates in GeneralLedger
+    // Step 3: Calculate database size
     onProgress?.({
-      status: 'migrating',
-      progress: 50,
-      message: 'Adjusting dates in GeneralLedger...',
+      status: 'restoring',
+      progress: 60,
+      message: 'Calculating database size...',
     });
 
-    const rowsUpdated = await adjustDatesInGeneralLedger(
-      databaseName,
-      options.yearOffset ?? -2000,
-      (msg) => onProgress?.({ status: 'migrating', progress: 55, message: msg })
-    );
+    const databaseSizeMb = await getDatabaseSize(databaseName);
 
-    // Step 5: Migrate data to PostgreSQL (Supabase)
-    if (options.migrationType && options.tenantCode && options.clientId) {
-      onProgress?.({
-        status: 'migrating',
-        progress: 60,
-        message: 'Migrating data to PostgreSQL...',
-      });
-
-      // Connect directly to the restored database for migration
-      // This skips the intermediate transfer to the 'Audit' database
-      const mssqlPool = await connectMSSQL(databaseName);
-
-      if (options.migrationType === 'general-ledger') {
-        await migrateGeneralLedger(
-          mssqlPool,
-          options.tenantCode,
-          options.clientId,
-          options.batchSize || 1000,
-          options.postingsPeriodFrom,
-          options.postingsPeriodTo
-        );
-      } else if (options.migrationType === 'audit') {
-        await exportToAudit(
-          mssqlPool,
-          options.tenantCode,
-          options.clientId,
-          options.batchSize || 1000
-        );
-      }
-
-      await mssqlPool.close();
-    }
-
-    // Step 7: Clean up temporary database
-    onProgress?.({
-      status: 'completed',
-      progress: 90,
-      message: 'Cleaning up temporary database...',
-    });
-
-    await dropTemporaryDatabase(databaseName);
-
-    // Step 8: Update restore record with completion
+    // Step 4: Update restore record with completion and metadata
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
+        restoredDbName: databaseName,
+        databaseSizeMb: databaseSizeMb.toString(),
         restoreStatus: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
     onProgress?.({
       status: 'completed',
       progress: 100,
-      message: 'Restore and migration completed successfully!',
+      message: `Database ${databaseName} restored successfully (${databaseSizeMb} MB)`,
     });
 
     return restoreId;
@@ -333,14 +479,14 @@ export async function restoreBackupFromDrive(
     console.error('Error in restoreBackupFromDrive:', error);
 
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
         restoreStatus: 'failed',
         errorMessage: error.message,
         completedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
     onProgress?.({
       status: 'failed',
@@ -369,17 +515,19 @@ export async function restoreBackupFromStorage(
   options: RestoreOptions,
   onProgress?: (progress: RestoreProgress) => void
 ): Promise<number> {
-  // Create restore history record
+  // Create restore history record (legacy - for backward compatibility)
   const [restoreRecord] = await db
-    .insert(backupRestoreHistory)
+    .insert(mssqlRestores)
     .values({
       supabaseStoragePath: storagePath,
       googleDriveFileName: path.basename(storagePath),
       storageSource: 'supabase_storage',
       restoreStatus: 'downloading',
+      restoredDbName: `AntsDBRestore_${Date.now()}`, // Temporary, will be updated
+      restoreTimestamp: new Date(),
       clientId: options.clientId || null,
       restoreOptions: options as any,
-      startedAt: new Date(),
+      isActive: true,
     })
     .returning();
 
@@ -398,13 +546,13 @@ export async function restoreBackupFromStorage(
 
     // Update with hash
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
         fileHash,
         restoreStatus: 'restoring',
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
     onProgress?.({
       status: 'restoring',
@@ -415,13 +563,13 @@ export async function restoreBackupFromStorage(
     // Step 2: Restore database (existing restore logic would go here)
 
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
         restoreStatus: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
     onProgress?.({
       status: 'completed',
@@ -434,14 +582,14 @@ export async function restoreBackupFromStorage(
     console.error('Error in restoreBackupFromStorage:', error);
 
     await db
-      .update(backupRestoreHistory)
+      .update(mssqlRestores)
       .set({
         restoreStatus: 'failed',
         errorMessage: error.message,
         completedAt: new Date(),
         updatedAt: new Date(),
       })
-      .where(eq(backupRestoreHistory.id, restoreId));
+      .where(eq(mssqlRestores.id, restoreId));
 
     onProgress?.({
       status: 'failed',
@@ -459,8 +607,8 @@ export async function restoreBackupFromStorage(
 export async function getRestoreStatus(restoreId: number) {
   const [record] = await db
     .select()
-    .from(backupRestoreHistory)
-    .where(eq(backupRestoreHistory.id, restoreId))
+    .from(mssqlRestores)
+    .where(eq(mssqlRestores.id, restoreId))
     .limit(1);
 
   return record;
@@ -470,14 +618,14 @@ export async function getRestoreStatus(restoreId: number) {
  * List restore history
  */
 export async function listRestoreHistory(clientId?: number, limit: number = 50, offset: number = 0) {
-  let query = db.select().from(backupRestoreHistory);
+  let query = db.select().from(mssqlRestores);
 
   if (clientId) {
-    query = query.where(eq(backupRestoreHistory.clientId, clientId)) as any;
+    query = query.where(eq(mssqlRestores.clientId, clientId)) as any;
   }
 
   const records = await query
-    .orderBy(desc(backupRestoreHistory.startedAt))
+    .orderBy(desc(mssqlRestores.restoreTimestamp))
     .limit(limit)
     .offset(offset);
 

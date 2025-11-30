@@ -216,5 +216,96 @@ export const backupRestoreApi = {
     const response = await apiRequest("DELETE", `/api/backup-restore/storage-files/${encodedPath}`);
     return response.json();
   },
+
+  /**
+   * List all restored MSSQL databases
+   */
+  listRestoredDatabases: async (clientId?: number, isActive: boolean = true): Promise<RestoredDatabase[]> => {
+    const params = new URLSearchParams();
+    if (clientId) params.append("clientId", clientId.toString());
+    if (!isActive) params.append("isActive", "false");
+
+    const response = await apiRequest("GET", `/api/backup-restore/restored-databases?${params.toString()}`);
+    return response.json();
+  },
+
+  /**
+   * Execute migration from restored database
+   */
+  executeMigration: async (options: MigrationOptions): Promise<{ success: boolean; message: string; migrationLogId: number }> => {
+    const response = await apiRequest("POST", "/api/backup-restore/migrate", options);
+    return response.json();
+  },
+
+  /**
+   * Get migration logs
+   */
+  getMigrationLogs: async (restoreId?: number, limit: number = 50, offset: number = 0): Promise<MigrationLog[]> => {
+    const params = new URLSearchParams();
+    if (restoreId) params.append("restoreId", restoreId.toString());
+    params.append("limit", limit.toString());
+    params.append("offset", offset.toString());
+
+    const response = await apiRequest("GET", `/api/backup-restore/migration-logs?${params.toString()}`);
+    return response.json();
+  },
+
+  /**
+   * Get specific migration log details
+   */
+  getMigrationLog: async (id: number): Promise<MigrationLog> => {
+    const response = await apiRequest("GET", `/api/backup-restore/migration-logs/${id}`);
+    return response.json();
+  },
 };
+
+export interface RestoredDatabase {
+  id: number;
+  downloadId?: number;
+  googleDriveFileId?: string;
+  googleDriveFileName: string;
+  supabaseStoragePath?: string;
+  fileHash?: string;
+  storageSource: "google_drive" | "supabase_storage";
+  restoredDbName: string;
+  restoreTimestamp: string;
+  originalBackupDate?: string;
+  databaseSizeMb?: string;
+  isActive: boolean;
+  localBackupPath?: string;
+  restoreStatus: string;
+  clientId?: number;
+  restoreOptions?: RestoreOptions;
+  completedAt?: string;
+  errorMessage?: string;
+  createdBy?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MigrationOptions {
+  restoreId: number;
+  migrationType: "general-ledger" | "audit" | "rs";
+  tenantCode: number;
+  clientId: number;
+  batchSize?: number;
+  postingsPeriodFrom?: string;
+  postingsPeriodTo?: string;
+}
+
+export interface MigrationLog {
+  id: number;
+  restoreId: number;
+  sourceTable: string;
+  targetTable: string;
+  recordsProcessed: number;
+  recordsInserted: number;
+  recordsFailed: number;
+  migrationTimestamp: string;
+  status: "pending" | "running" | "completed" | "failed";
+  errorLog?: string;
+  createdBy?: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
