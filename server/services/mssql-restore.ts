@@ -13,6 +13,7 @@ import { cleanupTempFile } from './google-drive';
 import sql from 'mssql';
 import { connectMSSQL, migrateGeneralLedger, exportToAudit } from './mssql-migration';
 import os from 'os';
+import { ensureBackupDirectory } from './backup-download';
 
 // Backward compatibility
 const backupRestoreHistory = mssqlRestores;
@@ -53,6 +54,61 @@ function getMSSQLConfig(database: string = 'master') {
 }
 
 /**
+ * Get SQL Server-accessible backup path
+ * On Windows, SQL Server service account needs access to the file location
+ */
+async function getSQLServerBackupPath(fileName: string): Promise<string> {
+  const isWindows = os.platform() === 'win32';
+  
+  if (isWindows) {
+    // On Windows, use a location SQL Server can access
+    // Try common SQL Server backup directories first
+    const possiblePaths = [
+      process.env.MSSQL_BACKUP_PATH,
+      'C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\Backup',
+      'C:\\Program Files\\Microsoft SQL Server\\MSSQL14.MSSQLSERVER\\MSSQL\\Backup',
+      'C:\\Program Files\\Microsoft SQL Server\\MSSQL13.MSSQLSERVER\\MSSQL\\Backup',
+      'C:\\MSSQLBackups',
+      path.join(process.cwd(), 'backups'),
+    ].filter(Boolean) as string[];
+
+    // Try to use existing backup directory from backup-download service
+    try {
+      const backupDir = await ensureBackupDirectory();
+      return path.join(backupDir, fileName);
+    } catch (error) {
+      console.warn('Could not use backup directory service, trying alternatives:', error);
+    }
+
+    // Find first accessible directory or create one
+    for (const dirPath of possiblePaths) {
+      try {
+        await fs.mkdir(dirPath, { recursive: true });
+        // Test write access
+        const testFile = path.join(dirPath, '.test');
+        await fs.writeFile(testFile, 'test');
+        await fs.unlink(testFile);
+        return path.join(dirPath, fileName);
+      } catch (error) {
+        continue;
+      }
+    }
+
+    // Fallback: use temp directory (may fail, but better than nothing)
+    console.warn('⚠️  Could not find SQL Server-accessible directory, using temp (may fail)');
+    return path.join(os.tmpdir(), fileName);
+  } else {
+    // On Linux, use /var/opt/mssql/backup or backup directory
+    try {
+      const backupDir = await ensureBackupDirectory();
+      return path.join(backupDir, fileName);
+    } catch (error) {
+      return path.join('/var/opt/mssql/backup', fileName);
+    }
+  }
+}
+
+/**
  * Get backup header information from .bak file
  * Extracts original backup date and other metadata
  */
@@ -64,8 +120,10 @@ export async function getBackupHeaderInfo(bakFilePath: string): Promise<{
   const pool = await sql.connect(getMSSQLConfig('master'));
 
   try {
+    // Normalize path for SQL Server (Windows needs backslashes escaped)
+    const normalizedPath = bakFilePath.replace(/\\/g, '\\\\');
     const headerResult = await pool.request()
-      .query(`RESTORE HEADERONLY FROM DISK = N'${bakFilePath}'`);
+      .query(`RESTORE HEADERONLY FROM DISK = N'${normalizedPath}'`);
 
     if (headerResult.recordset.length === 0) {
       return { backupDate: null, databaseName: null, backupType: null };
@@ -139,11 +197,14 @@ export async function restoreMSSQLBackup(
   const pool = await sql.connect(getMSSQLConfig('master'));
 
   try {
+    // Normalize path for SQL Server (Windows needs backslashes escaped)
+    const normalizedPath = bakFilePath.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    
     onProgress?.(`Reading backup file: ${bakFilePath}`);
 
     // Get logical file names from backup
     const fileListResult = await pool.request()
-      .query(`RESTORE FILELISTONLY FROM DISK = N'${bakFilePath}'`);
+      .query(`RESTORE FILELISTONLY FROM DISK = N'${normalizedPath}'`);
 
     const dataFile = fileListResult.recordset.find((f: any) => f.Type === 'D');
     const logFile = fileListResult.recordset.find((f: any) => f.Type === 'L');
@@ -153,18 +214,28 @@ export async function restoreMSSQLBackup(
     }
 
     // Generate unique file paths for restored database
-    const dataPath = `/var/opt/mssql/data/${databaseName}.mdf`;
-    const logPath = `/var/opt/mssql/data/${databaseName}_log.ldf`;
+    // Use platform-appropriate paths
+    const isWindows = os.platform() === 'win32';
+    const dataPath = isWindows 
+      ? `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}.mdf`
+      : `/var/opt/mssql/data/${databaseName}.mdf`;
+    const logPath = isWindows
+      ? `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}_log.ldf`
+      : `/var/opt/mssql/data/${databaseName}_log.ldf`;
+
+    // Escape paths for SQL
+    const normalizedDataPath = dataPath.replace(/\\/g, '\\\\').replace(/'/g, "''");
+    const normalizedLogPath = logPath.replace(/\\/g, '\\\\').replace(/'/g, "''");
 
     onProgress?.(`Restoring database: ${databaseName}...`);
 
     // Restore with MOVE to relocate files
     const restoreQuery = `
       RESTORE DATABASE [${databaseName}]
-      FROM DISK = N'${bakFilePath}'
+      FROM DISK = N'${normalizedPath}'
       WITH 
-        MOVE N'${dataFile.LogicalName}' TO N'${dataPath}',
-        MOVE N'${logFile.LogicalName}' TO N'${logPath}',
+        MOVE N'${dataFile.LogicalName.replace(/'/g, "''")}' TO N'${normalizedDataPath}',
+        MOVE N'${logFile.LogicalName.replace(/'/g, "''")}' TO N'${normalizedLogPath}',
         REPLACE,
         RECOVERY
     `;
@@ -420,8 +491,10 @@ export async function restoreBackupFromDrive(
     const fileBuffer = await downloadFileFromDrive(fileId);
     const fileHash = calculateFileHash(fileBuffer);
 
-    // Save to temporary file
-    tempFilePath = path.join(os.tmpdir(), `backup_${Date.now()}.bak`);
+    // Save to SQL Server-accessible location using original filename
+    // Sanitize filename for filesystem (remove invalid characters)
+    const safeFileName = fileName.replace(/[<>:"/\\|?*]/g, '_').trim();
+    tempFilePath = await getSQLServerBackupPath(safeFileName);
     await fs.writeFile(tempFilePath, fileBuffer);
 
     // Update restore record with file hash and database name
@@ -443,6 +516,9 @@ export async function restoreBackupFromDrive(
       message: 'Restoring database from .bak file...',
     });
 
+    if (!tempFilePath) {
+      throw new Error('Failed to create backup file path');
+    }
     await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
       onProgress?.({ status: 'restoring', progress: 30, message: msg });
     });

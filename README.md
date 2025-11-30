@@ -14,40 +14,555 @@ A comprehensive accounting application built with React, Express.js, and Postgre
 
 ## Prerequisites
 
-- **Node.js** 18+ and npm
-- **Linux server** (Ubuntu 22.04+ recommended, Ubuntu 24.04 supported)
+### System Requirements
+
+- **Operating System**: Ubuntu 24.04 LTS (fresh installation recommended)
+- **RAM**: Minimum 2GB, 4GB+ recommended
+- **Disk Space**: Minimum 10GB free space
+- **Network**: Internet connection for package installation and database access
+
+### Required Software
+
+- **Node.js** 20.x LTS and npm 10.x
+- **Docker** 24.0+ and Docker Compose plugin
+- **Git** for cloning the repository
+- **Build tools**: build-essential, python3
 - **Neon Database** account (free tier available) - for PostgreSQL
-- **Docker** (for MSSQL Server) - Required for MSSQL import features
 - **Domain name** (optional, for production)
+
+### Optional Software
+
+- **PM2** for process management (production)
+- **Nginx** for reverse proxy (production)
+- **Certbot** for SSL certificates (production)
 
 ## Installation Steps
 
-### 1. Server Setup (Ubuntu 24.04)
+### 1. Initial Server Setup (Ubuntu 24.04)
+
+Update the system and install essential build tools:
 
 ```bash
-# Update system packages
+# Update package lists
 sudo apt update && sudo apt upgrade -y
 
-# Install Node.js 20 (LTS)
+# Install essential build tools and dependencies
+sudo apt install -y \
+    build-essential \
+    curl \
+    wget \
+    git \
+    python3 \
+    python3-pip \
+    ca-certificates \
+    gnupg \
+    lsb-release
+
+# Verify Git installation
+git --version
+```
+
+**Verification:**
+```bash
+# Check system information
+lsb_release -a
+python3 --version
+```
+
+### 2. Node.js Installation
+
+Install Node.js 20.x LTS using the official NodeSource repository:
+
+```bash
+# Add NodeSource repository for Node.js 20.x
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+
+# Install Node.js
 sudo apt-get install -y nodejs
 
 # Verify installation
 node --version  # Should show v20.x.x
 npm --version   # Should show 10.x.x
+```
 
-# Install PM2 for process management
+**Important**: Ensure you have Node.js 20.x. If you see a different version, remove it first:
+```bash
+# Remove old Node.js if needed
+sudo apt remove nodejs npm -y
+sudo apt autoremove -y
+# Then re-run the NodeSource installation above
+```
+
+Install global packages required for development:
+
+```bash
+# Install tsx (TypeScript executor) - version 4.19.1+ required for --env-file support
+sudo npm install -g tsx@^4.19.1
+
+# Install Drizzle Kit for database management
+sudo npm install -g drizzle-kit
+
+# Install PM2 for process management (production)
 sudo npm install -g pm2
 
-# Install Docker (for MSSQL Server)
-sudo apt-get install -y docker.io docker-compose
+# Verify tsx installation and version
+tsx --version  # Should show 4.19.1 or higher
+```
+
+**Verification:**
+```bash
+# Check all global packages
+npm list -g --depth=0
+```
+
+### 3. Docker Installation
+
+Install Docker using the official Docker repository (not Ubuntu's docker.io package):
+
+```bash
+# Remove old Docker versions if any
+sudo apt remove docker docker-engine docker.io containerd runc -y
+
+# Add Docker's official GPG key
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
+echo \
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Update package index
+sudo apt update
+
+# Install Docker Engine, CLI, and Docker Compose plugin
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# Start and enable Docker service
 sudo systemctl start docker
 sudo systemctl enable docker
-sudo usermod -aG docker $USER
-# Log out and back in for group changes to take effect
 
-# Install Nginx (optional, for reverse proxy)
+# Add current user to docker group (to run docker without sudo)
+sudo usermod -aG docker $USER
+
+# Verify Docker installation
+docker --version
+docker compose version
+```
+
+**Important**: After adding user to docker group, you MUST either:
+1. **Log out and log back in** (recommended), OR
+2. Run `newgrp docker` in your current terminal session
+
+**Verification:**
+```bash
+# If you didn't log out, activate docker group in current session:
+newgrp docker
+
+# Test Docker without sudo
+docker run hello-world
+
+# Check Docker service status
+sudo systemctl status docker
+
+# Verify you're in docker group
+groups | grep docker
+```
+
+### 4. MSSQL Server Setup (Docker)
+
+MSSQL Server is required for importing legacy .bak files from MSSQL databases.
+
+```bash
+# Navigate to your project directory
+cd ~/MultiTenantAccounting
+
+# Start MSSQL Server container using docker-compose
+docker compose up -d
+
+# Wait a few seconds for MSSQL to initialize, then verify it's running
+docker compose ps
+
+# Check MSSQL logs to ensure it started successfully
+docker compose logs mssql
+
+# Test MSSQL connection (using password from docker-compose.yml)
+docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U SA -P "asQW12ZX12!!" \
+  -Q "SELECT @@VERSION"
+```
+
+**Default MSSQL Credentials** (from docker-compose.yml):
+- **Server**: localhost
+- **Port**: 1433
+- **Username**: sa (or SA)
+- **Password**: asQW12ZX12!!
+
+**IMPORTANT**: Your `.env` file MUST use the same password:
+```env
+MSSQL_PASSWORD="asQW12ZX12!!"
+```
+
+**To change the password**, edit both `docker-compose.yml` AND `.env` file:
+1. Update `MSSQL_SA_PASSWORD` in docker-compose.yml
+2. Update `MSSQL_PASSWORD` in .env file
+3. Restart container:
+```bash
+docker compose down
+docker compose up -d
+```
+
+**Verification:**
+```bash
+# Check container status
+docker compose ps
+
+# Check if port 1433 is listening
+sudo netstat -tlnp | grep 1433
+# or
+sudo ss -tlnp | grep 1433
+```
+
+### 5. Clone and Setup Application
+
+```bash
+# Clone the repository (replace with your repository URL)
+git clone <your-repository-url>
+cd MultiTenantAccounting
+
+# Install project dependencies
+npm install
+
+# Verify dependencies installed correctly
+npm list --depth=0
+```
+
+**Verification:**
+```bash
+# Check if all required packages are installed
+npm run check  # TypeScript type checking
+```
+
+### 6. Environment Configuration
+
+Create the `.env` file with all required environment variables:
+
+```bash
+# Create .env file
+nano .env
+```
+
+Add the following configuration (replace with your actual values):
+
+```env
+# PostgreSQL Database (Neon)
+DATABASE_URL="postgresql://username:password@hostname/database?sslmode=require"
+NODE_ENV="development"
+
+# Session Configuration
+SESSION_SECRET="your-super-secret-session-key-change-this-in-production-min-32-chars"
+
+# Server Configuration
+PORT=5000
+ALLOWED_HOSTS="react.ants.ge,.ants.ge,localhost"
+DOMAIN="react.ants.ge"
+
+# MSSQL Server Configuration (for legacy imports)
+# These match the docker-compose.yml defaults
+MSSQL_SERVER=localhost
+MSSQL_PORT=1433
+MSSQL_USERNAME=sa
+MSSQL_PASSWORD="asQW12ZX12!!"
+MSSQL_DATABASE=Audit
+MSSQL_ENCRYPT=true
+MSSQL_TRUST_SERVER_CERTIFICATE=true
+
+# Optional: MSSQL Backup Directory (for Windows compatibility)
+# MSSQL_BACKUP_PATH="C:\\MSSQLBackups"
+
+# Optional: Google Drive OAuth (for backup restore features)
+# GOOGLE_DRIVE_CLIENT_ID="your-client-id"
+# GOOGLE_DRIVE_CLIENT_SECRET="your-client-secret"
+# GOOGLE_DRIVE_REFRESH_TOKEN="your-refresh-token"
+
+# Optional: Supabase Storage (for backup storage)
+# SUPABASE_URL="https://your-project.supabase.co"
+# SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+```
+
+**Important Notes:**
+- Replace `DATABASE_URL` with your Neon database connection string
+- Generate a strong `SESSION_SECRET` (minimum 32 characters)
+- MSSQL credentials match docker-compose.yml defaults
+- Optional variables can be added later if needed
+
+**Verification:**
+```bash
+# Check if .env file exists and is readable
+cat .env | grep -v PASSWORD  # View .env without passwords
+```
+
+### 7. Neon Database Setup
+
+1. **Create Neon Account**:
+   - Go to [neon.tech](https://neon.tech)
+   - Sign up for a free account
+   - Create a new project
+
+2. **Get Database URL**:
+   - In your Neon dashboard, go to "Connection Details"
+   - Copy the connection string (format: `postgresql://username:password@hostname/database`)
+   - Add `?sslmode=require` to the end if not present
+
+3. **Update .env file** with your `DATABASE_URL`
+
+### 8. Database Migration
+
+Initialize the PostgreSQL database schema:
+
+```bash
+# Push database schema to Neon (creates all tables)
+npm run db:push
+
+# Verify tables were created (optional - opens database browser)
+npx drizzle-kit studio
+```
+
+**Alternative**: If you prefer to run migrations manually:
+```bash
+# Run SQL migrations
+npm run db:migrate
+
+# Check migration status
+npm run db:status
+```
+
+**Verification:**
+```bash
+# Test database connection
+npm run db:status
+```
+
+### 9. Fix tsx --env-file Issue
+
+If you encounter the error `/usr/bin/node: bad option: --env-file=.env`, follow these steps:
+
+**Check tsx version:**
+```bash
+tsx --version
+```
+
+**If version is below 4.19.1**, reinstall tsx:
+```bash
+sudo npm uninstall -g tsx
+sudo npm install -g tsx@^4.19.1
+tsx --version  # Verify it's 4.19.1 or higher
+```
+
+**Note**: The application also loads `.env` files manually in `server/index.ts`, so even if `--env-file` doesn't work, the application should still function. However, it's recommended to use tsx 4.19.1+ for proper environment variable loading.
+
+**Verification:**
+```bash
+# Test tsx with env file
+tsx --env-file=.env -e "console.log(process.env.NODE_ENV)"
+# Should output: development
+```
+
+### 10. Build and Test Application
+
+Build the application:
+
+```bash
+# Build the frontend and backend
+npm run build
+
+# Verify build completed successfully
+ls -la dist/
+ls -la client/dist/
+```
+
+Test the development server:
+
+```bash
+# Start development server
+npm run dev
+```
+
+The application should start on `http://localhost:5000`. Open it in your browser to verify.
+
+**Verification:**
+```bash
+# Check if server is running
+curl http://localhost:5000
+
+# Check process
+ps aux | grep node
+```
+
+### 11. PM2 Process Management (Production)
+
+For production deployment, use PM2 to manage the application:
+
+Create PM2 ecosystem file:
+```bash
+nano ecosystem.config.js
+```
+
+Add the following configuration:
+```javascript
+module.exports = {
+  apps: [{
+    name: 'multitenant-accounting',
+    script: 'npm',
+    args: 'start',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 5000
+    },
+    instances: 1,
+    autorestart: true,
+    watch: false,
+    max_memory_restart: '1G',
+    error_file: './logs/err.log',
+    out_file: './logs/out.log',
+    log_file: './logs/combined.log',
+    time: true
+  }]
+};
+```
+
+Start the application:
+```bash
+# Create logs directory
+mkdir -p logs
+
+# Start with PM2
+pm2 start ecosystem.config.js
+
+# Save PM2 configuration
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup
+# Follow the command output to complete the setup
+```
+
+**Verification:**
+```bash
+# Check PM2 status
+pm2 status
+
+# View logs
+pm2 logs multitenant-accounting
+
+# Monitor resources
+pm2 monit
+```
+
+### 12. Nginx Reverse Proxy (Optional, Production)
+
+Install and configure Nginx:
+
+```bash
+# Install Nginx
 sudo apt install nginx -y
+
+# Create Nginx configuration
+sudo nano /etc/nginx/sites-available/multitenant-accounting
+```
+
+Add the following configuration:
+```nginx
+server {
+    listen 80;
+    server_name react.ants.ge www.react.ants.ge;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable the site:
+```bash
+# Enable the site
+sudo ln -s /etc/nginx/sites-available/multitenant-accounting /etc/nginx/sites-enabled/
+
+# Remove default site (optional)
+sudo rm /etc/nginx/sites-enabled/default
+
+# Test Nginx configuration
+sudo nginx -t
+
+# Restart Nginx
+sudo systemctl restart nginx
+
+# Enable Nginx to start on boot
+sudo systemctl enable nginx
+```
+
+**Verification:**
+```bash
+# Check Nginx status
+sudo systemctl status nginx
+
+# Test configuration
+sudo nginx -t
+```
+
+### 13. SSL Certificate (Optional, Production)
+
+Install Certbot for free SSL certificates:
+
+```bash
+# Install Certbot
+sudo apt install certbot python3-certbot-nginx -y
+
+# Get SSL certificate (replace with your domain)
+sudo certbot --nginx -d react.ants.ge -d www.react.ants.ge
+
+# Test auto-renewal
+sudo certbot renew --dry-run
+```
+
+**Verification:**
+```bash
+# Check certificate status
+sudo certbot certificates
+```
+
+### 14. Firewall Configuration
+
+Configure UFW firewall:
+
+```bash
+# Configure UFW firewall
+sudo ufw allow ssh
+sudo ufw allow 'Nginx Full'  # If using Nginx
+# OR
+sudo ufw allow 5000/tcp      # If not using Nginx
+
+# Enable firewall
+sudo ufw enable
+
+# Check status
+sudo ufw status
+```
+
+**Verification:**
+```bash
+# Check firewall rules
+sudo ufw status verbose
 ```
 
 ### 2. Clone and Setup Application
@@ -333,36 +848,377 @@ pm2 restart accountflow-pro
 
 ### Common Issues
 
-1. **Database Connection Failed**:
-   - Verify DATABASE_URL in .env file
-   - Check Neon database is active
-   - Ensure SSL mode is enabled
+#### 1. tsx --env-file Error
 
-2. **Permission Denied**:
-   - Check file permissions: `chmod +x node_modules/.bin/*`
-   - Verify user has access to application directory
+**Error**: `/usr/bin/node: bad option: --env-file=.env`
 
-3. **Port Already in Use**:
-   - Change PORT in .env file
-   - Kill existing processes: `sudo lsof -i :5000`
+**Solution**:
+```bash
+# Check tsx version
+tsx --version
 
-4. **Build Failures**:
-   - Clear node_modules: `rm -rf node_modules && npm install`
-   - Check Node.js version compatibility
+# If version is below 4.19.1, reinstall
+sudo npm uninstall -g tsx
+sudo npm install -g tsx@^4.19.1
+
+# Verify installation
+tsx --version  # Should show 4.19.1 or higher
+```
+
+**Note**: The application also loads `.env` manually, so it may work even with older tsx versions, but 4.19.1+ is recommended.
+
+#### 2. Database Connection Failed
+
+**Symptoms**: Application can't connect to PostgreSQL
+
+**Solutions**:
+```bash
+# Verify DATABASE_URL in .env file
+cat .env | grep DATABASE_URL
+
+# Test connection manually
+psql "$DATABASE_URL" -c "SELECT version();"
+
+# Check if SSL mode is required
+# Ensure ?sslmode=require is in DATABASE_URL
+
+# Verify Neon database is active
+# Check Neon dashboard for database status
+```
+
+#### 3. Docker Permission Denied
+
+**Error**: `permission denied while trying to connect to the Docker daemon socket`
+
+**Solution**:
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+
+# IMPORTANT: You must either:
+# Option 1: Log out and log back in (recommended)
+# Option 2: Activate docker group in current session:
+newgrp docker
+
+# Verify you're in docker group
+groups | grep docker
+
+# Test Docker without sudo
+docker run hello-world
+
+# If still having issues, check docker socket permissions
+ls -la /var/run/docker.sock
+# Should show: srw-rw---- 1 root docker
+
+# If permissions are wrong, restart docker service
+sudo systemctl restart docker
+```
+
+#### 4. MSSQL Connection Failed
+
+**Symptoms**: Can't connect to MSSQL Server, "Login failed for user 'sa'"
+
+**Solutions**:
+
+**Step 1: Verify MSSQL container is running**
+```bash
+# Check container status
+docker compose ps
+
+# If not running, start it
+docker compose up -d
+
+# Wait 10-15 seconds for MSSQL to initialize, then check logs
+docker compose logs mssql | tail -20
+```
+
+**Step 2: Test connection from inside container**
+```bash
+# Test with password from docker-compose.yml
+docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U SA -P "asQW12ZX12!!" \
+  -Q "SELECT @@VERSION"
+```
+
+**Step 3: Verify .env file matches docker-compose.yml**
+```bash
+# Check MSSQL password in .env
+grep MSSQL_PASSWORD .env
+
+# It should match docker-compose.yml password: asQW12ZX12!!
+# If different, update .env:
+nano .env
+# Set: MSSQL_PASSWORD="asQW12ZX12!!"
+```
+
+**Step 4: Check if MSSQL is listening**
+```bash
+# Verify port 1433 is open
+sudo ss -tlnp | grep 1433
+# Should show: LISTEN 0 128 *:1433
+
+# If not listening, restart container
+docker compose restart mssql
+```
+
+**Step 5: Reset MSSQL password (if needed)**
+```bash
+# Stop container
+docker compose down
+
+# Remove the volume (WARNING: This deletes all MSSQL data)
+docker volume rm multitenantaccounting_mssql-data
+
+# Start fresh
+docker compose up -d
+
+# Wait 15-20 seconds, then test
+docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U SA -P "asQW12ZX12!!" \
+  -Q "SELECT 1"
+```
+
+**Step 6: Verify environment variables are loaded**
+```bash
+# Test if .env is being read correctly
+node -e "require('dotenv').config(); console.log('MSSQL_PASSWORD:', process.env.MSSQL_PASSWORD ? 'SET' : 'NOT SET')"
+
+# Or check in application
+npm run dev
+# Look for MSSQL Connection Config in logs
+```
+
+**Common Issues:**
+- Password mismatch between .env and docker-compose.yml
+- MSSQL container not fully initialized (wait 15-20 seconds after start)
+- MSSQL container crashed (check logs: `docker compose logs mssql`)
+- Wrong username (should be `sa` or `SA`, not `MSSQL_USER`)
+
+#### 5. Port Already in Use
+
+**Error**: `EADDRINUSE: address already in use :::5000`
+
+**Solution**:
+```bash
+# Find process using port 5000
+sudo lsof -i :5000
+# or
+sudo ss -tlnp | grep 5000
+
+# Kill the process (replace PID with actual process ID)
+sudo kill -9 <PID>
+
+# OR change PORT in .env file
+nano .env  # Change PORT=5000 to PORT=5001
+```
+
+#### 6. Node.js Version Issues
+
+**Error**: Package requires different Node.js version
+
+**Solution**:
+```bash
+# Check current Node.js version
+node --version  # Should be v20.x.x
+
+# If wrong version, reinstall Node.js 20.x
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Verify
+node --version
+npm --version
+```
+
+#### 7. Build Failures
+
+**Error**: Build process fails or dependencies don't install
+
+**Solution**:
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Remove node_modules and package-lock.json
+rm -rf node_modules package-lock.json
+
+# Reinstall dependencies
+npm install
+
+# If still failing, check Node.js and npm versions
+node --version  # Should be v20.x.x
+npm --version   # Should be 10.x.x
+```
+
+#### 8. Docker Compose Command Not Found
+
+**Error**: `docker-compose: command not found`
+
+**Solution**:
+```bash
+# Ubuntu 24.04 uses Docker Compose plugin (docker compose, not docker-compose)
+# Use: docker compose up -d
+# Instead of: docker-compose up -d
+
+# Verify plugin is installed
+docker compose version
+```
+
+#### 9. MSSQL Backup Access Denied (Windows)
+
+**Error**: `Cannot open backup device... Access is denied`
+
+**Solution**:
+- The application automatically uses SQL Server-accessible directories
+- Set `MSSQL_BACKUP_PATH` in .env to a directory SQL Server can access
+- Default locations tried: `C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\Backup`
+
+#### 10. PM2 Process Not Starting
+
+**Error**: PM2 can't start the application
+
+**Solution**:
+```bash
+# Check PM2 logs
+pm2 logs
+
+# Check if .env file is readable
+cat .env
+
+# Verify NODE_ENV is set correctly
+echo $NODE_ENV
+
+# Try starting manually first
+npm start
+
+# Then use PM2
+pm2 start ecosystem.config.js
+```
+
+### Verification Commands
+
+Run these commands to verify your installation:
+
+```bash
+# System
+lsb_release -a                    # Ubuntu version
+node --version                    # Node.js version (should be v20.x.x)
+npm --version                     # npm version (should be 10.x.x)
+tsx --version                     # tsx version (should be 4.19.1+)
+
+# Docker
+docker --version                  # Docker version
+docker compose version            # Docker Compose version
+docker compose ps                 # Running containers
+
+# MSSQL
+docker compose logs mssql         # MSSQL logs
+sudo ss -tlnp | grep 1433         # Check if MSSQL port is open
+
+# Application
+npm run db:status                 # Database connection status
+npm run check                     # TypeScript compilation
+npm run build                     # Build application
+```
 
 ### Logs Location
-- PM2 logs: `./logs/`
-- Nginx logs: `/var/log/nginx/`
-- Application logs: Check PM2 logs
+
+- **PM2 logs**: `./logs/err.log`, `./logs/out.log`, `./logs/combined.log`
+- **Nginx logs**: `/var/log/nginx/access.log`, `/var/log/nginx/error.log`
+- **Docker logs**: `docker compose logs mssql`
+- **Application logs**: Check PM2 logs or console output
+
+### Getting Help
+
+If you encounter issues not covered here:
+
+1. Check application logs: `pm2 logs` or `npm run dev` output
+2. Verify all environment variables are set: `cat .env`
+3. Check database connectivity: `npm run db:status`
+4. Verify Docker containers: `docker compose ps`
+5. Review system resources: `free -h`, `df -h`
 
 ## Environment Variables
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| DATABASE_URL | Neon database connection string | Yes | - |
-| SESSION_SECRET | Secret key for sessions | Yes | - |
-| NODE_ENV | Environment mode | No | development |
-| PORT | Application port | No | 5000 |
+### Required Variables
+
+| Variable | Description | Example | Required |
+|----------|-------------|---------|----------|
+| `DATABASE_URL` | PostgreSQL connection string (Neon) | `postgresql://user:pass@host/db?sslmode=require` | Yes |
+| `SESSION_SECRET` | Secret key for session encryption (min 32 chars) | `your-super-secret-key-here` | Yes |
+
+### Server Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `NODE_ENV` | Environment mode (`development` or `production`) | `development` | No |
+| `PORT` | Application server port | `5000` | No |
+| `ALLOWED_HOSTS` | Comma-separated list of allowed hostnames | - | No |
+| `DOMAIN` | Primary domain name | - | No |
+
+### MSSQL Server Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `MSSQL_SERVER` | MSSQL server hostname | `localhost` | Yes* |
+| `MSSQL_PORT` | MSSQL server port | `1433` | No |
+| `MSSQL_USERNAME` or `MSSQL_USER` | MSSQL username | `sa` | Yes* |
+| `MSSQL_PASSWORD` | MSSQL password | - | Yes* |
+| `MSSQL_DATABASE` | Default MSSQL database | `Audit` | No |
+| `MSSQL_ENCRYPT` | Enable encryption | `true` | No |
+| `MSSQL_TRUST_SERVER_CERTIFICATE` | Trust server certificate | `true` | No |
+| `MSSQL_BACKUP_PATH` | Custom backup directory path (Windows) | - | No |
+
+*Required only if using MSSQL import/restore features
+
+### Optional: Google Drive OAuth
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GOOGLE_DRIVE_CLIENT_ID` | Google OAuth client ID | No |
+| `GOOGLE_DRIVE_CLIENT_SECRET` | Google OAuth client secret | No |
+| `GOOGLE_DRIVE_REFRESH_TOKEN` | Google OAuth refresh token | No |
+
+### Optional: Supabase Storage
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `SUPABASE_URL` | Supabase project URL | No |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | No |
+
+### Example .env File
+
+```env
+# PostgreSQL Database
+DATABASE_URL="postgresql://user:password@ep-xxx.region.aws.neon.tech/dbname?sslmode=require"
+NODE_ENV="development"
+
+# Session
+SESSION_SECRET="your-super-secret-session-key-minimum-32-characters-long"
+
+# Server
+PORT=5000
+ALLOWED_HOSTS="react.ants.ge,.ants.ge,localhost"
+DOMAIN="react.ants.ge"
+
+# MSSQL (matches docker-compose.yml)
+MSSQL_SERVER=localhost
+MSSQL_PORT=1433
+MSSQL_USERNAME=sa
+MSSQL_PASSWORD="asQW12ZX12!!"
+MSSQL_DATABASE=Audit
+MSSQL_ENCRYPT=true
+MSSQL_TRUST_SERVER_CERTIFICATE=true
+
+# Optional: Google Drive
+# GOOGLE_DRIVE_CLIENT_ID="your-client-id"
+# GOOGLE_DRIVE_CLIENT_SECRET="your-client-secret"
+# GOOGLE_DRIVE_REFRESH_TOKEN="your-refresh-token"
+
+# Optional: Supabase
+# SUPABASE_URL="https://xxx.supabase.co"
+# SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+```
 
 ## Architecture
 

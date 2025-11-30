@@ -19,7 +19,7 @@ export interface DownloadResult {
  * Get or create the backup directory
  * Default: /var/opt/mssql/backup/ (or from env: MSSQL_BACKUP_DIR)
  */
-async function ensureBackupDirectory(): Promise<string> {
+export async function ensureBackupDirectory(): Promise<string> {
   const backupDir = process.env.MSSQL_BACKUP_DIR || '/var/opt/mssql/backup';
   
   try {
