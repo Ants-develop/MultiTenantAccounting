@@ -182,6 +182,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
+        name: "MSSQL Connection",
+        href: "/mssql-connection",
+        icon: Database,
+        requiresGlobalAdmin: true,
+    },
+    {
         name: "Bank Import",
         href: "/bank/import",
         icon: Upload,

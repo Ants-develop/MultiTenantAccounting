@@ -26,6 +26,7 @@ import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import BackupRestore from "@/pages/admin/BackupRestore";
 import MSSQLMigration from "@/pages/admin/MSSQLMigration";
+import MSSQLConnection from "@/pages/admin/MSSQLConnection";
 import AccountingHome from "@/pages/accounting/AccountingHome";
 import AuditDashboard from "@/pages/audit/AuditDashboard";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
@@ -217,6 +218,11 @@ export const pageRegistry: PageConfig = {
     title: "MSSQL Migration",
     component: MSSQLMigration,
     path: "/mssql-migration",
+  },
+  "/mssql-connection": {
+    title: "MSSQL Connection",
+    component: MSSQLConnection,
+    path: "/mssql-connection",
   },
   "/admin/import-clients": {
     title: "Import Clients",

@@ -25,6 +25,83 @@ const router = express.Router();
 // Apply authentication middleware to all routes
 router.use(requireAuth);
 
+/**
+ * GET /api/mssql/connection-status
+ * Test MSSQL connection and return status
+ */
+router.get("/connection-status", async (req, res) => {
+  try {
+    const config = {
+      server: process.env.MSSQL_SERVER || 'localhost',
+      database: process.env.MSSQL_DATABASE || 'Audit',
+      username: process.env.MSSQL_USERNAME || process.env.MSSQL_USER || 'sa',
+      port: parseInt(process.env.MSSQL_PORT || '1433'),
+      encrypt: process.env.MSSQL_ENCRYPT === 'true' || true,
+      trustServerCertificate: process.env.MSSQL_TRUST_SERVER_CERTIFICATE === 'true' || true,
+      passwordSet: !!process.env.MSSQL_PASSWORD,
+    };
+
+    // Try to connect
+    let connected = false;
+    let error: any = null;
+    let connectionTime: number | null = null;
+    let databases: string[] = [];
+
+    try {
+      const startTime = Date.now();
+      const pool = await connectMSSQL();
+      connectionTime = Date.now() - startTime;
+      connected = pool.connected;
+
+      // Try to query databases
+      try {
+        const result = await pool.request().query(`
+          SELECT name FROM sys.databases 
+          WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')
+          ORDER BY name
+        `);
+        databases = result.recordset.map((row: any) => row.name);
+      } catch (queryError) {
+        console.error('Error querying databases:', queryError);
+      }
+
+      // Close the pool
+      try {
+        await pool.close();
+      } catch (closeError) {
+        console.error('Error closing pool:', closeError);
+      }
+    } catch (connError: any) {
+      error = {
+        message: connError.message,
+        code: connError.code,
+        type: connError.constructor.name,
+      };
+    }
+
+    res.json({
+      connected,
+      config: {
+        ...config,
+        password: config.passwordSet ? '***' : 'NOT SET',
+      },
+      connectionTime,
+      databases,
+      error,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      connected: false,
+      error: {
+        message: error.message,
+        code: error.code,
+        type: error.constructor.name,
+      },
+    });
+  }
+});
+
 // Shared state for active migration/update
 let activeMigration: MigrationProgress | null = null;
 let mssqlPool: any = null;

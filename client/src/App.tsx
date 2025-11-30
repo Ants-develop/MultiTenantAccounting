@@ -53,6 +53,7 @@ import JobsDashboard from "@/pages/jobs/JobsDashboard";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import BackupRestore from "@/pages/admin/BackupRestore";
 import MSSQLMigration from "@/pages/admin/MSSQLMigration";
+import MSSQLConnection from "@/pages/admin/MSSQLConnection";
 import ClientImport from "@/pages/admin/ClientImport";
 import ImportStatement from "@/pages/bank/ImportStatement";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
@@ -148,6 +149,7 @@ function ProtectedApp() {
           <Route path="/mssql-import" component={MSSQLImport} />
           <Route path="/backup-restore" component={BackupRestore} />
           <Route path="/mssql-migration" component={MSSQLMigration} />
+          <Route path="/mssql-connection" component={MSSQLConnection} />
           <Route path="/bank/import" component={ImportStatement} />
           <Route path="/rs-integration" component={RSIntegrationDashboard} />
           <Route path="/rs-admin" component={RSAdmin} />
