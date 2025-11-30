@@ -9,18 +9,22 @@ services:
       - "1433:1433"
     environment:
       - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=YourStrong@Password123
+      - MSSQL_SA_PASSWORD=asQW12ZX12!!
       - MSSQL_PID=Developer
       - MSSQL_TCP_PORT=1433
     volumes:
-      # Persist data on host machine
-      - ./mssql-data:/var/opt/mssql/data
+      # Persist data with Docker-managed volumes (avoids permission issues)
+      - mssql-data:/var/opt/mssql/data
       # Persist backups
-      - ./mssql-backups:/var/opt/mssql/backups
+      - mssql-backups:/var/opt/mssql/backups
     restart: unless-stopped
     healthcheck:
-      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "YourStrong@Password123" -Q "SELECT 1" || exit 1
+      test: /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "asQW12ZX12!!" -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 3s
       retries: 10
       start_period: 10s
+
+volumes:
+  mssql-data:
+  mssql-backups:
