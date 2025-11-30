@@ -30,13 +30,9 @@ export interface RestoreOptions {
   postingsPeriodTo?: string;
   tableName?: string;
   companyTin?: string;
-  yearOffset?: number;  // Number of years to add to dates (default: -2000)
-  auditDatabaseName?: string;  // Name of Audit database (default: "Audit")
+  yearOffset?: number;
 }
 
-/**
- * Get MSSQL connection config
- */
 function getMSSQLConfig(database: string = 'master') {
   return {
     server: process.env.MSSQL_SERVER || 'localhost',
@@ -156,64 +152,7 @@ export async function adjustDatesInGeneralLedger(
   }
 }
 
-/**
- * Transfer data from restored database to Audit database
- * Replicates Step 2-4 from 2.updateDatesAndTransferDBtoAudit.ps1
- */
-export async function transferToAuditDatabase(
-  sourceDatabaseName: string,
-  auditDatabaseName: string = 'Audit',
-  onProgress?: (message: string) => void
-): Promise<number> {
-  const pool = await sql.connect(getMSSQLConfig('master'));
 
-  try {
-    onProgress?.('Transferring data to Audit database...');
-
-    const transferQuery = `
-      -- Step 2: Check if the table exists in Audit database and delete if it does
-      IF EXISTS (
-        SELECT 1 
-        FROM [${auditDatabaseName}].INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = 'dbo' 
-          AND TABLE_NAME = 'GeneralLedger'
-      )
-      BEGIN
-        DELETE FROM [${auditDatabaseName}].[dbo].[GeneralLedger];
-      END;
-
-      -- Step 3: Create the table if it does not exist
-      IF NOT EXISTS (
-        SELECT 1 
-        FROM [${auditDatabaseName}].INFORMATION_SCHEMA.TABLES 
-        WHERE TABLE_SCHEMA = 'dbo' 
-          AND TABLE_NAME = 'GeneralLedger'
-      )
-      BEGIN
-        SELECT TOP 0 *
-        INTO [${auditDatabaseName}].[dbo].[GeneralLedger]
-        FROM [${sourceDatabaseName}].[dbo].[GeneralLedger];
-      END;
-
-      -- Step 4: Insert filtered data
-      INSERT INTO [${auditDatabaseName}].[dbo].[GeneralLedger]
-      SELECT *
-      FROM [${sourceDatabaseName}].[dbo].[GeneralLedger]
-      OPTION (MAXDOP 8);
-      
-      SELECT @@ROWCOUNT AS RowsAffected;
-    `;
-
-    const result = await pool.request().query(transferQuery);
-    const rowsAffected = result.recordset[0]?.RowsAffected || 0;
-
-    onProgress?.(`✅ Transferred ${rowsAffected} rows to ${auditDatabaseName}.GeneralLedger`);
-
-    return rowsAffected;
-  } finally {
-    await pool.close();
-  }
-}
 
 /**
  * Drop temporary database
@@ -331,31 +270,17 @@ export async function restoreBackupFromDrive(
       (msg) => onProgress?.({ status: 'migrating', progress: 55, message: msg })
     );
 
-    // Step 5: Transfer data to Audit database
-    onProgress?.({
-      status: 'migrating',
-      progress: 60,
-      message: 'Transferring to Audit database...',
-    });
-
-    const rowsTransferred = await transferToAuditDatabase(
-      databaseName,
-      options.auditDatabaseName || 'Audit',
-      (msg) => onProgress?.({ status: 'migrating', progress: 65, message: msg })
-    );
-
-    // Step 6: Migrate data to PostgreSQL (Supabase)
+    // Step 5: Migrate data to PostgreSQL (Supabase)
     if (options.migrationType && options.tenantCode && options.clientId) {
       onProgress?.({
         status: 'migrating',
-        progress: 70,
+        progress: 60,
         message: 'Migrating data to PostgreSQL...',
       });
 
-      // Connect to Audit database for migration
-      // Note: connectMSSQL uses the database from environment config
-      // The Audit database should be set in MSSQL_DATABASE environment variable
-      const mssqlPool = await connectMSSQL();
+      // Connect directly to the restored database for migration
+      // This skips the intermediate transfer to the 'Audit' database
+      const mssqlPool = await connectMSSQL(databaseName);
 
       if (options.migrationType === 'general-ledger') {
         await migrateGeneralLedger(

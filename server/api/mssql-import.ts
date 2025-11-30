@@ -581,7 +581,6 @@ router.post("/restore-from-drive", async (req, res) => {
       tenantCode,
       clientId,
       batchSize,
-      auditDatabaseName,
       postingsPeriodFrom,
       postingsPeriodTo,
     } = req.body;
@@ -660,7 +659,6 @@ router.post("/restore-from-drive", async (req, res) => {
             tenantCode,
             clientId,
             batchSize,
-            auditDatabaseName,
             postingsPeriodFrom,
             postingsPeriodTo,
           },

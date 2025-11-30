@@ -724,7 +724,6 @@ export default function MSSQLImport() {
         tenantCode: selectedTenant.tenantCode,
         clientId: selectedClientId,
         batchSize: 1000,
-        auditDatabaseName: 'Audit',
       });
       return response.json();
     },
