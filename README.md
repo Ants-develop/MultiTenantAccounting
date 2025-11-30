@@ -15,13 +15,14 @@ A comprehensive accounting application built with React, Express.js, and Postgre
 ## Prerequisites
 
 - **Node.js** 18+ and npm
-- **Linux server** (Ubuntu 20.04+ recommended)
-- **Neon Database** account (free tier available)
+- **Linux server** (Ubuntu 22.04+ recommended, Ubuntu 24.04 supported)
+- **Neon Database** account (free tier available) - for PostgreSQL
+- **Docker** (for MSSQL Server) - Required for MSSQL import features
 - **Domain name** (optional, for production)
 
 ## Installation Steps
 
-### 1. Server Setup
+### 1. Server Setup (Ubuntu 24.04)
 
 ```bash
 # Update system packages
@@ -37,6 +38,13 @@ npm --version   # Should show 10.x.x
 
 # Install PM2 for process management
 sudo npm install -g pm2
+
+# Install Docker (for MSSQL Server)
+sudo apt-get install -y docker.io docker-compose
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo usermod -aG docker $USER
+# Log out and back in for group changes to take effect
 
 # Install Nginx (optional, for reverse proxy)
 sudo apt install nginx -y
@@ -86,7 +94,39 @@ ALLOWED_HOSTS="react.ants.ge,.ants.ge,localhost"
 DOMAIN="react.ants.ge"
 ```
 
-### 4. Database Migration
+### 4. MSSQL Server Setup (Docker)
+
+**Note**: MSSQL Server is required for importing legacy .bak files from MSSQL databases.
+
+```bash
+# The docker-compose.yml file is already configured
+# Start MSSQL Server container
+cd ~/MultiTenantAccounting
+docker-compose up -d
+
+# Verify MSSQL is running
+docker-compose ps
+docker-compose logs mssql
+
+# Test connection
+docker exec -it mssql-server /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U SA -P "asQW12ZX12!!" \
+  -Q "SELECT @@VERSION"
+```
+
+**Add MSSQL credentials to `.env`:**
+```env
+# MSSQL Server Configuration (for legacy imports)
+MSSQL_SERVER=localhost
+MSSQL_PORT=1433
+MSSQL_USER=sa
+MSSQL_PASSWORD=asQW12ZX12!!
+MSSQL_DATABASE=Audit
+MSSQL_ENCRYPT=true
+MSSQL_TRUST_SERVER_CERTIFICATE=true
+```
+
+### 5. PostgreSQL Database Migration
 
 ```bash
 # Push database schema to Neon
@@ -96,7 +136,7 @@ npm run db:push
 npx drizzle-kit studio  # Opens database browser
 ```
 
-### 5. Build Application
+### 6. Build Application
 
 ```bash
 # Build the frontend
@@ -106,7 +146,7 @@ npm run build
 npm start
 ```
 
-### 6. PM2 Process Management
+### 7. PM2 Process Management
 
 Create PM2 ecosystem file:
 ```bash
@@ -152,7 +192,7 @@ pm2 startup
 sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u $(whoami) --hp $(eval echo ~$(whoami))
 ```
 
-### 7. Nginx Reverse Proxy (Optional)
+### 8. Nginx Reverse Proxy (Optional)
 
 Create Nginx configuration:
 ```bash
@@ -194,7 +234,7 @@ sudo systemctl restart nginx
 sudo systemctl enable nginx
 ```
 
-### 8. SSL Certificate (Optional)
+### 9. SSL Certificate (Optional)
 
 Install Certbot for free SSL:
 ```bash

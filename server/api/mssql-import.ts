@@ -36,7 +36,7 @@ async function initMSSQLPool() {
   console.log('\n🔄 initMSSQLPool called');
   console.log('   Current pool state:', mssqlPool ? 'EXISTS' : 'NULL');
   console.log('   Pool connected:', mssqlPool?.connected || 'N/A');
-  
+
   try {
     if (!mssqlPool) {
       console.log('   Creating new MSSQL pool...');
@@ -64,22 +64,22 @@ router.get("/tenant-codes", async (req, res) => {
   try {
     console.log("\n1️⃣ Initializing MSSQL pool...");
     const pool = await initMSSQLPool();
-    
+
     // Get optional date filters and client company tenant codes from query parameters
     const postingsPeriodFrom = req.query.postingsPeriodFrom as string | undefined;
     const postingsPeriodTo = req.query.postingsPeriodTo as string | undefined;
     const tenantCodesFilter = req.query.tenantCodes as string | undefined;
-    
+
     console.log("\n2️⃣ Fetching tenant codes with names and counts...");
     console.log("   Date filters:", { postingsPeriodFrom, postingsPeriodTo });
     console.log("   Client company tenant codes filter:", tenantCodesFilter);
-    
+
     // Only use client company tenant codes - do NOT use main company tenant code
     if (!tenantCodesFilter) {
       console.log("   ⚠️  No client company tenant codes provided");
       return res.json({ tenantCodes: [] });
     }
-    
+
     const tenants = await getTenantCodes(pool, postingsPeriodFrom, postingsPeriodTo, tenantCodesFilter);
 
     console.log("\n3️⃣ Formatting response...");
@@ -91,13 +91,13 @@ router.get("/tenant-codes", async (req, res) => {
         recordCount: tenant.recordCount,
       })),
     };
-    
+
     console.log(`   ✅ Returning ${response.tenantCodes.length} matching tenant(s)`);
     response.tenantCodes.forEach((t: any) => {
       console.log(`      - Code: ${t.tenantCode}, Name: "${t.tenantName}", Records: ${t.recordCount}`);
     });
     console.log("=".repeat(60) + "\n");
-    
+
     res.json(response);
   } catch (error: any) {
     console.error("\n❌ Get tenant codes error");
@@ -106,7 +106,7 @@ router.get("/tenant-codes", async (req, res) => {
     console.error("   Error Code:", error.code);
     console.error("   Stack:", error.stack);
     console.error("=".repeat(60) + "\n");
-    
+
     res.status(500).json({
       message: "Failed to fetch tenant codes",
       error: error.message,
@@ -125,7 +125,7 @@ router.get("/audit-tables", async (req, res) => {
   try {
     console.log("\n1️⃣ Initializing MSSQL pool...");
     const pool = await initMSSQLPool();
-    
+
     console.log("\n2️⃣ Fetching available audit tables...");
     const tables = await getAuditTableNames(pool);
 
@@ -136,13 +136,13 @@ router.get("/audit-tables", async (req, res) => {
         recordCount: table.recordCount,
       })),
     };
-    
+
     console.log(`   ✅ Returning ${response.auditTables.length} audit table(s)`);
     response.auditTables.forEach((t: any) => {
       console.log(`      - Table: ${t.tableName}, Records: ${t.recordCount}`);
     });
     console.log("=".repeat(60) + "\n");
-    
+
     res.json(response);
   } catch (error: any) {
     console.error("\n❌ Get audit tables error");
@@ -151,7 +151,7 @@ router.get("/audit-tables", async (req, res) => {
     console.error("   Error Code:", error.code);
     console.error("   Stack:", error.stack);
     console.error("=".repeat(60) + "\n");
-    
+
     res.status(500).json({
       message: "Failed to fetch audit tables",
       error: error.message,
@@ -167,12 +167,12 @@ async function handleStartMigration(req: express.Request, res: express.Response,
       return res.status(400).json({ message: "No company selected" });
     }
 
-    const { 
-      type = defaultType, 
-      tenantCode, 
-      clientId, 
-      batchSize, 
-      postingsPeriodFrom, 
+    const {
+      type = defaultType,
+      tenantCode,
+      clientId,
+      batchSize,
+      postingsPeriodFrom,
       postingsPeriodTo,
       tableName,
       companyTin
@@ -181,8 +181,8 @@ async function handleStartMigration(req: express.Request, res: express.Response,
     // Validate type parameter
     const validTypes = ['general-ledger', 'audit', 'update', 'rs', 'audit-table', 'full-audit-export'];
     if (!type || !validTypes.includes(type)) {
-      return res.status(400).json({ 
-        message: `Invalid migration type. Must be one of: ${validTypes.join(', ')}` 
+      return res.status(400).json({
+        message: `Invalid migration type. Must be one of: ${validTypes.join(', ')}`
       });
     }
 
@@ -212,7 +212,7 @@ async function handleStartMigration(req: express.Request, res: express.Response,
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`❌ Client validation failed for clientId ${clientId}:`, errorMessage);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: `Invalid client ID: ${errorMessage}`,
           clientId,
           error: 'CLIENT_NOT_FOUND'
@@ -228,7 +228,7 @@ async function handleStartMigration(req: express.Request, res: express.Response,
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error(`❌ Default client validation failed for clientId ${DEFAULT_CLIENT_ID}:`, errorMessage);
-        return res.status(400).json({ 
+        return res.status(400).json({
           message: `Invalid default client ID: ${errorMessage}`,
           clientId: DEFAULT_CLIENT_ID,
           error: 'DEFAULT_CLIENT_NOT_FOUND'
@@ -342,11 +342,11 @@ async function handleStartMigration(req: express.Request, res: express.Response,
             // Get all audit tables and process them sequentially
             const tables = await getAuditTableNames(pool);
             const totalTables = tables.length;
-            
+
             for (let i = 0; i < tables.length; i++) {
               const table = tables[i];
               console.log(`\n📋 Processing audit table ${i + 1}/${totalTables}: ${table.tableName}`);
-              
+
               // Update activeMigration with current table info
               if (activeMigration) {
                 activeMigration.tableName = table.tableName;
@@ -449,14 +449,14 @@ router.get("/migration-history", async (req, res) => {
 
     const histories = conditions.length > 0
       ? await db.select().from(migrationHistory)
-          .where(and(...conditions))
-          .orderBy(desc(migrationHistory.startTime))
-          .limit(limit)
-          .offset(offset)
+        .where(and(...conditions))
+        .orderBy(desc(migrationHistory.startTime))
+        .limit(limit)
+        .offset(offset)
       : await db.select().from(migrationHistory)
-          .orderBy(desc(migrationHistory.startTime))
-          .limit(limit)
-          .offset(offset);
+        .orderBy(desc(migrationHistory.startTime))
+        .limit(limit)
+        .offset(offset);
 
     // Fetch logs and errors for each migration
     const migrationsWithDetails = await Promise.all(
@@ -565,4 +565,169 @@ router.post("/stop-migration", async (req, res) => {
   }
 });
 
+// Restore from Google Drive
+router.post("/restore-from-drive", async (req, res) => {
+  console.log("\n" + "=".repeat(60));
+  console.log("📍 POST /api/mssql/restore-from-drive - Request received");
+  console.log("   Session User ID:", req.session?.userId);
+  console.log("=".repeat(60));
+
+  try {
+    const {
+      fileId,
+      fileName,
+      yearOffset,
+      migrationType,
+      tenantCode,
+      clientId,
+      batchSize,
+      auditDatabaseName,
+      postingsPeriodFrom,
+      postingsPeriodTo,
+    } = req.body;
+
+    if (!fileId || !clientId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing required fields: fileId and clientId are required'
+      });
+    }
+
+    console.log('Starting restore from Google Drive:', {
+      fileId,
+      fileName,
+      yearOffset,
+      clientId,
+      tenantCode,
+    });
+
+    // Validate client exists
+    try {
+      await validateClientExists(clientId);
+      console.log(`✅ Client ${clientId} validated successfully`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ Client validation failed for clientId ${clientId}:`, errorMessage);
+      return res.status(400).json({
+        success: false,
+        message: `Invalid client ID: ${errorMessage}`,
+        clientId,
+        error: 'CLIENT_NOT_FOUND'
+      });
+    }
+
+    // Import restore function
+    const { restoreBackupFromDrive } = await import('../services/mssql-restore');
+
+    const restoreId = Date.now();
+    const migrationId = `restore_${restoreId}`;
+
+    // Set activeMigration to track progress
+    activeMigration = {
+      migrationId,
+      type: 'audit' as any,  // Will be restore type
+      tenantCode: tenantCode || null,
+      tableName: null,
+      status: 'running',
+      totalRecords: 0,
+      processedRecords: 0,
+      successCount: 0,
+      errorCount: 0,
+      progress: 0,
+      startTime: new Date(),
+      batchSize: batchSize || 1000,
+      logs: [],
+      errors: [],
+    };
+
+    // Send immediate response
+    res.json({
+      success: true,
+      restoreId,
+      migrationId,
+      message: 'Restore process started successfully'
+    });
+
+    // Start restore in background
+    (async () => {
+      try {
+        await restoreBackupFromDrive(
+          fileId,
+          fileName,
+          {
+            yearOffset: yearOffset ?? -2000,
+            migrationType,
+            tenantCode,
+            clientId,
+            batchSize,
+            auditDatabaseName,
+            postingsPeriodFrom,
+            postingsPeriodTo,
+          },
+          (progress) => {
+            // Update active migration status for polling
+            if (activeMigration && activeMigration.migrationId === migrationId) {
+              activeMigration.status = progress.status === 'completed' ? 'completed' :
+                progress.status === 'failed' ? 'failed' : 'running';
+              activeMigration.progress = progress.progress;
+
+              // Add progress message to logs
+              activeMigration.logs.push({
+                timestamp: new Date(),
+                level: 'info',
+                message: progress.message,
+              });
+            }
+          }
+        );
+
+        // Mark as completed
+        if (activeMigration && activeMigration.migrationId === migrationId) {
+          activeMigration.status = 'completed';
+          activeMigration.endTime = new Date();
+          activeMigration.progress = 100;
+        }
+
+        console.log(`✅ Restore ${migrationId} completed successfully`);
+
+        // Keep status for 5 minutes
+        setTimeout(() => {
+          if (activeMigration?.migrationId === migrationId) {
+            activeMigration = null;
+          }
+        }, 300000);
+      } catch (error) {
+        console.error('❌ Background restore error:', error);
+
+        if (activeMigration && activeMigration.migrationId === migrationId) {
+          activeMigration.status = 'failed';
+          activeMigration.errorMessage = error instanceof Error ? error.message : String(error);
+          activeMigration.endTime = new Date();
+
+          activeMigration.errors.push({
+            timestamp: new Date(),
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    })();
+  } catch (error: any) {
+    console.error('❌ Restore from Drive failed:', error);
+
+    // Update migration status to failed
+    if (activeMigration?.migrationId?.startsWith('restore_')) {
+      activeMigration.status = 'failed';
+      activeMigration.errorMessage = error.message;
+      activeMigration.endTime = new Date();
+    }
+
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      details: error.stack
+    });
+  }
+});
+
 export default router;
+

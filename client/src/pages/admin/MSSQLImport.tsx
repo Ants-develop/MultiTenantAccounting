@@ -325,6 +325,10 @@ export default function MSSQLImport() {
   const [showHistoricalMigrations, setShowHistoricalMigrations] = useState(false);
   const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
 
+  // Google Drive restore state
+  const [googleDriveFileId, setGoogleDriveFileId] = useState('');
+  const [yearOffset, setYearOffset] = useState(-2000);
+
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -423,12 +427,12 @@ export default function MSSQLImport() {
     queryFn: async () => {
       // Get selected client
       const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
-      
+
       // Build query parameters
       const params = new URLSearchParams();
       if (postingsPeriodFrom) params.append('postingsPeriodFrom', postingsPeriodFrom);
       if (postingsPeriodTo) params.append('postingsPeriodTo', postingsPeriodTo);
-      
+
       // Filter by selected client's tenantCode if available
       if (selectedClient?.tenantCode) {
         params.append('tenantCodes', String(selectedClient.tenantCode));
@@ -581,7 +585,7 @@ export default function MSSQLImport() {
       // Find the selected client to get its tenant code
       const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
       const tenantCode = selectedClient?.tenantCode;
-      
+
       if (!tenantCode) {
         throw new Error("Client tenant code not configured. Please set tenant code for this client in Global Admin.");
       }
@@ -700,9 +704,58 @@ export default function MSSQLImport() {
     },
   });
 
+  // Google Drive restore mutation
+  const restoreFromDriveMutation = useMutation<MigrationResult, Error, { fileId: string; fileName: string; yearOffset: number }>({
+    mutationFn: async (data) => {
+      console.log('Starting Google Drive restore:', { data, selectedTenant, selectedClientId });
+
+      if (!selectedClientId) {
+        throw new Error("No client selected. Please select a valid client.");
+      }
+      if (!selectedTenant) {
+        throw new Error("No tenant selected. Please select a tenant code.");
+      }
+
+      const response = await apiRequest('POST', '/api/mssql/restore-from-drive', {
+        fileId: data.fileId,
+        fileName: data.fileName,
+        yearOffset: data.yearOffset,
+        migrationType: 'general-ledger',
+        tenantCode: selectedTenant.tenantCode,
+        clientId: selectedClientId,
+        batchSize: 1000,
+        auditDatabaseName: 'Audit',
+      });
+      return response.json();
+    },
+    onSuccess: (result) => {
+      if (result.success) {
+        toast({
+          title: "Restore Started",
+          description: "Downloading and restoring .bak file from Google Drive. This may take several minutes.",
+        });
+        setIsPolling(true);
+        refetchMigrationStatus();
+      } else {
+        toast({
+          title: "Restore Failed",
+          description: result.message,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleStartMigration = (data: MigrationForm) => {
     console.log('handleStartMigration called with:', { data, selectedTenant, selectedClientId });
-    
+
     if (!selectedClientId) {
       toast({
         title: "Error",
@@ -772,12 +825,12 @@ export default function MSSQLImport() {
   // Filter tenant codes based on search query
   const filteredTenantCodes = tenantCodes.filter((tenant) => {
     if (!searchQuery.trim()) return true;
-    
+
     const query = searchQuery.toLowerCase();
     const tenantCodeStr = tenant.tenantCode.toString();
     const tenantName = (tenant.tenantName || '').toLowerCase();
     const recordCount = tenant.recordCount.toString();
-    
+
     return (
       tenantCodeStr.includes(query) ||
       tenantName.includes(query) ||
@@ -798,8 +851,8 @@ export default function MSSQLImport() {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => {
               refetchTenantCodes();
               refetchAuditTables();
@@ -850,7 +903,7 @@ export default function MSSQLImport() {
                 {(() => {
                   const selectedClient = availableClients.find((c: any) => c.id === selectedClientId);
                   if (!selectedClient) return null;
-                  
+
                   return (
                     <>
                       <div className="grid grid-cols-2 gap-4">
@@ -920,6 +973,95 @@ export default function MSSQLImport() {
         </CardContent>
       </Card>
 
+      {/* Google Drive .bak File Import */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Download className="w-5 h-5 mr-2" />
+            Google Drive .bak File Import
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Download .bak file from Google Drive, restore to MSSQL, adjust dates, and import to PostgreSQL
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="googleDriveFileId">Google Drive File ID</Label>
+            <Input
+              id="googleDriveFileId"
+              placeholder="Enter Google Drive file ID (from share link)"
+              value={googleDriveFileId}
+              onChange={(e) => setGoogleDriveFileId(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Get the file ID from the Google Drive share link
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="yearOffset">Date Adjustment (years)</Label>
+            <Input
+              id="yearOffset"
+              type="number"
+              placeholder="-2000"
+              value={yearOffset}
+              onChange={(e) => setYearOffset(parseInt(e.target.value) || -2000)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Number of years to add to all dates. Default: -2000 (subtract 2000 years)
+            </p>
+            {yearOffset !== -2000 && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Custom year offset: {yearOffset > 0 ? '+' : ''}{yearOffset} years
+              </p>
+            )}
+          </div>
+
+          <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-md border border-blue-200 dark:border-blue-800">
+            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+              Process Steps:
+            </h4>
+            <ol className="text-xs text-blue-800 dark:text-blue-200 space-y-1 list-decimal list-inside">
+              <li>Download .bak file from Google Drive</li>
+              <li>Upload to Supabase Storage for archival</li>
+              <li>Restore .bak file to MSSQL Server</li>
+              <li>Adjust dates in GeneralLedger (subtract 2000 years)</li>
+              <li>Transfer data to Audit database</li>
+              <li>Migrate from Audit to PostgreSQL</li>
+              <li>Clean up temporary database</li>
+            </ol>
+          </div>
+
+          <Button
+            onClick={() => restoreFromDriveMutation.mutate({
+              fileId: googleDriveFileId,
+              fileName: `backup_${Date.now()}.bak`,
+              yearOffset: yearOffset,
+            })}
+            disabled={!googleDriveFileId || !selectedClientId || !selectedTenant || restoreFromDriveMutation.isPending}
+            className="w-full"
+          >
+            {restoreFromDriveMutation.isPending ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4 mr-2" />
+                Download, Restore & Import
+              </>
+            )}
+          </Button>
+
+          {(!selectedClientId || !selectedTenant) && (
+            <p className="text-xs text-amber-600">
+              ⚠️ Please select a client and tenant code first
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Active Migration Status */}
       {statusLoading ? (
         <Card>
@@ -973,20 +1115,20 @@ export default function MSSQLImport() {
                       })()}
                     </Button>
                   )}
-                  {((activeMigration || migrationStatus)!.status === 'completed' || 
+                  {((activeMigration || migrationStatus)!.status === 'completed' ||
                     (activeMigration || migrationStatus)!.status === 'failed') && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        queryClient.setQueryData(['/api/mssql/migration-status'], null);
-                        setMigrationStatus(null);
-                      }}
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Dismiss
-                    </Button>
-                  )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          queryClient.setQueryData(['/api/mssql/migration-status'], null);
+                          setMigrationStatus(null);
+                        }}
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Dismiss
+                      </Button>
+                    )}
                 </div>
               </div>
 
@@ -996,8 +1138,8 @@ export default function MSSQLImport() {
                     <span>Progress</span>
                     <span>{(activeMigration || migrationStatus)!.processedRecords} / {(activeMigration || migrationStatus)!.totalRecords}</span>
                   </div>
-                  <Progress 
-                    value={((activeMigration || migrationStatus)!.processedRecords / (activeMigration || migrationStatus)!.totalRecords) * 100} 
+                  <Progress
+                    value={((activeMigration || migrationStatus)!.processedRecords / (activeMigration || migrationStatus)!.totalRecords) * 100}
                     className="w-full"
                   />
                 </div>
@@ -1046,7 +1188,7 @@ export default function MSSQLImport() {
               )}
 
               {/* Logs and Errors Section */}
-              {((activeMigration || migrationStatus)!.logs && (activeMigration || migrationStatus)!.logs!.length > 0) || 
+              {((activeMigration || migrationStatus)!.logs && (activeMigration || migrationStatus)!.logs!.length > 0) ||
                 ((activeMigration || migrationStatus)!.errors && (activeMigration || migrationStatus)!.errors!.length > 0) ? (
                 <div className="mt-6 border-t pt-4">
                   <Tabs defaultValue="logs" className="w-full">
@@ -1169,7 +1311,7 @@ export default function MSSQLImport() {
                     </TableHeader>
                     <TableBody>
                       {historicalMigrationsData.migrations.map((migration) => {
-                        const displayMigration = selectedHistoricalMigration?.migrationId === migration.migrationId 
+                        const displayMigration = selectedHistoricalMigration?.migrationId === migration.migrationId
                           ? (historicalMigrationDetails || migration)
                           : migration;
                         return (
@@ -1188,7 +1330,7 @@ export default function MSSQLImport() {
                               <TableCell className="text-green-600">{migration.successCount.toLocaleString()}</TableCell>
                               <TableCell className="text-red-600">{migration.errorCount.toLocaleString()}</TableCell>
                               <TableCell>
-                                {migration.startTime 
+                                {migration.startTime
                                   ? new Date(migration.startTime).toLocaleString()
                                   : 'N/A'}
                               </TableCell>
@@ -1241,7 +1383,7 @@ export default function MSSQLImport() {
                                       <div>
                                         <Label className="text-xs text-muted-foreground">End Time</Label>
                                         <p className="font-medium">
-                                          {migration.endTime 
+                                          {migration.endTime
                                             ? new Date(migration.endTime).toLocaleString()
                                             : 'N/A'}
                                         </p>
@@ -1254,8 +1396,8 @@ export default function MSSQLImport() {
                                         </p>
                                       </div>
                                     )}
-                                    {(displayMigration.logs && displayMigration.logs.length > 0) || 
-                                     (displayMigration.errors && displayMigration.errors.length > 0) ? (
+                                    {(displayMigration.logs && displayMigration.logs.length > 0) ||
+                                      (displayMigration.errors && displayMigration.errors.length > 0) ? (
                                       <Tabs defaultValue="logs" className="w-full">
                                         <TabsList>
                                           <TabsTrigger value="logs">
@@ -1319,12 +1461,12 @@ export default function MSSQLImport() {
         <TabsContent value="general-ledger" className="space-y-4">
           {/* Export to journal_entries button */}
           <div className="mb-4">
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={() => exportToAuditMutation.mutate()}
               disabled={
-                !selectedClientId || 
-                !availableClients.find((c: any) => c.id === selectedClientId)?.tenantCode || 
+                !selectedClientId ||
+                !availableClients.find((c: any) => c.id === selectedClientId)?.tenantCode ||
                 exportToAuditMutation.isPending ||
                 !!activeMigration
               }
@@ -1355,80 +1497,80 @@ export default function MSSQLImport() {
                 />
               </div>
             </CardHeader>
-        <CardContent>
-          {tenantCodesLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <RefreshCw className="w-6 h-6 animate-spin mr-2" />
-              <span>Loading tenant codes...</span>
-            </div>
-          ) : tenantCodes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No tenant codes found</p>
-              <p className="text-sm">Make sure MSSQL connection is configured correctly</p>
-            </div>
-          ) : filteredTenantCodes.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>No tenant codes match your search</p>
-              <p className="text-sm">Try a different search term</p>
-            </div>
-          ) : (
-            <ScrollArea className="h-96">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tenant Code</TableHead>
-                    <TableHead>Tenant Name</TableHead>
-                    <TableHead>Record Count</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredTenantCodes.map((tenant) => (
-                    <TableRow key={tenant.tenantCode}>
-                      <TableCell className="font-medium">{tenant.tenantCode}</TableCell>
-                      <TableCell>{tenant.tenantName || 'N/A'}</TableCell>
-                      <TableCell>{tenant.recordCount.toLocaleString()}</TableCell>
-                      <TableCell>
-                        <div className="flex space-x-2">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              if (tenant && selectedClientId) {
-                                setSelectedTenant(tenant);
-                                setIsImportDialogOpen(true);
-                              }
-                            }}
-                            disabled={!selectedClientId}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Import
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (tenant && selectedClientId) {
-                                setSelectedTenant(tenant);
-                                // Start update directly without dialog
-                                startUpdateMutation.mutate();
-                              }
-                            }}
-                            disabled={!selectedClientId || startUpdateMutation.isPending}
-                          >
-                            <ArrowUpCircle className="w-4 h-4 mr-2" />
-                            {startUpdateMutation.isPending ? 'Updating...' : 'Update'}
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          )}
-        </CardContent>
+            <CardContent>
+              {tenantCodesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <RefreshCw className="w-6 h-6 animate-spin mr-2" />
+                  <span>Loading tenant codes...</span>
+                </div>
+              ) : tenantCodes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Database className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No tenant codes found</p>
+                  <p className="text-sm">Make sure MSSQL connection is configured correctly</p>
+                </div>
+              ) : filteredTenantCodes.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Search className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No tenant codes match your search</p>
+                  <p className="text-sm">Try a different search term</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-96">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Tenant Code</TableHead>
+                        <TableHead>Tenant Name</TableHead>
+                        <TableHead>Record Count</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTenantCodes.map((tenant) => (
+                        <TableRow key={tenant.tenantCode}>
+                          <TableCell className="font-medium">{tenant.tenantCode}</TableCell>
+                          <TableCell>{tenant.tenantName || 'N/A'}</TableCell>
+                          <TableCell>{tenant.recordCount.toLocaleString()}</TableCell>
+                          <TableCell>
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  if (tenant && selectedClientId) {
+                                    setSelectedTenant(tenant);
+                                    setIsImportDialogOpen(true);
+                                  }
+                                }}
+                                disabled={!selectedClientId}
+                              >
+                                <Upload className="w-4 h-4 mr-2" />
+                                Import
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (tenant && selectedClientId) {
+                                    setSelectedTenant(tenant);
+                                    // Start update directly without dialog
+                                    startUpdateMutation.mutate();
+                                  }
+                                }}
+                                disabled={!selectedClientId || startUpdateMutation.isPending}
+                              >
+                                <ArrowUpCircle className="w-4 h-4 mr-2" />
+                                {startUpdateMutation.isPending ? 'Updating...' : 'Update'}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -1436,11 +1578,11 @@ export default function MSSQLImport() {
         <TabsContent value="audit-tables" className="space-y-4">
           {/* Audit Import Buttons */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={() => setIsAuditImportDialogOpen(true)}
               disabled={
-                !selectedClientId || 
+                !selectedClientId ||
                 auditTables.length === 0 ||
                 activeMigration?.status === 'running'
               }
@@ -1449,8 +1591,8 @@ export default function MSSQLImport() {
               <Upload className="w-4 h-4 mr-2" />
               Import Selected Tables
             </Button>
-            <Button 
-              variant="secondary" 
+            <Button
+              variant="secondary"
               onClick={() => {
                 // Import all tables
                 if (confirm(`Import all ${auditTables.length} audit tables? This may take 10-60 minutes.`)) {
@@ -1458,7 +1600,7 @@ export default function MSSQLImport() {
                 }
               }}
               disabled={
-                !selectedClientId || 
+                !selectedClientId ||
                 auditTables.length === 0 ||
                 activeMigration?.status === 'running' ||
                 startFullAuditExportMutation.isPending
@@ -1476,7 +1618,7 @@ export default function MSSQLImport() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center">
                   <Database className="w-5 h-5 mr-2" />
-                  Available Audit Tables ({auditTables.filter(t => 
+                  Available Audit Tables ({auditTables.filter(t =>
                     t.tableName.toLowerCase().includes(auditSearchQuery.toLowerCase()) ||
                     t.recordCount.toString().includes(auditSearchQuery)
                   ).length}{auditSearchQuery && ` of ${auditTables.length}`})
@@ -1509,18 +1651,17 @@ export default function MSSQLImport() {
                 <ScrollArea className="h-96">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {auditTables
-                      .filter(table => 
+                      .filter(table =>
                         table.tableName.toLowerCase().includes(auditSearchQuery.toLowerCase()) ||
                         table.recordCount.toString().includes(auditSearchQuery)
                       )
                       .map((table) => (
                         <div
                           key={table.tableName}
-                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                            selectedAuditTables.has(table.tableName)
-                              ? 'bg-blue-50 border-blue-300'
-                              : 'bg-white border-gray-200 hover:border-gray-300'
-                          }`}
+                          className={`p-4 border rounded-lg cursor-pointer transition-colors ${selectedAuditTables.has(table.tableName)
+                            ? 'bg-blue-50 border-blue-300'
+                            : 'bg-white border-gray-200 hover:border-gray-300'
+                            }`}
                           onClick={() => {
                             const newSelected = new Set(selectedAuditTables);
                             if (newSelected.has(table.tableName)) {
@@ -1538,7 +1679,7 @@ export default function MSSQLImport() {
                                 {table.recordCount.toLocaleString()} records
                               </p>
                             </div>
-                            <Checkbox 
+                            <Checkbox
                               checked={selectedAuditTables.has(table.tableName)}
                               onCheckedChange={() => {
                                 const newSelected = new Set(selectedAuditTables);
@@ -1685,7 +1826,7 @@ export default function MSSQLImport() {
                   e.preventDefault();
                   const batchSizeInput = document.getElementById('auditBatchSize') as HTMLInputElement;
                   const batchSize = parseInt(batchSizeInput?.value) || 1000;
-                  
+
                   // Start migration for each selected table
                   selectedAuditTables.forEach((tableName) => {
                     startAuditTableMigrationMutation.mutate({
