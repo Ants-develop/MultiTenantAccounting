@@ -354,8 +354,16 @@ export async function restoreBackupFromDownload(
     fileName = path.basename(localFilePath);
   }
 
-  // Generate database name using TMP_RESTORE_[timestamp] format
-  const databaseName = generateTempDatabaseName();
+  // Step 1: Read backup header FIRST to get original database name
+  onProgress?.({
+    status: 'restoring',
+    progress: 10,
+    message: 'Reading backup header information...',
+  });
+
+  const headerInfo = await getBackupHeaderInfo(localFilePath);
+  // Use database name from backup header, fallback to 'Audit' if not available
+  const databaseName = headerInfo.databaseName || 'Audit';
 
   // Create restore record
   const [restoreRecord] = await db
@@ -376,16 +384,7 @@ export async function restoreBackupFromDownload(
   const restoreId = restoreRecord.id;
 
   try {
-    // Step 1: Extract backup header information
-    onProgress?.({
-      status: 'restoring',
-      progress: 10,
-      message: 'Reading backup header information...',
-    });
-
-    const headerInfo = await getBackupHeaderInfo(localFilePath);
-
-    // Step 2: Restore database
+    // Step 2: Restore database (will overwrite if database exists due to REPLACE)
     onProgress?.({
       status: 'restoring',
       progress: 20,
@@ -460,6 +459,7 @@ export async function restoreBackupFromDrive(
   const userId = options.clientId || null;
 
   // Create restore history record (legacy - for backward compatibility)
+  // Database name will be updated after reading backup header
   const [restoreRecord] = await db
     .insert(mssqlRestores)
     .values({
@@ -467,7 +467,7 @@ export async function restoreBackupFromDrive(
       googleDriveFileName: fileName,
       storageSource: 'google_drive',
       restoreStatus: 'downloading',
-      restoredDbName: `AntsDBRestore_${Date.now()}`, // Temporary, will be updated
+      restoredDbName: 'Audit', // Placeholder, will be updated from backup header
       restoreTimestamp: new Date(),
       clientId: options.clientId || null,
       restoreOptions: options as any,
@@ -476,9 +476,8 @@ export async function restoreBackupFromDrive(
     .returning();
 
   const restoreId = restoreRecord.id;
-  // Generate database name using TMP_RESTORE_[timestamp] format (consistent with restoreBackupFromDownload)
-  const databaseName = generateTempDatabaseName();
   let tempFilePath: string | null = null;
+  let databaseName: string = 'Audit'; // Default fallback
 
   try {
     // Step 1: Download from Google Drive
@@ -497,6 +496,17 @@ export async function restoreBackupFromDrive(
     tempFilePath = await getSQLServerBackupPath(safeFileName);
     await fs.writeFile(tempFilePath, fileBuffer);
 
+    // Step 2: Read backup header to get original database name
+    onProgress?.({
+      status: 'restoring',
+      progress: 15,
+      message: 'Reading backup header information...',
+    });
+
+    const headerInfo = await getBackupHeaderInfo(tempFilePath);
+    // Use database name from backup header, fallback to 'Audit' if not available
+    databaseName = headerInfo.databaseName || 'Audit';
+
     // Update restore record with file hash and database name
     await db
       .update(mssqlRestores)
@@ -505,15 +515,16 @@ export async function restoreBackupFromDrive(
         restoredDbName: databaseName,
         localBackupPath: tempFilePath,
         restoreStatus: 'restoring',
+        originalBackupDate: headerInfo.backupDate,
         updatedAt: new Date(),
       })
       .where(eq(mssqlRestores.id, restoreId));
 
-    // Step 2: Restore .bak file to MSSQL Server
+    // Step 3: Restore .bak file to MSSQL Server (will overwrite if database exists due to REPLACE)
     onProgress?.({
       status: 'restoring',
       progress: 20,
-      message: 'Restoring database from .bak file...',
+      message: `Restoring database ${databaseName} from .bak file...`,
     });
 
     if (!tempFilePath) {
@@ -532,7 +543,7 @@ export async function restoreBackupFromDrive(
 
     const databaseSizeMb = await getDatabaseSize(databaseName);
 
-    // Step 4: Update restore record with completion and metadata
+    // Step 5: Update restore record with completion and metadata
     await db
       .update(mssqlRestores)
       .set({
@@ -592,6 +603,7 @@ export async function restoreBackupFromStorage(
   onProgress?: (progress: RestoreProgress) => void
 ): Promise<number> {
   // Create restore history record (legacy - for backward compatibility)
+  // Database name will be updated after reading backup header
   const [restoreRecord] = await db
     .insert(mssqlRestores)
     .values({
@@ -599,7 +611,7 @@ export async function restoreBackupFromStorage(
       googleDriveFileName: path.basename(storagePath),
       storageSource: 'supabase_storage',
       restoreStatus: 'downloading',
-      restoredDbName: `AntsDBRestore_${Date.now()}`, // Temporary, will be updated
+      restoredDbName: 'Audit', // Placeholder, will be updated from backup header
       restoreTimestamp: new Date(),
       clientId: options.clientId || null,
       restoreOptions: options as any,
@@ -608,6 +620,7 @@ export async function restoreBackupFromStorage(
     .returning();
 
   const restoreId = restoreRecord.id;
+  let databaseName: string = 'Audit'; // Default fallback
 
   try {
     // Step 1: Download from Supabase Storage
@@ -620,27 +633,61 @@ export async function restoreBackupFromStorage(
     const fileBuffer = await downloadBackupFromStorage(storagePath);
     const fileHash = calculateFileHash(fileBuffer);
 
-    // Update with hash
+    // Save to SQL Server-accessible location
+    const safeFileName = path.basename(storagePath).replace(/[<>:"/\\|?*]/g, '_').trim();
+    const tempFilePath = await getSQLServerBackupPath(safeFileName);
+    await fs.writeFile(tempFilePath, fileBuffer);
+
+    // Step 2: Read backup header to get original database name
+    onProgress?.({
+      status: 'restoring',
+      progress: 40,
+      message: 'Reading backup header information...',
+    });
+
+    const headerInfo = await getBackupHeaderInfo(tempFilePath);
+    // Use database name from backup header, fallback to 'Audit' if not available
+    databaseName = headerInfo.databaseName || 'Audit';
+
+    // Update with hash and database name
     await db
       .update(mssqlRestores)
       .set({
         fileHash,
+        restoredDbName: databaseName,
+        localBackupPath: tempFilePath,
+        originalBackupDate: headerInfo.backupDate,
         restoreStatus: 'restoring',
         updatedAt: new Date(),
       })
       .where(eq(mssqlRestores.id, restoreId));
 
+    // Step 3: Restore database (will overwrite if database exists due to REPLACE)
+    onProgress?.({
+      status: 'restoring',
+      progress: 50,
+      message: `Restoring database ${databaseName}...`,
+    });
+
+    await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
+      onProgress?.({ status: 'restoring', progress: 60, message: msg });
+    });
+
+    // Step 4: Calculate database size
     onProgress?.({
       status: 'restoring',
       progress: 70,
-      message: 'Preparing database restoration...',
+      message: 'Calculating database size...',
     });
 
-    // Step 2: Restore database (existing restore logic would go here)
+    const databaseSizeMb = await getDatabaseSize(databaseName);
 
+    // Step 5: Update restore record with completion and metadata
     await db
       .update(mssqlRestores)
       .set({
+        restoredDbName: databaseName,
+        databaseSizeMb: databaseSizeMb.toString(),
         restoreStatus: 'completed',
         completedAt: new Date(),
         updatedAt: new Date(),
@@ -650,7 +697,7 @@ export async function restoreBackupFromStorage(
     onProgress?.({
       status: 'completed',
       progress: 100,
-      message: 'Backup restored successfully',
+      message: `Database ${databaseName} restored successfully (${databaseSizeMb} MB)`,
     });
 
     return restoreId;
