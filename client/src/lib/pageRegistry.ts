@@ -26,11 +26,12 @@ import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import BackupRestore from "@/pages/admin/BackupRestore";
 import MSSQLMigration from "@/pages/admin/MSSQLMigration";
-import MSSQLConnection from "@/pages/admin/MSSQLConnection";
+import Connections from "@/pages/admin/MSSQLConnection";
 import AccountingHome from "@/pages/accounting/AccountingHome";
 import AuditDashboard from "@/pages/audit/AuditDashboard";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
 import RSAdmin from "@/pages/rs/RSAdmin";
+import UpdateRSData from "@/pages/rs/UpdateRSData";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import TaskDetail from "@/pages/tasks/TaskDetail";
@@ -219,10 +220,10 @@ export const pageRegistry: PageConfig = {
     component: MSSQLMigration,
     path: "/mssql-migration",
   },
-  "/mssql-connection": {
-    title: "MSSQL Connection",
-    component: MSSQLConnection,
-    path: "/mssql-connection",
+  "/connections": {
+    title: "Connections",
+    component: Connections,
+    path: "/connections",
   },
   "/admin/import-clients": {
     title: "Import Clients",
@@ -243,6 +244,11 @@ export const pageRegistry: PageConfig = {
     title: "RS Administration",
     component: RSAdmin,
     path: "/rs-admin",
+  },
+  "/rs/update-data": {
+    title: "Update RS Data",
+    component: UpdateRSData,
+    path: "/rs/update-data",
   },
   "/bank/accounts": {
     title: "Bank Accounts",

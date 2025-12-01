@@ -28,6 +28,7 @@ import homeRouter from "./api/home";
 import customersVendorsRouter from "./api/customers-vendors";
 import mssqlImportRouter from "./api/mssql-import";
 import rsAdminRouter from "./api/rs-admin";
+import rsSyncRouter from "./api/rs-sync";
 import permissionsRouter from "./api/permissions";
 import pipelinesRouter from "./api/pipelines";
 import jobsRouter from "./api/jobs";
@@ -41,6 +42,7 @@ import clientPortalRouter from "./api/client-portal";
 import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
+import connectionsRouter from "./api/connections";
 
 declare module "express-session" {
   interface SessionData {
@@ -577,6 +579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // RS Integration Module
   app.use('/api/rs-integration', rsIntegrationRouter);
   app.use('/api/rs-admin', requireAuth, requireGlobalAdmin, rsAdminRouter);
+  app.use('/api/rs-sync', rsSyncRouter);
 
   // Reporting Module
   app.use('/api/reports', reportsRouter); // Keep for backward compatibility
@@ -618,6 +621,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/home', homeRouter);
   app.use('/api', customersVendorsRouter);
   app.use('/api/mssql', mssqlImportRouter);
+  app.use('/api/connections', requireAuth, connectionsRouter);
   app.use('/api/permissions', permissionsRouter);
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);

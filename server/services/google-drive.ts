@@ -65,7 +65,7 @@ export async function exchangeCodeForTokens(code: string): Promise<{ refreshToke
 /**
  * Get Google Drive API client
  */
-async function getDriveClient() {
+export async function getDriveClient() {
   const oauth2Client = getOAuth2Client();
   
   if (!REFRESH_TOKEN) {

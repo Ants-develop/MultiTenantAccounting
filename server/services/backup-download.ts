@@ -18,20 +18,53 @@ export interface DownloadResult {
 /**
  * Get or create the backup directory
  * Default: /var/opt/mssql/backup/ (or from env: MSSQL_BACKUP_DIR)
+ * Falls back to project directory if default location is not writable
  */
 export async function ensureBackupDirectory(): Promise<string> {
-  const backupDir = process.env.MSSQL_BACKUP_DIR || '/var/opt/mssql/backup';
+  const defaultBackupDir = process.env.MSSQL_BACKUP_DIR || '/var/opt/mssql/backup';
+  const fallbackBackupDir = path.join(process.cwd(), 'backups');
   
+  // Try default directory first
   try {
-    await fs.access(backupDir);
-    // Directory exists
+    // Check if directory exists and is writable
+    await fs.access(defaultBackupDir);
+    // Test write access
+    const testFile = path.join(defaultBackupDir, '.write-test');
+    try {
+      await fs.writeFile(testFile, 'test');
+      await fs.unlink(testFile);
+      return defaultBackupDir;
+    } catch {
+      // Directory exists but not writable, try fallback
+      console.warn(`⚠️  Default backup directory ${defaultBackupDir} is not writable, using fallback`);
+    }
   } catch {
-    // Directory doesn't exist, create it
-    await fs.mkdir(backupDir, { recursive: true });
-    console.log(`✅ Created backup directory: ${backupDir}`);
+    // Directory doesn't exist, try to create it
+    try {
+      await fs.mkdir(defaultBackupDir, { recursive: true });
+      // Test write access
+      const testFile = path.join(defaultBackupDir, '.write-test');
+      await fs.writeFile(testFile, 'test');
+      await fs.unlink(testFile);
+      console.log(`✅ Created backup directory: ${defaultBackupDir}`);
+      return defaultBackupDir;
+    } catch (error: any) {
+      console.warn(`⚠️  Could not create/write to ${defaultBackupDir}: ${error.message}, using fallback`);
+    }
   }
   
-  return backupDir;
+  // Use fallback directory in project folder
+  try {
+    await fs.mkdir(fallbackBackupDir, { recursive: true });
+    // Test write access
+    const testFile = path.join(fallbackBackupDir, '.write-test');
+    await fs.writeFile(testFile, 'test');
+    await fs.unlink(testFile);
+    console.log(`✅ Using fallback backup directory: ${fallbackBackupDir}`);
+    return fallbackBackupDir;
+  } catch (error: any) {
+    throw new Error(`Failed to create backup directory: ${error.message}`);
+  }
 }
 
 /**

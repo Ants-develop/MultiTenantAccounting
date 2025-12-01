@@ -53,11 +53,12 @@ import JobsDashboard from "@/pages/jobs/JobsDashboard";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import BackupRestore from "@/pages/admin/BackupRestore";
 import MSSQLMigration from "@/pages/admin/MSSQLMigration";
-import MSSQLConnection from "@/pages/admin/MSSQLConnection";
+import Connections from "@/pages/admin/MSSQLConnection";
 import ClientImport from "@/pages/admin/ClientImport";
 import ImportStatement from "@/pages/bank/ImportStatement";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
 import RSAdmin from "@/pages/rs/RSAdmin";
+import UpdateRSData from "@/pages/rs/UpdateRSData";
 import Notifications from "@/pages/Notifications";
 import Storage from "@/pages/admin/Storage";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
@@ -149,10 +150,11 @@ function ProtectedApp() {
           <Route path="/mssql-import" component={MSSQLImport} />
           <Route path="/backup-restore" component={BackupRestore} />
           <Route path="/mssql-migration" component={MSSQLMigration} />
-          <Route path="/mssql-connection" component={MSSQLConnection} />
+          <Route path="/connections" component={Connections} />
           <Route path="/bank/import" component={ImportStatement} />
           <Route path="/rs-integration" component={RSIntegrationDashboard} />
           <Route path="/rs-admin" component={RSAdmin} />
+          <Route path="/rs/update-data" component={UpdateRSData} />
           <Route path="/notifications" component={Notifications} />
           <Route path="/storage" component={Storage} />
           <Route path="/testing" component={TestingDashboard} />

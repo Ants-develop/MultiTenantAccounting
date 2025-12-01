@@ -107,7 +107,7 @@ export default function AuditDashboard() {
   return (
     <div className="flex flex-col h-full">
       <Card className="flex flex-col h-full flex-1 min-h-0">
-        <CardHeader className="pb-3 pt-4 px-4 flex-shrink-0">
+        <CardHeader className="pb-4 pt-4 px-4 flex-shrink-0 border-b">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -162,8 +162,10 @@ export default function AuditDashboard() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-4 flex-1 flex flex-col min-h-0">
-          <AuditGrid tableConfig={currentTable} clientIds={selectedClientIds} />
+        <CardContent className="p-4 pt-6 flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0">
+            <AuditGrid tableConfig={currentTable} clientIds={selectedClientIds} />
+          </div>
         </CardContent>
       </Card>
     </div>

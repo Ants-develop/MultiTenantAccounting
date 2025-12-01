@@ -154,7 +154,7 @@ export default function AuditGrid({ tableConfig, clientIds = [] }: AuditGridProp
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full pt-2">
       <BaseHandsontableGrid
         data={formattedData}
         columns={columns}

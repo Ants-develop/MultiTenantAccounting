@@ -61,19 +61,31 @@ export default function BackupRestore() {
     enabled: configStatus?.supabase.configured !== false,
   });
 
-  // Fetch restore history
+  // Fetch restore history with auto-refresh for active restores
   const { data: restoreHistory = [], refetch: refetchHistory } = useQuery<RestoreHistory[]>({
     queryKey: ["/api/backup-restore/history"],
     queryFn: () => backupRestoreApi.fetchRestoreHistory(undefined),
+    refetchInterval: (query) => {
+      // If there are any active restores (downloading or restoring), poll every 2 seconds
+      const hasActiveRestores = query.state.data?.some(
+        (item) => item.restoreStatus === 'downloading' || item.restoreStatus === 'restoring'
+      );
+      return hasActiveRestores ? 2000 : false;
+    },
   });
 
-  // Monitor active restore
+  // Monitor active restore with detailed status updates
   useEffect(() => {
     if (!activeRestoreId || !monitoringRestore) return;
 
     const interval = setInterval(async () => {
       try {
+        // Refetch history to get latest status
+        await refetchHistory();
+        
         const status = await backupRestoreApi.getRestoreStatus(activeRestoreId);
+        
+        // Update monitoring based on status
         if (status.restoreStatus === 'completed' || status.restoreStatus === 'failed') {
           setMonitoringRestore(false);
           queryClient.invalidateQueries({ queryKey: ["/api/backup-restore/history"] });
@@ -92,7 +104,7 @@ export default function BackupRestore() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [activeRestoreId, monitoringRestore, queryClient, refetchStorage, toast]);
+  }, [activeRestoreId, monitoringRestore, queryClient, refetchStorage, refetchHistory, toast]);
 
   // Enhanced restore mutation supporting both Google Drive and Supabase Storage
   const restoreFromDriveMutation = useMutation<

@@ -182,8 +182,8 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
-        name: "MSSQL Connection",
-        href: "/mssql-connection",
+        name: "Connections",
+        href: "/connections",
         icon: Database,
         requiresGlobalAdmin: true,
     },
@@ -203,6 +203,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         name: "RS Admin",
         href: "/rs-admin",
         icon: Shield,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "Update RS Data",
+        href: "/rs/update-data",
+        icon: Database,
         requiresGlobalAdmin: true,
     },
     {

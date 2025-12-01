@@ -7,6 +7,10 @@ import { downloadFileFromDrive, calculateFileHash } from './google-drive';
 import {
   downloadBackupFromStorage,
 } from './backup-storage';
+import {
+  downloadBackupFromDriveToRemote,
+  downloadBackupFromStorageToRemote,
+} from './remote-backup-download';
 import path from 'path';
 import fs from 'fs/promises';
 import { cleanupTempFile } from './google-drive';
@@ -98,13 +102,40 @@ async function getSQLServerBackupPath(fileName: string): Promise<string> {
     console.warn('⚠️  Could not find SQL Server-accessible directory, using temp (may fail)');
     return path.join(os.tmpdir(), fileName);
   } else {
-    // On Linux, use /var/opt/mssql/backup or backup directory
+    // On Linux, try backup directory service first, then fallbacks
     try {
       const backupDir = await ensureBackupDirectory();
       return path.join(backupDir, fileName);
     } catch (error) {
-      return path.join('/var/opt/mssql/backup', fileName);
+      console.warn('Could not use backup directory service, trying alternatives:', error);
     }
+
+    // Try alternative paths that might be writable
+    const possiblePaths = [
+      process.env.MSSQL_BACKUP_PATH,
+      path.join(process.cwd(), 'backups'),
+      path.join(process.cwd(), 'uploads', 'backups'),
+      os.tmpdir(),
+    ].filter(Boolean) as string[];
+
+    // Find first accessible directory or create one
+    for (const dirPath of possiblePaths) {
+      try {
+        await fs.mkdir(dirPath, { recursive: true });
+        // Test write access
+        const testFile = path.join(dirPath, '.test');
+        await fs.writeFile(testFile, 'test');
+        await fs.unlink(testFile);
+        console.log(`✅ Using backup directory: ${dirPath}`);
+        return path.join(dirPath, fileName);
+      } catch (error) {
+        continue;
+      }
+    }
+
+    // Last resort: use temp directory
+    console.warn('⚠️  Could not find writable backup directory, using temp (may fail with SQL Server)');
+    return path.join(os.tmpdir(), fileName);
   }
 }
 
@@ -192,42 +223,61 @@ export async function restoreMSSQLBackup(
   databaseName: string,
   onProgress?: (message: string) => void
 ): Promise<void> {
+  const operationId = `restore-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+
+  console.log(`🔄 [MSSQL Restore] Starting database restore operation [${operationId}]`);
+  console.log(`   [MSSQL Restore] Database: ${databaseName}`);
+  console.log(`   [MSSQL Restore] Backup file: ${bakFilePath}`);
+
   onProgress?.('Connecting to MSSQL Server...');
+  console.log(`   [MSSQL Restore] Connecting to MSSQL server...`);
 
   const pool = await sql.connect(getMSSQLConfig('master'));
 
   try {
+    console.log(`✅ [MSSQL Restore] Connected to MSSQL server [${operationId}]`);
+
     // Normalize path for SQL Server (Windows needs backslashes escaped)
     const normalizedPath = bakFilePath.replace(/\\/g, '\\\\').replace(/'/g, "''");
     
     onProgress?.(`Reading backup file: ${bakFilePath}`);
+    console.log(`   [MSSQL Restore] Reading backup file list from: ${bakFilePath}`);
 
     // Get logical file names from backup
+    const fileListStartTime = Date.now();
     const fileListResult = await pool.request()
       .query(`RESTORE FILELISTONLY FROM DISK = N'${normalizedPath}'`);
+
+    const fileListDuration = Date.now() - fileListStartTime;
+    console.log(`✅ [MSSQL Restore] Retrieved file list in ${fileListDuration}ms [${operationId}]`);
+    console.log(`   [MSSQL Restore] Found ${fileListResult.recordset.length} files in backup`);
 
     const dataFile = fileListResult.recordset.find((f: any) => f.Type === 'D');
     const logFile = fileListResult.recordset.find((f: any) => f.Type === 'L');
 
     if (!dataFile || !logFile) {
+      console.error(`❌ [MSSQL Restore] Could not find data or log files in backup [${operationId}]`);
       throw new Error('Could not find data or log files in backup');
     }
 
+    console.log(`   [MSSQL Restore] Data file logical name: ${dataFile.LogicalName}`);
+    console.log(`   [MSSQL Restore] Log file logical name: ${logFile.LogicalName}`);
+
     // Generate unique file paths for restored database
-    // Use platform-appropriate paths
-    const isWindows = os.platform() === 'win32';
-    const dataPath = isWindows 
-      ? `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}.mdf`
-      : `/var/opt/mssql/data/${databaseName}.mdf`;
-    const logPath = isWindows
-      ? `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}_log.ldf`
-      : `/var/opt/mssql/data/${databaseName}_log.ldf`;
+    // Use Windows paths since we're restoring to remote Windows server
+    const dataPath = `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}.mdf`;
+    const logPath = `C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\DATA\\${databaseName}_log.ldf`;
+
+    console.log(`   [MSSQL Restore] Data file path: ${dataPath}`);
+    console.log(`   [MSSQL Restore] Log file path: ${logPath}`);
 
     // Escape paths for SQL
     const normalizedDataPath = dataPath.replace(/\\/g, '\\\\').replace(/'/g, "''");
     const normalizedLogPath = logPath.replace(/\\/g, '\\\\').replace(/'/g, "''");
 
     onProgress?.(`Restoring database: ${databaseName}...`);
+    console.log(`   [MSSQL Restore] Executing RESTORE DATABASE command [${operationId}]`);
 
     // Restore with MOVE to relocate files
     const restoreQuery = `
@@ -240,11 +290,29 @@ export async function restoreMSSQLBackup(
         RECOVERY
     `;
 
+    const restoreStartTime = Date.now();
     await pool.request().query(restoreQuery);
+    const restoreDuration = Date.now() - restoreStartTime;
+
+    const totalDuration = Date.now() - startTime;
+    console.log(`✅ [MSSQL Restore] Database restored successfully [${operationId}]`);
+    console.log(`   [MSSQL Restore] Restore duration: ${restoreDuration}ms`);
+    console.log(`   [MSSQL Restore] Total operation time: ${totalDuration}ms`);
 
     onProgress?.(`✅ Database restored successfully: ${databaseName}`);
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    console.error(`❌ [MSSQL Restore] Restore failed [${operationId}] after ${duration}ms`);
+    console.error(`   [MSSQL Restore] Error: ${error.message}`);
+    console.error(`   [MSSQL Restore] Database: ${databaseName}`);
+    console.error(`   [MSSQL Restore] Backup file: ${bakFilePath}`);
+    if (error.stack) {
+      console.error(`   [MSSQL Restore] Stack: ${error.stack}`);
+    }
+    throw error;
   } finally {
     await pool.close();
+    console.log(`🔌 [MSSQL Restore] Closed MSSQL connection [${operationId}]`);
   }
 }
 
@@ -480,32 +548,80 @@ export async function restoreBackupFromDrive(
   let databaseName: string = 'Audit'; // Default fallback
 
   try {
-    // Step 1: Download from Google Drive
+    // Step 0: Test SSH connection to remote MSSQL server
+    console.log(`🔄 [Restore] Starting restore from Google Drive [Restore ID: ${restoreId}]`);
+    console.log(`   [Restore] File ID: ${fileId}`);
+    console.log(`   [Restore] File Name: ${fileName}`);
+    
+    onProgress?.({
+      status: 'downloading',
+      progress: 5,
+      message: 'Connecting to remote MSSQL server...',
+    });
+
+    console.log(`🔌 [Restore] Testing SSH connection to remote MSSQL server...`);
+    try {
+      const { connectSSH, executeRemoteCommand } = await import('./remote-execution');
+      const testClient = await connectSSH();
+      // Test with a simple command
+      await executeRemoteCommand('Write-Host "Connection test successful"', { logOutput: false });
+      testClient.end();
+      console.log(`✅ [Restore] SSH connection verified successfully`);
+    } catch (sshError: any) {
+      console.error(`❌ [Restore] SSH connection test failed: ${sshError.message}`);
+      throw new Error(`Failed to connect to remote MSSQL server via SSH: ${sshError.message}. Please verify SSH configuration (MSSQL_SSH_HOST, MSSQL_SSH_USER, MSSQL_SSH_PASSWORD).`);
+    }
+
+    // Step 1: Download from Google Drive to remote Windows MSSQL server
     onProgress?.({
       status: 'downloading',
       progress: 10,
-      message: `Downloading ${fileName} from Google Drive...`,
+      message: `Downloading ${fileName} from Google Drive to remote MSSQL server...`,
     });
 
-    const fileBuffer = await downloadFileFromDrive(fileId);
-    const fileHash = calculateFileHash(fileBuffer);
+    // Update database status to downloading
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'downloading',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
 
-    // Save to SQL Server-accessible location using original filename
-    // Sanitize filename for filesystem (remove invalid characters)
-    const safeFileName = fileName.replace(/[<>:"/\\|?*]/g, '_').trim();
-    tempFilePath = await getSQLServerBackupPath(safeFileName);
-    await fs.writeFile(tempFilePath, fileBuffer);
+    console.log(`📥 [Restore] Starting download to remote MSSQL server...`);
+    const downloadResult = await downloadBackupFromDriveToRemote(fileId, fileName);
+    tempFilePath = downloadResult.remoteFilePath;
+    const fileHash = downloadResult.fileHash;
+
+    console.log(`✅ [Restore] File downloaded to remote server: ${tempFilePath}`);
+    console.log(`   [Restore] File size: ${downloadResult.fileSize} bytes`);
+    console.log(`   [Restore] File hash: ${fileHash}`);
+    console.log(`🔄 [Restore] Download complete. Proceeding to restore operation...`);
 
     // Step 2: Read backup header to get original database name
     onProgress?.({
       status: 'restoring',
       progress: 15,
-      message: 'Reading backup header information...',
+      message: 'Download complete. Reading backup header information from remote server...',
     });
 
+    // Update database status - transitioning from downloading to restoring
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'restoring',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    console.log(`📖 [Restore] Reading backup header from: ${tempFilePath}`);
     const headerInfo = await getBackupHeaderInfo(tempFilePath);
     // Use database name from backup header, fallback to 'Audit' if not available
     databaseName = headerInfo.databaseName || 'Audit';
+
+    console.log(`   [Restore] Database name from header: ${databaseName}`);
+    console.log(`   [Restore] Backup date: ${headerInfo.backupDate || 'Unknown'}`);
+    console.log(`   [Restore] Backup type: ${headerInfo.backupType || 'Unknown'}`);
 
     // Update restore record with file hash and database name
     await db
@@ -524,24 +640,45 @@ export async function restoreBackupFromDrive(
     onProgress?.({
       status: 'restoring',
       progress: 20,
-      message: `Restoring database ${databaseName} from .bak file...`,
+      message: `Restoring database ${databaseName} from .bak file on remote server...`,
     });
+
+    console.log(`🔄 [Restore] Starting database restore operation`);
+    console.log(`   [Restore] Database: ${databaseName}`);
+    console.log(`   [Restore] Backup file: ${tempFilePath}`);
+    console.log(`   [Restore] Restoring .bak file to MSSQL Server...`);
 
     if (!tempFilePath) {
       throw new Error('Failed to create backup file path');
     }
+    
+    // Restore the database from the .bak file
     await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
-      onProgress?.({ status: 'restoring', progress: 30, message: msg });
+      console.log(`   [Restore] Restore progress: ${msg}`);
+      onProgress?.({ status: 'restoring', progress: 30, message: `Restoring database: ${msg}` });
     });
+    
+    // Update database status after restore completes
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'restoring',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+    
+    console.log(`✅ [Restore] Database restore operation completed`);
 
-    // Step 3: Calculate database size
+    // Step 4: Calculate database size
     onProgress?.({
       status: 'restoring',
       progress: 60,
       message: 'Calculating database size...',
     });
 
+    console.log(`📊 [Restore] Calculating database size for: ${databaseName}`);
     const databaseSizeMb = await getDatabaseSize(databaseName);
+    console.log(`   [Restore] Database size: ${databaseSizeMb} MB`);
 
     // Step 5: Update restore record with completion and metadata
     await db
@@ -555,6 +692,11 @@ export async function restoreBackupFromDrive(
       })
       .where(eq(mssqlRestores.id, restoreId));
 
+    console.log(`✅ [Restore] Restore completed successfully [Restore ID: ${restoreId}]`);
+    console.log(`   [Restore] Database: ${databaseName}`);
+    console.log(`   [Restore] Size: ${databaseSizeMb} MB`);
+    console.log(`   [Restore] Backup file: ${tempFilePath}`);
+
     onProgress?.({
       status: 'completed',
       progress: 100,
@@ -563,7 +705,11 @@ export async function restoreBackupFromDrive(
 
     return restoreId;
   } catch (error: any) {
-    console.error('Error in restoreBackupFromDrive:', error);
+    console.error(`❌ [Restore] Restore failed [Restore ID: ${restoreId}]`);
+    console.error(`   [Restore] Error: ${error.message}`);
+    if (error.stack) {
+      console.error(`   [Restore] Stack: ${error.stack}`);
+    }
 
     await db
       .update(mssqlRestores)
@@ -583,14 +729,10 @@ export async function restoreBackupFromDrive(
 
     throw error;
   } finally {
-    // Clean up temp file
-    if (tempFilePath) {
-      try {
-        await fs.unlink(tempFilePath);
-      } catch (err) {
-        console.error('Failed to cleanup temp file:', err);
-      }
-    }
+    // Note: We don't cleanup the remote file as it's on the MSSQL server
+    // and may be needed for future operations or reference
+    // The file will remain on the remote server at the backup location
+    console.log(`   [Restore] Backup file retained on remote server: ${tempFilePath}`);
   }
 }
 
@@ -623,31 +765,79 @@ export async function restoreBackupFromStorage(
   let databaseName: string = 'Audit'; // Default fallback
 
   try {
-    // Step 1: Download from Supabase Storage
+    // Step 0: Test SSH connection to remote MSSQL server
+    console.log(`🔄 [Restore] Starting restore from Supabase Storage [Restore ID: ${restoreId}]`);
+    console.log(`   [Restore] Storage path: ${storagePath}`);
+    
+    onProgress?.({
+      status: 'downloading',
+      progress: 5,
+      message: 'Connecting to remote MSSQL server...',
+    });
+
+    console.log(`🔌 [Restore] Testing SSH connection to remote MSSQL server...`);
+    try {
+      const { connectSSH, executeRemoteCommand } = await import('./remote-execution');
+      const testClient = await connectSSH();
+      // Test with a simple command
+      await executeRemoteCommand('Write-Host "Connection test successful"', { logOutput: false });
+      testClient.end();
+      console.log(`✅ [Restore] SSH connection verified successfully`);
+    } catch (sshError: any) {
+      console.error(`❌ [Restore] SSH connection test failed: ${sshError.message}`);
+      throw new Error(`Failed to connect to remote MSSQL server via SSH: ${sshError.message}. Please verify SSH configuration (MSSQL_SSH_HOST, MSSQL_SSH_USER, MSSQL_SSH_PASSWORD).`);
+    }
+
+    // Step 1: Download from Supabase Storage to remote Windows MSSQL server
     onProgress?.({
       status: 'downloading',
       progress: 30,
-      message: 'Downloading backup from Supabase Storage...',
+      message: 'Downloading backup from Supabase Storage to remote MSSQL server...',
     });
 
-    const fileBuffer = await downloadBackupFromStorage(storagePath);
-    const fileHash = calculateFileHash(fileBuffer);
+    // Update database status to downloading
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'downloading',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
 
-    // Save to SQL Server-accessible location
-    const safeFileName = path.basename(storagePath).replace(/[<>:"/\\|?*]/g, '_').trim();
-    const tempFilePath = await getSQLServerBackupPath(safeFileName);
-    await fs.writeFile(tempFilePath, fileBuffer);
+    console.log(`📥 [Restore] Starting download to remote MSSQL server...`);
+    const downloadResult = await downloadBackupFromStorageToRemote(storagePath);
+    const tempFilePath = downloadResult.remoteFilePath;
+    const fileHash = downloadResult.fileHash;
+
+    console.log(`✅ [Restore] File downloaded to remote server: ${tempFilePath}`);
+    console.log(`   [Restore] File size: ${downloadResult.fileSize} bytes`);
+    console.log(`   [Restore] File hash: ${fileHash}`);
+    console.log(`🔄 [Restore] Download complete. Proceeding to restore operation...`);
 
     // Step 2: Read backup header to get original database name
     onProgress?.({
       status: 'restoring',
       progress: 40,
-      message: 'Reading backup header information...',
+      message: 'Download complete. Reading backup header information from remote server...',
     });
 
+    // Update database status - transitioning from downloading to restoring
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'restoring',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    console.log(`📖 [Restore] Reading backup header from: ${tempFilePath}`);
     const headerInfo = await getBackupHeaderInfo(tempFilePath);
     // Use database name from backup header, fallback to 'Audit' if not available
     databaseName = headerInfo.databaseName || 'Audit';
+
+    console.log(`   [Restore] Database name from header: ${databaseName}`);
+    console.log(`   [Restore] Backup date: ${headerInfo.backupDate || 'Unknown'}`);
+    console.log(`   [Restore] Backup type: ${headerInfo.backupType || 'Unknown'}`);
 
     // Update with hash and database name
     await db
@@ -666,12 +856,20 @@ export async function restoreBackupFromStorage(
     onProgress?.({
       status: 'restoring',
       progress: 50,
-      message: `Restoring database ${databaseName}...`,
+      message: `Restoring database ${databaseName} from remote server...`,
     });
 
+    console.log(`🔄 [Restore] Starting database restore operation`);
+    console.log(`   [Restore] Database: ${databaseName}`);
+    console.log(`   [Restore] Backup file: ${tempFilePath}`);
+    console.log(`   [Restore] Restoring .bak file to MSSQL Server...`);
+
     await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
-      onProgress?.({ status: 'restoring', progress: 60, message: msg });
+      console.log(`   [Restore] Restore progress: ${msg}`);
+      onProgress?.({ status: 'restoring', progress: 60, message: `Restoring database: ${msg}` });
     });
+    
+    console.log(`✅ [Restore] Database restore operation completed`);
 
     // Step 4: Calculate database size
     onProgress?.({
@@ -680,7 +878,9 @@ export async function restoreBackupFromStorage(
       message: 'Calculating database size...',
     });
 
+    console.log(`📊 [Restore] Calculating database size for: ${databaseName}`);
     const databaseSizeMb = await getDatabaseSize(databaseName);
+    console.log(`   [Restore] Database size: ${databaseSizeMb} MB`);
 
     // Step 5: Update restore record with completion and metadata
     await db
@@ -694,6 +894,11 @@ export async function restoreBackupFromStorage(
       })
       .where(eq(mssqlRestores.id, restoreId));
 
+    console.log(`✅ [Restore] Restore completed successfully [Restore ID: ${restoreId}]`);
+    console.log(`   [Restore] Database: ${databaseName}`);
+    console.log(`   [Restore] Size: ${databaseSizeMb} MB`);
+    console.log(`   [Restore] Backup file: ${tempFilePath}`);
+
     onProgress?.({
       status: 'completed',
       progress: 100,
@@ -702,7 +907,11 @@ export async function restoreBackupFromStorage(
 
     return restoreId;
   } catch (error: any) {
-    console.error('Error in restoreBackupFromStorage:', error);
+    console.error(`❌ [Restore] Restore failed [Restore ID: ${restoreId}]`);
+    console.error(`   [Restore] Error: ${error.message}`);
+    if (error.stack) {
+      console.error(`   [Restore] Stack: ${error.stack}`);
+    }
 
     await db
       .update(mssqlRestores)
