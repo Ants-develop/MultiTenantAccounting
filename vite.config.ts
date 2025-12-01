@@ -4,17 +4,21 @@ import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { componentTagger } from "lovable-tagger";
 
-export default defineConfig(async ({ mode }) => ({
-  server: {
-    host: "::",
-    port: 81,
-    proxy: {
-      "/api": {
-        target: "http://localhost:5000",
-        changeOrigin: true,
+export default defineConfig(async ({ mode }) => {
+  // Get backend port from environment variable, default to 5000
+  const backendPort = process.env.PORT ? parseInt(process.env.PORT) : 5000;
+  
+  return {
+    server: {
+      host: "::",
+      port: 81,
+      proxy: {
+        "/api": {
+          target: `http://localhost:${backendPort}`,
+          changeOrigin: true,
+        },
       },
     },
-  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
@@ -40,4 +44,5 @@ export default defineConfig(async ({ mode }) => ({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
-}));
+  };
+});
