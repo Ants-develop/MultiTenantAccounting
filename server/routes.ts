@@ -43,6 +43,7 @@ import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
+import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
 
 declare module "express-session" {
   interface SessionData {
@@ -96,7 +97,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Authentication error:', authError);
         // Check if it's a table doesn't exist error
         if (authError?.message?.includes('does not exist') || authError?.code === '42P01') {
-          return res.status(500).json({ 
+          return res.status(500).json({
             message: 'Database not initialized. Please run migrations first.',
             error: 'MISSING_TABLES'
           });
@@ -132,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error('Error fetching user companies:', companiesError);
         // If it's a table error, return a helpful message
         if (companiesError?.message?.includes('does not exist') || companiesError?.code === '42P01') {
-          return res.status(500).json({ 
+          return res.status(500).json({
             message: 'Database not initialized. Please run migrations first.',
             error: 'MISSING_TABLES'
           });
@@ -259,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             console.error('Error destroying session:', err);
           }
         });
-        return res.status(500).json({ 
+        return res.status(500).json({
           message: 'Database not initialized. Please run migrations first.',
           error: 'MISSING_TABLES'
         });
@@ -604,7 +605,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Client Portal
   app.use('/api/client-portal', clientPortalRouter);
   app.use('/api/backup-restore', requireAuth, requireGlobalAdmin, backupRestoreRouter);
-  
+
   // Storage Module
   app.use('/api/storage', storageRouter);
 
@@ -621,6 +622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/home', homeRouter);
   app.use('/api', customersVendorsRouter);
   app.use('/api/mssql', mssqlImportRouter);
+  app.use('/api/mssql', mssqlRestoreSshRouter); // SSH-based restore with real-time logging
   app.use('/api/connections', requireAuth, connectionsRouter);
   app.use('/api/permissions', permissionsRouter);
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);

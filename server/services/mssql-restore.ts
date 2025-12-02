@@ -40,6 +40,54 @@ export interface RestoreOptions {
   yearOffset?: number;
 }
 
+/**
+ * Extract date from backup filename
+ * Expected format: Ants_dd.MM.yyyy.bak (e.g., Ants_19.05.2025.bak)
+ * @param filename - The backup filename
+ * @returns Date string in dd.MM.yyyy format or null if invalid
+ */
+export function extractDateFromBackupFilename(filename: string): string | null {
+  console.log(`📅 [Date Extract] Parsing filename: ${filename}`);
+
+  // Remove .bak extension if present
+  const nameWithoutExt = filename.replace(/\.bak$/i, '');
+
+  // Match pattern: Ants_dd.MM.yyyy
+  const datePattern = /Ants_(\d{2})\.(\d{2})\.(\d{4})$/i;
+  const match = nameWithoutExt.match(datePattern);
+
+  if (!match) {
+    console.warn(`⚠️  [Date Extract] Filename does not match expected pattern: ${filename}`);
+    console.warn(`   [Date Extract] Expected format: Ants_dd.MM.yyyy.bak (e.g., Ants_19.05.2025.bak)`);
+    return null;
+  }
+
+  const day = match[1];
+  const month = match[2];
+  const year = match[3];
+  const dateString = `${day}.${month}.${year}`;
+
+  // Validate date
+  try {
+    const parsedDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    if (
+      parsedDate.getDate() !== parseInt(day) ||
+      parsedDate.getMonth() !== parseInt(month) - 1 ||
+      parsedDate.getFullYear() !== parseInt(year)
+    ) {
+      console.warn(`⚠️  [Date Extract] Invalid date: ${dateString}`);
+      return null;
+    }
+
+    console.log(`✅ [Date Extract] Successfully extracted date: ${dateString}`);
+    return dateString;
+  } catch (error: any) {
+    console.error(`❌ [Date Extract] Error validating date: ${error.message}`);
+    return null;
+  }
+}
+
+
 function getMSSQLConfig(database: string = 'master') {
   return {
     server: process.env.MSSQL_SERVER || 'localhost',
@@ -63,7 +111,7 @@ function getMSSQLConfig(database: string = 'master') {
  */
 async function getSQLServerBackupPath(fileName: string): Promise<string> {
   const isWindows = os.platform() === 'win32';
-  
+
   if (isWindows) {
     // On Windows, use a location SQL Server can access
     // Try common SQL Server backup directories first
@@ -163,7 +211,7 @@ export async function getBackupHeaderInfo(bakFilePath: string): Promise<{
     const header = headerResult.recordset[0];
     const backupDate = header.BackupStartDate ? new Date(header.BackupStartDate) : null;
     const databaseName = header.DatabaseName || null;
-    const backupType = header.BackupType ? 
+    const backupType = header.BackupType ?
       (header.BackupType === 1 ? 'Full' : header.BackupType === 2 ? 'Differential' : 'Log') : null;
 
     return { backupDate, databaseName, backupType };
@@ -210,7 +258,7 @@ export function generateTempDatabaseName(): string {
     .replace(/\.\d{3}/, '')
     .replace('T', '_')
     .slice(0, 15); // Format: YYYYMMDD_HHMMSS
-  
+
   return `TMP_RESTORE_${timestamp}`;
 }
 
@@ -240,7 +288,7 @@ export async function restoreMSSQLBackup(
 
     // Normalize path for SQL Server (Windows needs backslashes escaped)
     const normalizedPath = bakFilePath.replace(/\\/g, '\\\\').replace(/'/g, "''");
-    
+
     onProgress?.(`Reading backup file: ${bakFilePath}`);
     console.log(`   [MSSQL Restore] Reading backup file list from: ${bakFilePath}`);
 
@@ -552,7 +600,7 @@ export async function restoreBackupFromDrive(
     console.log(`🔄 [Restore] Starting restore from Google Drive [Restore ID: ${restoreId}]`);
     console.log(`   [Restore] File ID: ${fileId}`);
     console.log(`   [Restore] File Name: ${fileName}`);
-    
+
     onProgress?.({
       status: 'downloading',
       progress: 5,
@@ -651,13 +699,13 @@ export async function restoreBackupFromDrive(
     if (!tempFilePath) {
       throw new Error('Failed to create backup file path');
     }
-    
+
     // Restore the database from the .bak file
     await restoreMSSQLBackup(tempFilePath, databaseName, (msg) => {
       console.log(`   [Restore] Restore progress: ${msg}`);
       onProgress?.({ status: 'restoring', progress: 30, message: `Restoring database: ${msg}` });
     });
-    
+
     // Update database status after restore completes
     await db
       .update(mssqlRestores)
@@ -666,7 +714,7 @@ export async function restoreBackupFromDrive(
         updatedAt: new Date(),
       })
       .where(eq(mssqlRestores.id, restoreId));
-    
+
     console.log(`✅ [Restore] Database restore operation completed`);
 
     // Step 4: Calculate database size
@@ -768,7 +816,7 @@ export async function restoreBackupFromStorage(
     // Step 0: Test SSH connection to remote MSSQL server
     console.log(`🔄 [Restore] Starting restore from Supabase Storage [Restore ID: ${restoreId}]`);
     console.log(`   [Restore] Storage path: ${storagePath}`);
-    
+
     onProgress?.({
       status: 'downloading',
       progress: 5,
@@ -868,7 +916,7 @@ export async function restoreBackupFromStorage(
       console.log(`   [Restore] Restore progress: ${msg}`);
       onProgress?.({ status: 'restoring', progress: 60, message: `Restoring database: ${msg}` });
     });
-    
+
     console.log(`✅ [Restore] Database restore operation completed`);
 
     // Step 4: Calculate database size
@@ -962,4 +1010,210 @@ export async function listRestoreHistory(clientId?: number, limit: number = 50, 
     .offset(offset);
 
   return records;
+}
+
+/**
+ * Restore backup using PowerShell scripts via SSH
+ * This function executes the PowerShell scripts on the remote MSSQL server
+ * and streams the output back to the web app for real-time logging
+ * 
+ * @param fileName - Name of the backup file (e.g., Ants_19.05.2025.bak)
+ * @param options - Restore options
+ * @param onProgress - Progress callback with real-time log streaming
+ * @returns Restore record ID
+ */
+export async function restoreBackupViaPowerShellScripts(
+  fileName: string,
+  options: RestoreOptions,
+  onProgress?: (progress: RestoreProgress) => void
+): Promise<number> {
+  const operationId = `ps-restore-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  console.log(`🔄 [PS Restore] Starting PowerShell script-based restore [${operationId}]`);
+  console.log(`   [PS Restore] File: ${fileName}`);
+
+  // Step 1: Extract date from filename
+  onProgress?.({
+    status: 'downloading',
+    progress: 5,
+    message: `Extracting date from filename: ${fileName}`,
+  });
+
+  const customDate = extractDateFromBackupFilename(fileName);
+  if (!customDate) {
+    throw new Error(`Failed to extract date from filename: ${fileName}. Expected format: Ants_dd.MM.yyyy.bak`);
+  }
+
+  console.log(`   [PS Restore] Extracted date: ${customDate}`);
+  onProgress?.({
+    status: 'downloading',
+    progress: 10,
+    message: `Date extracted: ${customDate}. Preparing to execute scripts...`,
+  });
+
+  // Create restore record
+  const [restoreRecord] = await db
+    .insert(mssqlRestores)
+    .values({
+      googleDriveFileName: fileName,
+      restoredDbName: 'AntsDBRestore', // Will be updated by script
+      storageSource: 'google_drive',
+      restoreStatus: 'downloading',
+      restoreTimestamp: new Date(),
+      clientId: options.clientId || null,
+      restoreOptions: options as any,
+      isActive: true,
+    })
+    .returning();
+
+  const restoreId = restoreRecord.id;
+
+  try {
+    // Import remote execution functions
+    const { executeRemotePowerShellScript, connectSSH } = await import('./remote-execution');
+
+    // Establish persistent connection
+    console.log(`🔌 [PS Restore] Establishing persistent SSH connection...`);
+    const sshClient = await connectSSH();
+
+    // Step 2: Execute Script 1 - Download and Import
+    const script1Path = 'C:\\SQL-export-Powershell\\1.download_Import_SQL-full.ps1';
+
+    console.log(`📜 [PS Restore] Executing Script 1: Download and Import [${operationId}]`);
+    console.log(`   [PS Restore] Script: ${script1Path}`);
+    console.log(`   [PS Restore] CustomDate: ${customDate}`);
+
+    onProgress?.({
+      status: 'downloading',
+      progress: 15,
+      message: `Executing download and import script with date ${customDate}...`,
+    });
+
+    // Update status to downloading
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'downloading',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    const script1Result = await executeRemotePowerShellScript(
+      script1Path,
+      { CustomDate: customDate },
+      (output) => {
+        // Stream output to web app
+        console.log(`   [PS Restore] [Script 1] ${output.trim()}`);
+        onProgress?.({
+          status: 'restoring',
+          progress: 30,
+          message: output.trim(),
+        });
+      },
+      { timeout: 900000, sshClient } // 15 minutes timeout, use persistent connection
+    );
+
+    if (script1Result.exitCode !== 0) {
+      throw new Error(`Script 1 failed with exit code ${script1Result.exitCode}: ${script1Result.stderr || script1Result.stdout}`);
+    }
+
+    console.log(`✅ [PS Restore] Script 1 completed successfully [${operationId}]`);
+    onProgress?.({
+      status: 'restoring',
+      progress: 60,
+      message: 'Download and restore completed. Starting date update and transfer...',
+    });
+
+    // Update status to restoring
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'restoring',
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    // Step 3: Execute Script 2 - Update Dates and Transfer to Audit
+    const script2Path = 'C:\\SQL-export-Powershell\\2.updateDatesAndTransferDBtoAudit.ps1';
+
+    console.log(`📜 [PS Restore] Executing Script 2: Update Dates and Transfer [${operationId}]`);
+    console.log(`   [PS Restore] Script: ${script2Path}`);
+
+    onProgress?.({
+      status: 'migrating',
+      progress: 65,
+      message: 'Updating dates and transferring to Audit database...',
+    });
+
+    const script2Result = await executeRemotePowerShellScript(
+      script2Path,
+      {}, // No parameters needed for script 2
+      (output) => {
+        // Stream output to web app
+        console.log(`   [PS Restore] [Script 2] ${output.trim()}`);
+        onProgress?.({
+          status: 'migrating',
+          progress: 80,
+          message: output.trim(),
+        });
+      },
+      { timeout: 600000, sshClient } // 10 minutes timeout, use persistent connection
+    );
+
+    if (script2Result.exitCode !== 0) {
+      throw new Error(`Script 2 failed with exit code ${script2Result.exitCode}: ${script2Result.stderr || script2Result.stdout}`);
+    }
+
+    console.log(`✅ [PS Restore] Script 2 completed successfully [${operationId}]`);
+    console.log(`✅ [PS Restore] All scripts completed successfully [${operationId}]`);
+
+    // Update restore record with completion
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoredDbName: 'Audit', // Final database name
+        restoreStatus: 'completed',
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    onProgress?.({
+      status: 'completed',
+      progress: 100,
+      message: `Restore completed successfully! Database restored with date ${customDate}`,
+    });
+
+    return restoreId;
+  } catch (error: any) {
+    console.error(`❌ [PS Restore] Restore failed [${operationId}]`);
+    console.error(`   [PS Restore] Error: ${error.message}`);
+    if (error.stack) {
+      console.error(`   [PS Restore] Stack: ${error.stack}`);
+    }
+
+    await db
+      .update(mssqlRestores)
+      .set({
+        restoreStatus: 'failed',
+        errorMessage: error.message,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(mssqlRestores.id, restoreId));
+
+    onProgress?.({
+      status: 'failed',
+      progress: 0,
+      message: `Restore failed: ${error.message}`,
+    });
+
+    throw error;
+  } finally {
+    // Close persistent connection
+    if (typeof sshClient !== 'undefined') {
+      console.log(`🔌 [PS Restore] Closing persistent SSH connection...`);
+      sshClient.end();
+    }
+  }
 }

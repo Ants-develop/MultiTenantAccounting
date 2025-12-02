@@ -134,7 +134,7 @@ export async function connectSSH(): Promise<Client> {
       if (instructions) {
         console.log(`   [SSH] Instructions: ${instructions}`);
       }
-      
+
       // Auto-respond to prompts
       const responses: string[] = [];
       for (const prompt of prompts) {
@@ -175,9 +175,9 @@ export async function connectSSH(): Promise<Client> {
  */
 export async function executeRemoteCommand(
   command: string,
-  options: { logOutput?: boolean; timeout?: number } = {}
+  options: { logOutput?: boolean; timeout?: number; sshClient?: Client } = {}
 ): Promise<RemoteCommandResult> {
-  const { logOutput = true, timeout = 300000 } = options; // Default 5 minutes timeout
+  const { logOutput = true, timeout = 300000, sshClient } = options; // Default 5 minutes timeout
   const operationId = `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const startTime = Date.now();
 
@@ -185,7 +185,7 @@ export async function executeRemoteCommand(
   console.log(`   [SSH] Command: ${command.substring(0, 200)}${command.length > 200 ? '...' : ''}`);
   console.log(`   [SSH] Timeout: ${timeout}ms`);
 
-  const client = await connectSSH();
+  const client = sshClient || await connectSSH();
 
   return new Promise((resolve, reject) => {
     let stdout = '';
@@ -196,7 +196,9 @@ export async function executeRemoteCommand(
       if (!hasResolved) {
         hasResolved = true;
         console.error(`⏱️  [SSH] Command timeout after ${timeout}ms [${operationId}]`);
-        client.end();
+        if (!sshClient) {
+          client.end();
+        }
         reject(new Error(`Command execution timeout after ${timeout}ms`));
       }
     }, timeout);
@@ -208,7 +210,10 @@ export async function executeRemoteCommand(
         const duration = Date.now() - startTime;
         console.error(`❌ [SSH] Failed to execute command [${operationId}] after ${duration}ms`);
         console.error(`   [SSH] Error: ${err.message}`);
-        client.end();
+        console.error(`   [SSH] Error: ${err.message}`);
+        if (!sshClient) {
+          client.end();
+        }
         reject(err);
         return;
       }
@@ -218,7 +223,7 @@ export async function executeRemoteCommand(
         if (!hasResolved) {
           hasResolved = true;
           const duration = Date.now() - startTime;
-          
+
           if (code === 0) {
             console.log(`✅ [SSH] Command completed successfully [${operationId}] in ${duration}ms`);
           } else {
@@ -239,16 +244,18 @@ export async function executeRemoteCommand(
           }
 
           // Close connection gracefully after a short delay to ensure all data is flushed
-          setTimeout(() => {
-            try {
-              if (client && typeof client.end === 'function') {
-                client.end();
-                console.log(`🔌 [SSH] Connection closed gracefully [${operationId}]`);
+          if (!sshClient) {
+            setTimeout(() => {
+              try {
+                if (client && typeof client.end === 'function') {
+                  client.end();
+                  console.log(`🔌 [SSH] Connection closed gracefully [${operationId}]`);
+                }
+              } catch (closeError: any) {
+                console.warn(`⚠️  [SSH] Error closing connection [${operationId}]: ${closeError.message}`);
               }
-            } catch (closeError: any) {
-              console.warn(`⚠️  [SSH] Error closing connection [${operationId}]: ${closeError.message}`);
-            }
-          }, 100);
+            }, 100);
+          }
 
           resolve({
             stdout,
@@ -275,6 +282,154 @@ export async function executeRemoteCommand(
     });
   });
 }
+
+/**
+ * Execute a PowerShell script file on remote Windows server with real-time output streaming
+ * @param scriptPath - Absolute path to the .ps1 script on the remote server
+ * @param parameters - Script parameters as key-value pairs
+ * @param onOutput - Callback for real-time output streaming (optional)
+ * @param options - Execution options
+ * @returns Command result with stdout, stderr, and exit code
+ */
+export async function executeRemotePowerShellScript(
+  scriptPath: string,
+  parameters: Record<string, string> = {},
+  onOutput?: (output: string) => void,
+  options: { timeout?: number; sshClient?: Client } = {}
+): Promise<RemoteCommandResult> {
+  const { timeout = 600000, sshClient } = options; // Default 10 minutes timeout for scripts
+  const operationId = `script-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+
+  // Build parameter string
+  const paramString = Object.entries(parameters)
+    .map(([key, value]) => `-${key} "${value}"`)
+    .join(' ');
+
+  console.log(`📜 [SSH] Executing PowerShell script [${operationId}]`);
+  console.log(`   [SSH] Script: ${scriptPath}`);
+  console.log(`   [SSH] Parameters: ${paramString || '(none)'}`);
+  console.log(`   [SSH] Timeout: ${timeout}ms`);
+
+  const client = sshClient || await connectSSH();
+
+  return new Promise((resolve, reject) => {
+    let stdout = '';
+    let stderr = '';
+    let hasResolved = false;
+
+    const timeoutId = setTimeout(() => {
+      if (!hasResolved) {
+        hasResolved = true;
+        console.error(`⏱️  [SSH] Script timeout after ${timeout}ms [${operationId}]`);
+        if (!sshClient) {
+          client.end();
+        }
+        reject(new Error(`Script execution timeout after ${timeout}ms`));
+      }
+    }, timeout);
+
+    // Get the script directory to set as working directory
+    // This ensures relative paths in the script (like credentials.json) work correctly
+    const scriptDir = scriptPath.replace(/\\[^\\]+$/, '').replace(/\//g, '\\');
+    
+    // Execute PowerShell script with parameters using PowerShell 7
+    // Use -WorkingDirectory to ensure relative paths (like credentials.json) work correctly
+    // This is the proper way in PowerShell 7 to set working directory before script execution
+    const command = `"C:\\Program Files\\PowerShell\\7\\pwsh.exe" -ExecutionPolicy Bypass -WorkingDirectory "${scriptDir}" -File "${scriptPath}" ${paramString}`;
+
+    client.exec(command, (err: Error | undefined, stream: any) => {
+      if (err) {
+        clearTimeout(timeoutId);
+        hasResolved = true;
+        const duration = Date.now() - startTime;
+        console.error(`❌ [SSH] Failed to execute script [${operationId}] after ${duration}ms`);
+        console.error(`   [SSH] Error: ${err.message}`);
+        console.error(`   [SSH] Error: ${err.message}`);
+        if (!sshClient) {
+          client.end();
+        }
+        reject(err);
+        return;
+      }
+
+      stream.on('close', (code: number, signal?: string) => {
+        clearTimeout(timeoutId);
+        if (!hasResolved) {
+          hasResolved = true;
+          const duration = Date.now() - startTime;
+
+          if (code === 0) {
+            console.log(`✅ [SSH] Script completed successfully [${operationId}] in ${duration}ms`);
+          } else {
+            console.warn(`⚠️  [SSH] Script exited with code ${code} [${operationId}] in ${duration}ms`);
+            if (signal) {
+              console.warn(`   [SSH] Exit signal: ${signal}`);
+            }
+          }
+
+          if (stdout) {
+            console.log(`   [SSH] Script output captured: ${stdout.length} characters`);
+          }
+
+          if (stderr) {
+            console.error(`   [SSH] Script errors: ${stderr.length} characters`);
+          }
+
+          // Close connection gracefully
+          if (!sshClient) {
+            setTimeout(() => {
+              try {
+                if (client && typeof client.end === 'function') {
+                  client.end();
+                  console.log(`🔌 [SSH] Connection closed gracefully [${operationId}]`);
+                }
+              } catch (closeError: any) {
+                console.warn(`⚠️  [SSH] Error closing connection [${operationId}]: ${closeError.message}`);
+              }
+            }, 100);
+          }
+
+          resolve({
+            stdout,
+            stderr,
+            exitCode: code || 0,
+            exitSignal: signal,
+          });
+        }
+      });
+
+      // Stream stdout with real-time callback
+      stream.on('data', (data: Buffer) => {
+        const output = data.toString();
+        stdout += output;
+
+        // Log to console
+        process.stdout.write(`   [SSH] [${operationId}] ${output}`);
+
+        // Call callback for real-time streaming to web app
+        if (onOutput) {
+          onOutput(output);
+        }
+      });
+
+      // Stream stderr with real-time callback
+      stream.stderr.on('data', (data: Buffer) => {
+        const output = data.toString();
+        stderr += output;
+
+        // Log to console
+        console.error(`   [SSH] STDERR [${operationId}]: ${output}`);
+
+        // Call callback for real-time streaming to web app
+        if (onOutput) {
+          onOutput(`[ERROR] ${output}`);
+        }
+      });
+    });
+  });
+}
+
 
 /**
  * Upload file buffer to remote server via SFTP
@@ -424,7 +579,7 @@ export async function downloadFileToRemote(
  * Get Windows backup path accessible by SQL Server
  */
 export async function getRemoteBackupPath(fileName: string): Promise<string> {
-  const backupDir = process.env.MSSQL_BACKUP_DIR || 
+  const backupDir = process.env.MSSQL_BACKUP_DIR ||
     'C:\\Program Files\\Microsoft SQL Server\\MSSQL15.MSSQLSERVER\\MSSQL\\Backup';
 
   // Sanitize filename for Windows
@@ -455,7 +610,7 @@ export async function getRemoteBackupPath(fileName: string): Promise<string> {
  */
 export async function verifyRemoteFile(filePath: string): Promise<boolean> {
   const operationId = `verify-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
+
   console.log(`🔍 [SSH] Verifying file exists [${operationId}]`);
   console.log(`   [SSH] Path: ${filePath}`);
 
@@ -466,7 +621,7 @@ export async function verifyRemoteFile(filePath: string): Promise<boolean> {
     );
 
     const exists = result.stdout.trim().toLowerCase() === 'true';
-    
+
     if (exists) {
       // Get file size
       const sizeResult = await executeRemoteCommand(
