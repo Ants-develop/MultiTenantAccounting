@@ -114,7 +114,7 @@ export async function connectSSH(): Promise<Client> {
       host: config.host,
       port: config.port,
       username: config.username,
-      readyTimeout: 30000, // 30 seconds
+      readyTimeout: 60000, // 60 seconds
       // Auto-accept host keys to avoid interactive prompts
       hostVerifier: (hash: Buffer) => {
         console.log(`   [SSH] Host key fingerprint: ${hash.toString('hex')}`);
@@ -177,7 +177,7 @@ export async function executeRemoteCommand(
   command: string,
   options: { logOutput?: boolean; timeout?: number; sshClient?: Client } = {}
 ): Promise<RemoteCommandResult> {
-  const { logOutput = true, timeout = 300000, sshClient } = options; // Default 5 minutes timeout
+  const { logOutput = true, timeout = 900000, sshClient } = options; // Default 15 minutes timeout
   const operationId = `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const startTime = Date.now();
 
@@ -297,7 +297,7 @@ export async function executeRemotePowerShellScript(
   onOutput?: (output: string) => void,
   options: { timeout?: number; sshClient?: Client } = {}
 ): Promise<RemoteCommandResult> {
-  const { timeout = 600000, sshClient } = options; // Default 10 minutes timeout for scripts
+  const { timeout = 1800000, sshClient } = options; // Default 30 minutes timeout for scripts
   const operationId = `script-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const startTime = Date.now();
 
@@ -332,7 +332,7 @@ export async function executeRemotePowerShellScript(
     // Get the script directory to set as working directory
     // This ensures relative paths in the script (like credentials.json) work correctly
     const scriptDir = scriptPath.replace(/\\[^\\]+$/, '').replace(/\//g, '\\');
-    
+
     // Execute PowerShell script with parameters using PowerShell 7
     // Use -WorkingDirectory to ensure relative paths (like credentials.json) work correctly
     // This is the proper way in PowerShell 7 to set working directory before script execution
