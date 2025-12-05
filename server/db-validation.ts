@@ -257,19 +257,22 @@ export class DatabaseValidationService {
       // Check index optimization
       const indexCheck = await this.checkIndexes();
       healthCheck.schema.indexesOptimal = indexCheck.isOptimal;
+      // Index issues are recommendations, not failures
       if (!indexCheck.isOptimal) {
-        healthCheck.issues.push(`Index issues: ${indexCheck.recommendations.join(', ')}`);
+        // Don't add to issues - these are just recommendations logged separately
+        console.log(`💡 Index recommendation: ${indexCheck.recommendations.join(', ')}`);
       }
 
-      // Performance warnings
+      // Performance warnings (non-critical)
       if (healthCheck.performance.connectionTime > 1000) {
-        healthCheck.issues.push("Slow database connection (>1s)");
+        console.log("⚠️  Warning: Slow database connection (>1s)");
       }
       if (healthCheck.performance.queryTime > 500) {
-        healthCheck.issues.push("Slow query performance (>500ms)");
+        console.log("⚠️  Warning: Slow query performance (>500ms)");
       }
 
-      healthCheck.isHealthy = healthCheck.issues.length === 0;
+      // Only critical issues (missing tables, FK problems) affect health
+      healthCheck.isHealthy = healthCheck.schema.tablesExist && healthCheck.schema.foreignKeysValid;
 
     } catch (error) {
       healthCheck.isHealthy = false;
@@ -283,19 +286,34 @@ export class DatabaseValidationService {
    * Check if all required tables exist
    */
   private static async checkTablesExist(): Promise<{ allExist: boolean; missing: string[] }> {
-    const requiredTables = [
-      'users', 'clients', 'user_companies', 'accounts', 
-      'journal_entries', 'journal_entry_lines', 'customers', 
-      'vendors', 'invoices', 'bills', 'activity_logs'
+    // Tables in public schema
+    const publicTables = [
+      'users', 'clients', 'user_companies', 'activity_logs'
+    ];
+    
+    // Tables in accounting schema
+    const accountingTables = [
+      'accounts', 'journal_entries', 'journal_entry_lines', 
+      'customers', 'vendors', 'invoices', 'bills'
     ];
 
     try {
-      const existingTables = await db.execute(
+      // Check public schema tables
+      const existingPublic = await db.execute(
         sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`
       );
+      const publicExisting = existingPublic.rows.map(row => row.table_name as string);
       
-      const existing = existingTables.rows.map(row => row.table_name as string);
-      const missing = requiredTables.filter(table => !existing.includes(table));
+      // Check accounting schema tables
+      const existingAccounting = await db.execute(
+        sql`SELECT table_name FROM information_schema.tables WHERE table_schema = 'accounting'`
+      );
+      const accountingExisting = existingAccounting.rows.map(row => row.table_name as string);
+      
+      // Find missing tables
+      const missingPublic = publicTables.filter(table => !publicExisting.includes(table));
+      const missingAccounting = accountingTables.filter(table => !accountingExisting.includes(table));
+      const missing = [...missingPublic, ...missingAccounting];
       
       return {
         allExist: missing.length === 0,
@@ -304,7 +322,7 @@ export class DatabaseValidationService {
     } catch (error) {
       return {
         allExist: false,
-        missing: requiredTables
+        missing: [...publicTables, ...accountingTables]
       };
     }
   }

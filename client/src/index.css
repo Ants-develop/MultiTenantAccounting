@@ -235,6 +235,10 @@ All colors MUST be HSL.
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
     --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+
+    /* Typography preferences - customizable via settings */
+    --app-font-weight: 400;
+    --app-font-size: 14px;
   }
 
   .dark {
@@ -293,22 +297,32 @@ All colors MUST be HSL.
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
 
   body {
     @apply bg-background text-foreground;
-    font-size: 14px;
+    font-size: var(--app-font-size);
+    font-weight: var(--app-font-weight);
   }
 
-  /* Georgian font support */
+  /* Make all text lighter */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 500;
+  }
+
+  p, span, div, li, td, th, label, button, input, textarea {
+    font-weight: var(--app-font-weight);
+    font-size: var(--app-font-size);
+  }
+
+  /* Georgian font support - using lighter weight fonts */
   [lang="ka"],
   .georgian-text,
   .language-georgian,
   .language-ka {
-    font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
+    font-family: 'Noto Sans Georgian', 'DejaVu Sans', 'BPG Arial Caps', 'Sylfaen', Arial, sans-serif !important;
     font-feature-settings: "liga" 1, "kern" 1;
+    font-weight: 300;
+    letter-spacing: 0.2px;
   }
 
   /* Ensure proper rendering for Georgian characters */
@@ -318,16 +332,19 @@ All colors MUST be HSL.
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    font-weight: 200;
   }
 
   /* Apply Georgian font to all text when Georgian language is active */
   .language-ka * {
-    font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
+    font-family: 'Noto Sans Georgian', 'DejaVu Sans', 'BPG Arial Caps', 'Sylfaen', Arial, sans-serif !important;
+    font-weight: 200;
   }
 
   /* Georgian text specific styles */
   .language-ka {
     line-height: 1.6;
+    font-weight: 200;
   }
 
   /* Ensure proper font rendering for Georgian characters in buttons and inputs */
@@ -335,7 +352,18 @@ All colors MUST be HSL.
   .language-ka input,
   .language-ka textarea,
   .language-ka select {
-    font-family: 'DejaVu Sans', 'Noto Sans Georgian', 'BPG Nino Medium', 'Sylfaen', Arial, sans-serif !important;
+    font-family: 'Noto Sans Georgian', 'DejaVu Sans', 'BPG Arial Caps', 'Sylfaen', Arial, sans-serif !important;
+    font-weight: 200;
+  }
+
+  /* Georgian headings - slightly heavier for contrast */
+  .language-ka h1,
+  .language-ka h2,
+  .language-ka h3,
+  .language-ka h4,
+  .language-ka h5,
+  .language-ka h6 {
+    font-weight: 400;
   }
 }
 
@@ -355,43 +383,49 @@ All colors MUST be HSL.
   }
 }
 
-/* Modern custom scrollbar styling for the entire application */
-* {
+/* Modern custom scrollbar styling (scoped to document) */
+html, body {
   /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
 }
 
 /* Webkit browsers (Chrome, Safari, Edge) */
-*::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-*::-webkit-scrollbar-track {
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
   background: transparent;
   border-radius: 10px;
 }
 
-*::-webkit-scrollbar-thumb {
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
   background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-*::-webkit-scrollbar-thumb:hover {
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.5);
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
-*::-webkit-scrollbar-thumb:active {
+html::-webkit-scrollbar-thumb:active,
+body::-webkit-scrollbar-thumb:active {
   background: hsl(var(--muted-foreground) / 0.6);
 }
 
 /* Scrollbar corner (where horizontal and vertical scrollbars meet) */
-*::-webkit-scrollbar-corner {
+html::-webkit-scrollbar-corner,
+body::-webkit-scrollbar-corner {
   background: transparent;
 }

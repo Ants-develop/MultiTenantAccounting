@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -7,10 +8,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { MessengerProvider } from "@/contexts/MessengerContext";
 import { ThemeProvider } from "next-themes";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
+import { initializeTypographyPreferences } from "@/hooks/useTypographyPreferences";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
+import Landing from "@/pages/Landing";
 import AppLayout from "@/components/layout/AppLayout";
 import SimplePageLayout from "@/components/layout/SimplePageLayout";
 import NotFound from "@/pages/not-found";
@@ -74,7 +77,7 @@ import AccountsPayable from "@/pages/accounting/AccountsPayable";
 
 function ProtectedApp() {
   const { user, isLoading, needsSetup } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const { useFlexLayout } = useLayoutPreference();
 
   if (isLoading) {
@@ -89,12 +92,20 @@ function ProtectedApp() {
   }
 
   if (!user) {
-    return <Login />;
+    // Redirect unauthenticated users to /login
+    setLocation("/login");
+    return null;
   }
 
   // If setup is needed, redirect to setup page
   if (needsSetup) {
     return <Setup />;
+  }
+
+  // Redirect logged-in users from root "/" to "/home"
+  if (location === "/") {
+    setLocation("/home");
+    return null;
   }
 
   // Profile and Settings pages should always render outside FlexLayout
@@ -120,7 +131,6 @@ function ProtectedApp() {
       <SimplePageLayout>
         <Switch>
           {/* Home */}
-          <Route path="/" component={Home} />
           <Route path="/home" component={Home} />
 
           {/* Practice Management */}
@@ -186,11 +196,25 @@ function ProtectedApp() {
   return <AppLayout defaultPath={defaultPath} />;
 }
 
+function LoginPageWrapper() {
+  const { user, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  // Redirect authenticated users away from login
+  if (!isLoading && user) {
+    setLocation("/home");
+    return null;
+  }
+
+  return <Login />;
+}
+
 function Router() {
   return (
     <Switch>
       {/* Public routes */}
-      <Route path="/login" component={Login} />
+      <Route path="/" component={Landing} />
+      <Route path="/login" component={LoginPageWrapper} />
       <Route path="/setup" component={Setup} />
 
       {/* Client Portal Routes (no auth required - uses client portal auth) */}
@@ -202,7 +226,7 @@ function Router() {
       <Route path="/client-portal/messages" component={ClientPortalMessages} />
       <Route path="/client-portal/invoices" component={ClientPortalInvoices} />
 
-      {/* All other routes are protected and handled by Golden Layout */}
+      {/* All other routes are protected and handled by ProtectedApp */}
       <Route path="/:rest*" component={ProtectedApp} />
       <Route component={ProtectedApp} />
     </Switch>
@@ -210,9 +234,14 @@ function Router() {
 }
 
 function App() {
+  useEffect(() => {
+    // Initialize typography preferences on mount
+    initializeTypographyPreferences();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <TooltipProvider>
           <MessengerProvider>
             <Toaster />

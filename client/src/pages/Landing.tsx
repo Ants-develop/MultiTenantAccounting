@@ -18,8 +18,8 @@ const Landing = () => {
 
     useEffect(() => {
         if (!isLoading && user) {
-            // Redirect authenticated users to dashboard
-            setLocation("/dashboard");
+            // Redirect authenticated users to home dashboard
+            setLocation("/home");
         }
     }, [user, isLoading, setLocation]);
 

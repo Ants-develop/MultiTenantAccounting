@@ -1,0 +1,11 @@
+cd /var/www/lovable.ants.ge
+PORT=3000 pm2 start index.js --name "lovable-backend"
+
+
+sudo ln -s /etc/nginx/sites-available/lovable.ants.ge /etc/nginx/sites-enabled/lovable.ants.ge
+
+
+PORT=4000 pm2 start dist/index.js --name "new-react-backend" --cwd ~/MultiTenantAccounting
+PORT=3000 pm2 start dist/index.js --name "lovable-backend" --cwd ~/MultiTenantAccounting
+
+pm2 save

@@ -24,8 +24,8 @@ export function useLayoutPreference() {
         } catch (error) {
             console.error('Error reading layout preference:', error);
         }
-        // Default to flexlayout for backward compatibility
-        return 'flexlayout';
+        // Default to simple layout (multi-window disabled)
+        return 'simple';
     });
 
     const useFlexLayout = layoutMode === 'flexlayout';

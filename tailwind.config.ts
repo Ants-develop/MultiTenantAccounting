@@ -14,7 +14,18 @@ export default {
     },
     extend: {
       fontFamily: {
-        georgian: ["'DejaVu Sans'", "'Noto Sans Georgian'", "'BPG Nino Medium'", "'Sylfaen'", "sans-serif"],
+        georgian: ["'Noto Sans Georgian'", "'DejaVu Sans'", "'BPG Arial Caps'", "'Sylfaen'", "sans-serif"],
+      },
+      fontWeight: {
+        thin: "100",
+        extralight: "200",
+        light: "300",
+        normal: "400",
+        medium: "500",
+        semibold: "600",
+        bold: "700",
+        extrabold: "800",
+        black: "900",
       },
       colors: {
         border: "hsl(var(--border))",

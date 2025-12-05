@@ -1,3 +1,34 @@
+/* Handsontable Container - Proper layout constraints */
+.handsontable-container,
+.handsontable {
+  position: relative;
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+/* Ensure proper overflow handling */
+.handsontable .ht_clone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+}
+
+/* Column header row - only THIS needs z-index */
+.handsontable thead {
+  position: relative;
+  z-index: 1;
+  background: hsl(var(--muted));
+}
+
+/* Row headers - only headers need z-index */
+.handsontable th {
+  position: relative;
+  z-index: 1;
+  background: hsl(var(--muted));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
 /* Theme selector controls styling - adapted for shadcn Select component */
 .theme-examples-controls .example-container {
   display: flex;
@@ -73,13 +104,13 @@
   --ht-header-highlighted-background-color: hsl(var(--accent));
   --ht-header-highlighted-foreground-color: hsl(var(--accent-foreground));
   
-        /* Selection */
-        --ht-cell-selection-background-color: hsl(var(--accent) / 0.2);
-        --ht-cell-selection-border-color: hsl(var(--primary));
-        
-        /* Indicators */
-        --ht-resize-indicator-color: hsl(var(--primary));
-        --ht-move-indicator-color: hsl(var(--primary));
+  /* Selection */
+  --ht-cell-selection-background-color: hsl(var(--accent) / 0.2);
+  --ht-cell-selection-border-color: hsl(var(--primary));
+  
+  /* Indicators */
+  --ht-resize-indicator-color: hsl(var(--primary));
+  --ht-move-indicator-color: hsl(var(--primary));
   
   /* Scrollbar */
   --ht-scrollbar-thumb-color: hsl(var(--muted-foreground) / 0.3);
@@ -109,6 +140,21 @@
 /* Variables defined at :root will cascade here automatically */
 /* No need to redeclare - they inherit from :root above */
 
+/* Theme-specific overrides - ensure consistent styling across all themes */
+.ht-theme-classic thead,
+.ht-theme-main thead,
+.ht-theme-horizon thead {
+  position: relative;
+  z-index: 1;
+}
+
+.ht-theme-classic th,
+.ht-theme-main th,
+.ht-theme-horizon th {
+  position: relative;
+  z-index: 1;
+}
+
 /* Prevent text wrapping in Handsontable cells - but not in all contexts */
 .handsontable:not(.fullscreen-grid) td {
   white-space: nowrap;
@@ -120,6 +166,25 @@
 .htMenu, .htDropdownMenu, .htFiltersMenu {
   position: fixed !important;
   z-index: 9999 !important;
+}
+
+/* Select/Dropdown elements ONLY within Handsontable context - above grid content */
+.handsontable-container select,
+.handsontable-container [role="combobox"],
+.handsontable-container [role="listbox"],
+.handsontable-container .select-trigger,
+.handsontable-container .select-content,
+.handsontable-container [data-radix-select-trigger],
+.handsontable-container [data-radix-select-content] {
+  z-index: 50 !important;
+}
+
+/* Select dropdown content specifically - within grid container ONLY */
+.handsontable-container .select-content,
+.handsontable-container [data-radix-select-content],
+.handsontable-container [data-radix-select-viewport] {
+  position: relative !important;
+  z-index: 50 !important;
 }
 
 /* Fullscreen mode - app-specific feature */
@@ -136,6 +201,7 @@
   border-radius: 0 !important;
   overflow: hidden !important;
 }
+
 .fullscreen-grid .handsontable {
   height: calc(100vh - 250px) !important;
 }
@@ -159,4 +225,3 @@
 .handsontable .manualColumnResizer.active {
   opacity: 1;
 }
-

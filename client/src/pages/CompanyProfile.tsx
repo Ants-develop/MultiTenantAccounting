@@ -26,6 +26,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import type { Company } from "@shared/schema";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
+import { useTypographyPreferences, type FontWeight, type FontSize } from "@/hooks/useTypographyPreferences";
 
 interface CompanySettings extends Company {
   settings: {
@@ -120,6 +121,7 @@ export default function CompanyProfile() {
   const queryClient = useQueryClient();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { useFlexLayout, toggleLayout } = useLayoutPreference();
+  const { preferences, setFontWeight, setFontSize, resetToDefaults } = useTypographyPreferences();
   // Helper function to toggle theme
   const toggleTheme = () => {
     const currentTheme = theme || "system";
@@ -1289,6 +1291,84 @@ export default function CompanyProfile() {
                 </div>
 
                 <Separator />
+
+                {/* Typography Settings */}
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-base font-semibold">Typography</Label>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Customize the font weight and size throughout the application
+                    </p>
+                  </div>
+
+                  {/* Font Weight Control */}
+                  <div className="space-y-2">
+                    <Label htmlFor="font-weight" className="text-sm font-medium">Font Weight</Label>
+                    <Select
+                      value={preferences.fontWeight}
+                      onValueChange={(value) => setFontWeight(value as FontWeight)}
+                    >
+                      <SelectTrigger id="font-weight" className="w-full">
+                        <SelectValue placeholder="Select font weight" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Light (300)</SelectItem>
+                        <SelectItem value="normal">Normal (400)</SelectItem>
+                        <SelectItem value="medium">Medium (500)</SelectItem>
+                        <SelectItem value="semibold">Semi-Bold (600)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Controls the thickness of text throughout the application
+                    </p>
+                  </div>
+
+                  {/* Font Size Control */}
+                  <div className="space-y-2">
+                    <Label htmlFor="font-size" className="text-sm font-medium">Font Size</Label>
+                    <Select
+                      value={preferences.fontSize}
+                      onValueChange={(value) => setFontSize(value as FontSize)}
+                    >
+                      <SelectTrigger id="font-size" className="w-full">
+                        <SelectValue placeholder="Select font size" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="small">Small (13px)</SelectItem>
+                        <SelectItem value="medium">Medium (14px)</SelectItem>
+                        <SelectItem value="large">Large (15px)</SelectItem>
+                        <SelectItem value="xlarge">Extra Large (16px)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Controls the base font size for all text
+                    </p>
+                  </div>
+
+                  {/* Live Preview */}
+                  <div className="p-4 border rounded-lg bg-muted/30">
+                    <p className="text-xs text-muted-foreground mb-2">Preview:</p>
+                    <p className="mb-2">The quick brown fox jumps over the lazy dog</p>
+                    <p className="text-sm text-muted-foreground">
+                      Current: {preferences.fontWeight.charAt(0).toUpperCase() + preferences.fontWeight.slice(1)} weight, 
+                      {' '}{preferences.fontSize.charAt(0).toUpperCase() + preferences.fontSize.slice(1)} size
+                    </p>
+                  </div>
+
+                  {/* Reset Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      resetToDefaults();
+                      toast.success("Typography reset to defaults");
+                    }}
+                    className="w-full"
+                  >
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset to Defaults
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
