@@ -30,8 +30,11 @@ COMMENT ON COLUMN gdrive_downloads.local_file_path IS 'Path to downloaded file o
 -- Step 2: Rename backup_restore_history to mssql_restores and add new columns
 DO $$ 
 BEGIN
-    -- Rename table if it exists
-    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'backup_restore_history') THEN
+    -- If mssql_restores already exists, skip the rename (migration may have been partially applied)
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'mssql_restores') THEN
+        RAISE NOTICE 'mssql_restores table already exists, skipping rename';
+    ELSIF EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'backup_restore_history') THEN
+        -- Rename table if it exists as backup_restore_history
         ALTER TABLE backup_restore_history RENAME TO mssql_restores;
     END IF;
     

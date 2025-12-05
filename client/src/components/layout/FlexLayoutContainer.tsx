@@ -71,7 +71,7 @@ export default function FlexLayoutContainer({
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const contextNotifiedRef = useRef(false);
   const [layoutInitialized, setLayoutInitialized] = useState(false);
-  const ensuredDefaultTabRef = useRef(false);
+  const lastHandledPathRef = useRef<string | null>(null);
 
   // Component factory for FlexLayout
   // Factory receives a TabNode and returns the React component to render
@@ -273,26 +273,6 @@ export default function FlexLayoutContainer({
     setLayoutInitialized(true);
   }, [defaultPath, createDefaultModel, updateTabsFromModel]);
 
-  // Ensure the current route (defaultPath) is opened as a tab when layout is ready.
-  // This effect runs whenever defaultPath changes (e.g., from sidebar clicks)
-  useEffect(() => {
-    if (!layoutInitialized || !model || !defaultPath) return;
-
-    // Check if there's already a tab for this path
-    const existingTab = Array.from(tabs.values()).find(
-      (tab) => tab.path === defaultPath
-    );
-
-    if (!existingTab) {
-      // No tab exists for this path - open a new one
-      openTab(defaultPath);
-    } else if (existingTab.id !== activeTabId) {
-      // Tab exists but isn't active - switch to it
-      setActiveTab(existingTab.id);
-    }
-    // If tab exists and is already active, do nothing
-  }, [layoutInitialized, model, defaultPath, tabs, activeTabId, openTab, setActiveTab]);
-
   // Set active tab - use Actions API for proper model updates
   const setActiveTab = useCallback((tabId: string) => {
     if (!model) return;
@@ -490,6 +470,36 @@ export default function FlexLayoutContainer({
     getAllTabs,
     setActiveTab,
   };
+
+  // Ensure the current route (defaultPath) is opened as a tab when layout is ready.
+  // This effect runs whenever defaultPath changes (e.g., from sidebar clicks or direct URL navigation)
+  useEffect(() => {
+    if (!layoutInitialized || !model || !defaultPath) return;
+    
+    // Skip if we've already handled this exact path
+    if (lastHandledPathRef.current === defaultPath) return;
+    
+    console.log(`[FlexLayout] Handling route change to: ${defaultPath}`);
+    
+    // Check if there's already a tab for this path
+    const existingTab = Array.from(tabs.values()).find(
+      (tab) => tab.path === defaultPath
+    );
+
+    if (!existingTab) {
+      // No tab exists for this path - open a new one
+      console.log(`[FlexLayout] Opening new tab for: ${defaultPath}`);
+      openTab(defaultPath);
+    } else if (existingTab.id !== activeTabId) {
+      // Tab exists but isn't active - switch to it
+      console.log(`[FlexLayout] Switching to existing tab: ${existingTab.id}`);
+      setActiveTab(existingTab.id);
+    }
+    
+    // Mark this path as handled
+    lastHandledPathRef.current = defaultPath;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutInitialized, model, defaultPath, tabs, activeTabId]);
 
   // Notify parent when context is ready
   useEffect(() => {
