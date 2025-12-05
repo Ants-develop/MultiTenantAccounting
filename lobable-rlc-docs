@@ -1,0 +1,723 @@
+RLS Policies
+Row Level Security (RLS) controls which rows users can read or change.
+
+Docs
+Filter
+
+All tables
+audit_logs
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Admins can view all audit logs	
+SELECT
+authenticated
+Usinghas_role(auth.uid(), 'admin'::app_role)
+System can insert audit logs	
+INSERT
+authenticated
+Checktrue
+bank_accounts
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own bank accounts	
+SELECT
+authenticated
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = bank_accounts.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view bank accounts for assigned clients	
+SELECT
+authenticated
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_accounts.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create bank accounts for assigned clients	
+INSERT
+authenticated
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_accounts.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))))))
+Staff can update bank accounts for assigned clients	
+UPDATE
+authenticated
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_accounts.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can delete bank accounts	
+DELETE
+authenticated
+Usinghas_role(auth.uid(), 'admin'::app_role)
+bank_transactions
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own bank transactions	
+SELECT
+authenticated
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = bank_transactions.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view bank transactions for assigned clients	
+SELECT
+authenticated
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_transactions.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create bank transactions for assigned clients	
+INSERT
+authenticated
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_transactions.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))))))
+Staff can update bank transactions for assigned clients	
+UPDATE
+authenticated
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = bank_transactions.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can delete bank transactions	
+DELETE
+authenticated
+Usinghas_role(auth.uid(), 'admin'::app_role)
+calendar_event_participants
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Users can view participants of their events	
+SELECT
+public
+Using(is_event_creator(event_id, auth.uid()) OR (user_id = auth.uid()))
+Event creators and organizers can add participants	
+INSERT
+public
+Checkcan_manage_event_participants(event_id, auth.uid())
+Participants can update their own status	
+UPDATE
+public
+Using(user_id = auth.uid())
+Event creators and organizers can remove participants	
+DELETE
+public
+Using((user_id = auth.uid()) OR can_manage_event_participants(event_id, auth.uid()))
+calendar_events
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Users can view events they're invited to	
+SELECT
+public
+Using((auth.uid() = created_by) OR (EXISTS ( SELECT 1 FROM calendar_event_participants WHERE ((calendar_event_participants.event_id = calendar_events.id) AND (calendar_event_participants.user_id = auth.uid())))))
+Users can create events	
+INSERT
+public
+Check(auth.uid() = created_by)
+Event creators and organizers can update events	
+UPDATE
+public
+Using((auth.uid() = created_by) OR (EXISTS ( SELECT 1 FROM calendar_event_participants WHERE ((calendar_event_participants.event_id = calendar_event_participants.id) AND (calendar_event_participants.user_id = auth.uid()) AND ((calendar_event_participants.is_organizer = true) OR (calendar_event_participants.can_edit = true))))))
+Event creators can delete events	
+DELETE
+public
+Using(auth.uid() = created_by)
+chart_of_accounts
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view their clients' chart of accounts	
+SELECT
+public
+Using((client_id IN ( SELECT clients.id FROM clients WHERE ((clients.assigned_owner_id = auth.uid()) OR (clients.assigned_accountant_id = auth.uid()) OR (clients.assigned_reviewer_id = auth.uid())))) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+Staff can manage their clients' chart of accounts	
+ALL
+public
+Using((client_id IN ( SELECT clients.id FROM clients WHERE ((clients.assigned_owner_id = auth.uid()) OR (clients.assigned_accountant_id = auth.uid())))) OR has_role(auth.uid(), 'admin'::app_role))
+checklists
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view checklists for their tasks	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM (tasks JOIN profiles ON ((profiles.id = auth.uid()))) WHERE ((tasks.id = checklists.task_id) AND (profiles.client_id = tasks.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view checklists for accessible tasks	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM tasks WHERE ((tasks.id = checklists.task_id) AND ((auth.uid() = tasks.assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Clients can update checklists for their tasks	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM (tasks JOIN profiles ON ((profiles.id = auth.uid()))) WHERE ((tasks.id = checklists.task_id) AND (profiles.client_id = tasks.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can manage checklists	
+ALL
+public
+Using(EXISTS ( SELECT 1 FROM tasks WHERE ((tasks.id = checklists.task_id) AND ((auth.uid() = tasks.assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+client_contacts
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own contacts	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = client_contacts.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view contacts for their clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = client_contacts.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Clients can update their own contacts	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = client_contacts.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can manage contacts for their clients	
+ALL
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = client_contacts.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+client_services
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own services	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = client_services.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view all client services	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can manage client services	
+ALL
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+client_team_assignments
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view team assignments for their clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = client_team_assignments.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can manage team assignments	
+ALL
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+clients
+6 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own client record	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = clients.id) AND has_role(auth.uid(), 'client'::app_role))))
+Users can view clients they own or are assigned to	
+SELECT
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role) OR (auth.uid() = assigned_owner_id) OR (auth.uid() = assigned_accountant_id) OR (auth.uid() = assigned_reviewer_id))
+Staff can create clients	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Clients can update their own communication preferences	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = clients.id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can update assigned clients	
+UPDATE
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role) OR (auth.uid() = assigned_owner_id) OR (auth.uid() = assigned_accountant_id) OR (auth.uid() = assigned_reviewer_id))
+Admins can delete clients	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+conversation_participants
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view participants in their conversations	
+SELECT
+public
+Usingcan_client_view_conversation_participants(conversation_id, auth.uid())
+Users can view participants in their conversations	
+SELECT
+public
+Using(is_conversation_participant(conversation_id, auth.uid()) OR has_role(auth.uid(), 'admin'::app_role))
+Users can add participants to their conversations	
+INSERT
+public
+Check(is_conversation_creator(conversation_id, auth.uid()) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+Users can update their own participant record	
+UPDATE
+public
+Using(auth.uid() = user_id)
+conversations
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own conversations	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = conversations.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Users can view their conversations	
+SELECT
+public
+Using((EXISTS ( SELECT 1 FROM conversation_participants WHERE ((conversation_participants.conversation_id = conversations.id) AND (conversation_participants.user_id = auth.uid())))) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+Staff can create conversations	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Users can update their conversations	
+UPDATE
+public
+Using((auth.uid() = created_by) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+deal_activities
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view activities for their deals	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM deals WHERE ((deals.id = deal_activities.deal_id) AND ((deals.owner_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create activities	
+INSERT
+public
+Check((auth.uid() = created_by) AND (EXISTS ( SELECT 1 FROM deals WHERE ((deals.id = deal_activities.deal_id) AND ((deals.owner_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))))))
+deal_contacts
+1 Policy
+Policy name	Command	Applies to	Rule expression
+Staff can manage contacts for their deals	
+ALL
+public
+Using(EXISTS ( SELECT 1 FROM deals WHERE ((deals.id = deal_contacts.deal_id) AND ((deals.owner_id = auth.uid()) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+deal_stages
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all deal stages	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Admins can manage deal stages	
+ALL
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+deals
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all deals	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can create deals	
+INSERT
+public
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (auth.uid() = created_by))
+Deal owners and admins can update deals	
+UPDATE
+public
+Using((auth.uid() = owner_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+Admins can delete deals	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+document_access_log
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Admins can view all access logs	
+SELECT
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Users can view their own access logs	
+SELECT
+public
+Using(auth.uid() = user_id)
+System can insert access logs	
+INSERT
+public
+Checktrue
+document_categories
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Everyone can view categories	
+SELECT
+public
+Usingtrue
+Admins can manage categories	
+ALL
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+documents
+6 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own documents	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = documents.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view documents for their clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = documents.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Clients can upload documents to their own account	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = documents.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can upload documents for their clients	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = documents.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can update documents for their clients	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = documents.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can delete documents for their clients	
+DELETE
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = documents.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR has_role(auth.uid(), 'admin'::app_role)))))
+email_templates
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all email templates	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can create email templates	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can update email templates	
+UPDATE
+public
+Using((auth.uid() = created_by) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+feed_post_comments
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all comments	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can create comments	
+INSERT
+public
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (auth.uid() = author_id))
+Users can update their own comments	
+UPDATE
+public
+Using(auth.uid() = author_id)
+Users can delete their own comments or admins can delete any	
+DELETE
+public
+Using((auth.uid() = author_id) OR has_role(auth.uid(), 'admin'::app_role))
+feed_post_likes
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all likes	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can like posts	
+INSERT
+public
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (auth.uid() = user_id))
+Users can remove their own likes	
+DELETE
+public
+Using(auth.uid() = user_id)
+feed_posts
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all posts	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can create posts	
+INSERT
+public
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (auth.uid() = author_id))
+Users can update their own posts	
+UPDATE
+public
+Using(auth.uid() = author_id)
+Users can delete their own posts or admins can delete any	
+DELETE
+public
+Using((auth.uid() = author_id) OR has_role(auth.uid(), 'admin'::app_role))
+journal_entries
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own journal entries	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = journal_entries.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view journal entries for assigned clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = journal_entries.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create journal entries for assigned clients	
+INSERT
+public
+Check((NOT has_role(auth.uid(), 'client'::app_role)) AND (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = journal_entries.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))))))
+Staff can update draft journal entries	
+UPDATE
+public
+Using((status = 'draft'::text) AND (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = journal_entries.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))))))
+Check(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = journal_entries.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can delete journal entries	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+messages
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view messages in their conversations	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM (conversations JOIN profiles ON ((profiles.id = auth.uid()))) WHERE ((conversations.id = messages.conversation_id) AND (profiles.client_id = conversations.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Users can view messages in their conversations	
+SELECT
+public
+Using((EXISTS ( SELECT 1 FROM conversation_participants WHERE ((conversation_participants.conversation_id = messages.conversation_id) AND (conversation_participants.user_id = auth.uid())))) OR has_role(auth.uid(), 'admin'::app_role))
+Clients can send messages in their conversations	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM (conversations JOIN profiles ON ((profiles.id = auth.uid()))) WHERE ((conversations.id = messages.conversation_id) AND (profiles.client_id = conversations.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Users can send messages to their conversations	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM conversation_participants WHERE ((conversation_participants.conversation_id = messages.conversation_id) AND (conversation_participants.user_id = auth.uid()))))
+Users can update their own messages	
+UPDATE
+public
+Using(auth.uid() = sender_id)
+notifications
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Users can view their own notifications	
+SELECT
+public
+Using(auth.uid() = user_id)
+System can create notifications	
+INSERT
+public
+Checktrue
+Users can update their own notifications	
+UPDATE
+public
+Using(auth.uid() = user_id)
+Users can delete their own notifications	
+DELETE
+public
+Using(auth.uid() = user_id)
+password_access_log
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Admins can view all access logs	
+SELECT
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Users can view their own access logs	
+SELECT
+public
+Using(auth.uid() = user_id)
+System can insert access logs	
+INSERT
+public
+Checktrue
+password_folders
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view folders for assigned clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = password_folders.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create folders for assigned clients	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = password_folders.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can update folders for assigned clients	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = password_folders.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can delete folders	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+passwords
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view passwords for assigned clients	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM (password_folders pf JOIN clients c ON ((c.id = pf.client_id))) WHERE ((pf.id = passwords.folder_id) AND ((auth.uid() = c.assigned_owner_id) OR (auth.uid() = c.assigned_accountant_id) OR (auth.uid() = c.assigned_reviewer_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can create passwords for assigned clients	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM (password_folders pf JOIN clients c ON ((c.id = pf.client_id))) WHERE ((pf.id = passwords.folder_id) AND ((auth.uid() = c.assigned_owner_id) OR (auth.uid() = c.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can update passwords for assigned clients	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM (password_folders pf JOIN clients c ON ((c.id = pf.client_id))) WHERE ((pf.id = passwords.folder_id) AND ((auth.uid() = c.assigned_owner_id) OR (auth.uid() = c.assigned_accountant_id) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Admins can delete passwords	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+profiles
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Admins can view all profiles	
+SELECT
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Users can view their own profile	
+SELECT
+public
+Using(auth.uid() = id)
+Users can update their own profile	
+UPDATE
+public
+Using(auth.uid() = id)
+task_comments
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view comments on accessible tasks	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM tasks WHERE ((tasks.id = task_comments.task_id) AND ((auth.uid() = tasks.assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+Staff can add comments to accessible tasks	
+INSERT
+public
+Check(EXISTS ( SELECT 1 FROM tasks WHERE ((tasks.id = task_comments.task_id) AND ((auth.uid() = tasks.assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role)))))
+task_templates
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view task templates	
+SELECT
+public
+Usingtrue
+Staff can manage task templates	
+ALL
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+tasks
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own tasks	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = tasks.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view tasks for their clients	
+SELECT
+public
+Using((auth.uid() = assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role) OR (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = tasks.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id))))))
+Staff can create tasks	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Clients can update checklist items on their tasks	
+UPDATE
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = tasks.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can update their assigned tasks	
+UPDATE
+public
+Using((auth.uid() = assigned_to) OR has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+user_invitations
+1 Policy
+Policy name	Command	Applies to	Rule expression
+Admins can manage invitations	
+ALL
+authenticated
+Usinghas_role(auth.uid(), 'admin'::app_role)
+user_module_permissions
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Admins can view all user module permissions	
+SELECT
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Users can view their own module permissions	
+SELECT
+public
+Using(user_id = auth.uid())
+Admins can insert user module permissions	
+INSERT
+public
+Checkhas_role(auth.uid(), 'admin'::app_role)
+Admins can update user module permissions	
+UPDATE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Admins can delete user module permissions	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+user_roles
+2 Policies
+Policy name	Command	Applies to	Rule expression
+Users can view their own roles	
+SELECT
+public
+Using(auth.uid() = user_id)
+Admins can manage all roles	
+ALL
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+workflow_stage_history
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their workflow stage history	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM (workflows w JOIN profiles p ON ((p.id = auth.uid()))) WHERE ((w.id = workflow_stage_history.workflow_id) AND (p.client_id = w.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view stage history	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can insert stage history	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can update stage history	
+UPDATE
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+workflow_stages
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all stages	
+SELECT
+public
+Usingtrue
+Admins can delete stages	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+Staff can manage stages	
+ALL
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+workflow_template_clients
+3 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their assigned templates	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = workflow_template_clients.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view template client assignments	
+SELECT
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Admins can manage template client assignments	
+ALL
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role))
+workflow_templates
+4 Policies
+Policy name	Command	Applies to	Rule expression
+Staff can view all templates	
+SELECT
+public
+Usingtrue
+Staff can create templates	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Staff can update templates	
+UPDATE
+public
+Using(NOT has_role(auth.uid(), 'client'::app_role))
+Admins can delete templates	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+workflows
+5 Policies
+Policy name	Command	Applies to	Rule expression
+Clients can view their own workflows	
+SELECT
+public
+Using(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.client_id = workflows.client_id) AND has_role(auth.uid(), 'client'::app_role))))
+Staff can view workflows they have access to	
+SELECT
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role) OR (auth.uid() = assigned_to) OR (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = workflows.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id) OR (auth.uid() = clients.assigned_reviewer_id))))))
+Staff can create workflows	
+INSERT
+public
+Check(NOT has_role(auth.uid(), 'client'::app_role))
+Staff and assigned users can update workflows	
+UPDATE
+public
+Using(has_role(auth.uid(), 'admin'::app_role) OR has_role(auth.uid(), 'manager'::app_role) OR (auth.uid() = assigned_to) OR (EXISTS ( SELECT 1 FROM clients WHERE ((clients.id = workflows.client_id) AND ((auth.uid() = clients.assigned_owner_id) OR (auth.uid() = clients.assigned_accountant_id))))))
+Admins can delete workflows	
+DELETE
+public
+Usinghas_role(auth.uid(), 'admin'::app_role)
+0

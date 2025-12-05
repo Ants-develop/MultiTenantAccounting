@@ -100,6 +100,8 @@ export const RESOURCE_TYPES = {
   BILL: 'BILL',
   SETTINGS: 'SETTINGS',
   SYSTEM: 'SYSTEM',
+  FEED_POST: 'FEED_POST',
+  FEED_COMMENT: 'FEED_COMMENT',
 } as const;
 
 // Activity context interface

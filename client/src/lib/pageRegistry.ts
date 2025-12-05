@@ -53,6 +53,7 @@ import CRM from "@/pages/CRM";
 import Messages from "@/pages/Messages";
 import Notifications from "@/pages/Notifications";
 import Storage from "@/pages/admin/Storage";
+import Feed from "@/pages/Feed";
 
 export interface PageMetadata {
   title: string;
@@ -352,6 +353,11 @@ export const pageRegistry: PageConfig = {
     title: "Messages",
     component: Messages,
     path: "/messages",
+  },
+  "/feed": {
+    title: "Feed",
+    component: Feed,
+    path: "/feed",
   },
   "/notifications": {
     title: "Notifications",

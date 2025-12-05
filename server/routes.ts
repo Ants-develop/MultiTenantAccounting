@@ -38,6 +38,7 @@ import matrixRouter from "./api/matrix";
 import clientManagementRouter from "./api/client-management";
 import emailRouter from "./api/email";
 import automationsRouter from "./api/automations";
+import feedRouter from "./api/feed";
 import clientPortalRouter from "./api/client-portal";
 import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
@@ -595,6 +596,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/tasks', tasksRouter);
   app.use('/api/calendar', calendarRouter);
   app.use('/api/matrix', matrixRouter);
+
+  // Feed Module
+  app.use('/api/feed', feedRouter);
 
   // Communication Hub
   app.use('/api/email', emailRouter);

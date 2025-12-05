@@ -577,6 +577,9 @@ export const usersRelations = relations(users, ({ many }) => ({
   userCompanies: many(userCompanies),
   journalEntries: many(journalEntries),
   rsCredentials: many(rsUsers),
+  feedPosts: many(feedPosts),
+  feedPostLikes: many(feedPostLikes),
+  feedPostComments: many(feedPostComments),
 }));
 
 export const companiesRelations = relations(companies, ({ many, one }) => ({
@@ -1243,6 +1246,70 @@ export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
   sender: one(users, { fields: [messages.senderId], references: [users.id] }),
 }));
+
+// ============ FEED MODULE ============
+
+// Feed Posts Table
+export const feedPosts = pgTable("feed_posts", {
+  id: serial("id").primaryKey(),
+  authorId: integer("author_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  attachments: jsonb("attachments").default([]),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Feed Post Likes Table
+export const feedPostLikes = pgTable("feed_post_likes", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => feedPosts.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Feed Post Comments Table
+export const feedPostComments = pgTable("feed_post_comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => feedPosts.id, { onDelete: "cascade" }).notNull(),
+  authorId: integer("author_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  parentCommentId: integer("parent_comment_id").references(() => feedPostComments.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Feed Relations
+export const feedPostsRelations = relations(feedPosts, ({ one, many }) => ({
+  author: one(users, { fields: [feedPosts.authorId], references: [users.id] }),
+  likes: many(feedPostLikes),
+  comments: many(feedPostComments),
+}));
+
+export const feedPostLikesRelations = relations(feedPostLikes, ({ one }) => ({
+  post: one(feedPosts, { fields: [feedPostLikes.postId], references: [feedPosts.id] }),
+  user: one(users, { fields: [feedPostLikes.userId], references: [users.id] }),
+}));
+
+export const feedPostCommentsRelations = relations(feedPostComments, ({ one, many }) => ({
+  post: one(feedPosts, { fields: [feedPostComments.postId], references: [feedPosts.id] }),
+  author: one(users, { fields: [feedPostComments.authorId], references: [users.id] }),
+  parentComment: one(feedPostComments, { fields: [feedPostComments.parentCommentId], references: [feedPostComments.id] }),
+  replies: many(feedPostComments),
+}));
+
+// Feed Insert Schemas
+export const insertFeedPostSchema = createInsertSchema(feedPosts).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertFeedPostLikeSchema = createInsertSchema(feedPostLikes).omit({ id: true, createdAt: true });
+export const insertFeedPostCommentSchema = createInsertSchema(feedPostComments).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Feed Types
+export type FeedPost = typeof feedPosts.$inferSelect;
+export type InsertFeedPost = z.infer<typeof insertFeedPostSchema>;
+export type FeedPostLike = typeof feedPostLikes.$inferSelect;
+export type InsertFeedPostLike = z.infer<typeof insertFeedPostLikeSchema>;
+export type FeedPostComment = typeof feedPostComments.$inferSelect;
+export type InsertFeedPostComment = z.infer<typeof insertFeedPostCommentSchema>;
 
 // Google Drive Downloads Table (Phase 1)
 export const gdriveDownloads = pgTable("gdrive_downloads", {
