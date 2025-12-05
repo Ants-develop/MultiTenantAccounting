@@ -28,20 +28,19 @@ export const ConversationList = ({ conversations, selectedId, onSelect }: Conver
 
     return (
         <ScrollArea className="h-[calc(100vh-12rem)]">
-                <div className="space-y-2 pr-4">
-                    {filteredConversations.length === 0 ? (
-                        <Card className="p-8 text-center">
-                            <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                            <p className="text-muted-foreground">
-                                {searchQuery ? "No conversations found" : "No conversations yet"}
-                            </p>
-                        </Card>
-                    ) : (
-                        filteredConversations.map((conv) => (
+            <div className="space-y-2 pr-4">
+                {conversations.length === 0 ? (
+                    <Card className="p-8 text-center">
+                        <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-muted-foreground">No conversations yet</p>
+                    </Card>
+                ) : (
+                    conversations.map((conv) => (
                         <Card
                             key={conv.id}
-                            className={`p-4 cursor-pointer hover:bg-accent transition-colors ${selectedId === conv.id ? "bg-accent border-primary" : ""
-                                }`}
+                            className={`p-4 cursor-pointer hover:bg-accent transition-colors ${
+                                selectedId === conv.id ? "bg-accent border-primary" : ""
+                            }`}
                             onClick={() => onSelect(conv.id)}
                         >
                             <div className="flex items-start gap-3">
@@ -69,10 +68,9 @@ export const ConversationList = ({ conversations, selectedId, onSelect }: Conver
                                 </div>
                             </div>
                         </Card>
-                        ))
-                    )}
-                </div>
-            </ScrollArea>
-        </div>
+                    ))
+                )}
+            </div>
+        </ScrollArea>
     );
 };

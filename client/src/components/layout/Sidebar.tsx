@@ -3,7 +3,7 @@ import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { useEffect, useState, useRef, useMemo } from "react";
 import {
-  FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database, User, Settings
+  FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database, User, Settings, Link as LinkIcon
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useAuth } from "@/hooks/useAuth";
@@ -45,6 +45,7 @@ import {
   topLevelNavigation,
   practiceManagementNavigation,
   dataWarehouseNavigation,
+  rsIntegrationNavigation,
   bottomNavigation,
   adminNavigation,
   additionalPagesNavigation,
@@ -74,6 +75,10 @@ export default function Sidebar() {
     const stored = localStorage.getItem('sidebar_dataWarehouseOpen');
     return stored !== null ? JSON.parse(stored) : true;
   });
+  const [rsIntegrationOpen, setRsIntegrationOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_rsIntegrationOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
   const [additionalPagesOpen, setAdditionalPagesOpen] = useState(() => {
     const stored = localStorage.getItem('sidebar_additionalPagesOpen');
     return stored !== null ? JSON.parse(stored) : false;
@@ -87,6 +92,10 @@ export default function Sidebar() {
   useEffect(() => {
     localStorage.setItem('sidebar_dataWarehouseOpen', JSON.stringify(dataWarehouseOpen));
   }, [dataWarehouseOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_rsIntegrationOpen', JSON.stringify(rsIntegrationOpen));
+  }, [rsIntegrationOpen]);
 
   useEffect(() => {
     localStorage.setItem('sidebar_additionalPagesOpen', JSON.stringify(additionalPagesOpen));
@@ -152,6 +161,7 @@ export default function Sidebar() {
   const visibleTopLevel = filterItems(topLevelNavigation);
   const visiblePractice = filterItems(practiceManagementNavigation);
   const visibleDataWarehouse = filterItems(dataWarehouseNavigation);
+  const visibleRSIntegration = filterItems(rsIntegrationNavigation);
   const visibleBottom = filterItems(bottomNavigation);
   const visibleAdmin = filterItems(adminNavigation);
   const visibleAdditionalPages = filterItems(additionalPagesNavigation);
@@ -257,6 +267,49 @@ export default function Sidebar() {
                 <SidebarGroupContent>
                   <SidebarMenuSub>
                     {visibleDataWarehouse.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href);
+                      return (
+                        <SidebarMenuSubItem key={item.name}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={active}
+                            onClick={(e) => handleNavigation(e, item.href, item.name)}
+                          >
+                            <a href={item.href} className="cursor-pointer">
+                              <Icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
+        {/* RS Integration Collapsible Group */}
+        {visibleRSIntegration.length > 0 && (
+          <Collapsible
+            open={rsIntegrationOpen}
+            onOpenChange={setRsIntegrationOpen}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="w-full flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">
+                  <LinkIcon className="h-4 w-4" />
+                  <span className="flex-1 text-left">RS Integration</span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenuSub>
+                    {visibleRSIntegration.map((item) => {
                       const Icon = item.icon;
                       const active = isActive(item.href);
                       return (

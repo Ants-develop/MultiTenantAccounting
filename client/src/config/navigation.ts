@@ -22,7 +22,8 @@ import {
     Bell,
     Link,
     Archive,
-    HardDrive
+    HardDrive,
+    Newspaper
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -43,6 +44,12 @@ export const topLevelNavigation: NavigationItem[] = [
 ];
 
 export const practiceManagementNavigation: NavigationItem[] = [
+    {
+        name: "Feed",
+        href: "/feed",
+        icon: Newspaper,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
     {
         name: "CRM",
         href: "/crm",
@@ -111,6 +118,27 @@ export const dataWarehouseNavigation: NavigationItem[] = [
         href: "/audit",
         icon: Shield,
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+];
+
+export const rsIntegrationNavigation: NavigationItem[] = [
+    {
+        name: "RS Integration",
+        href: "/rs-integration",
+        icon: Link,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "RS Admin",
+        href: "/rs-admin",
+        icon: Shield,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "Update RS Data",
+        href: "/rs/update-data",
+        icon: Database,
+        requiresGlobalAdmin: true,
     },
 ];
 
@@ -194,24 +222,6 @@ export const additionalPagesNavigation: NavigationItem[] = [
         permission: "BANK_VIEW",
     },
     {
-        name: "RS Integration",
-        href: "/rs-integration",
-        icon: Link,
-        permission: "SYSTEM_VIEW_ALL_COMPANIES",
-    },
-    {
-        name: "RS Admin",
-        href: "/rs-admin",
-        icon: Shield,
-        requiresGlobalAdmin: true,
-    },
-    {
-        name: "Update RS Data",
-        href: "/rs/update-data",
-        icon: Database,
-        requiresGlobalAdmin: true,
-    },
-    {
         name: "Notifications",
         href: "/notifications",
         icon: Bell,
@@ -235,6 +245,7 @@ export const allNavigation = [
     ...topLevelNavigation,
     ...practiceManagementNavigation,
     ...dataWarehouseNavigation,
+    ...rsIntegrationNavigation,
     ...bottomNavigation,
     ...adminNavigation,
 ];

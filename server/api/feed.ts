@@ -9,7 +9,7 @@ import {
   feedPostComments,
   users,
 } from "@shared/schema";
-import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../middleware/activityLogger";
+import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 
 const router = express.Router();
 router.use(requireAuth);
@@ -154,115 +154,142 @@ router.get("/posts/:id", async (req: any, res: any) => {
 });
 
 // POST /api/feed/posts - Create new post
-router.post(
-  "/posts",
-  activityLogger(ACTIVITY_ACTIONS.CREATE, RESOURCE_TYPES.FEED_POST),
-  async (req: any, res: any) => {
-    try {
-      const data = createPostSchema.parse(req.body);
+router.post("/posts", async (req: any, res: any) => {
+  try {
+    const data = createPostSchema.parse(req.body);
 
-      const [post] = await db
-        .insert(feedPosts)
-        .values({
-          ...data,
-          authorId: req.user.id,
-        })
-        .returning();
+    const [post] = await db
+      .insert(feedPosts)
+      .values({
+        ...data,
+        authorId: req.user.id,
+      })
+      .returning();
 
-      res.status(201).json(post);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
-      }
-      console.error("[Feed] Failed to create post", error);
-      res.status(500).json({ message: "Failed to create post" });
+    await activityLogger.logCRUD(
+      ACTIVITY_ACTIONS.FEED_POST_CREATE,
+      RESOURCE_TYPES.FEED_POST,
+      {
+        userId: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      },
+      post.id,
+      undefined,
+      { content: post.content }
+    );
+
+    res.status(201).json(post);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ message: "Validation error", errors: error.errors });
     }
+    console.error("[Feed] Failed to create post", error);
+    res.status(500).json({ message: "Failed to create post" });
   }
-);
+});
 
 // PUT /api/feed/posts/:id - Update post
-router.put(
-  "/posts/:id",
-  activityLogger(ACTIVITY_ACTIONS.UPDATE, RESOURCE_TYPES.FEED_POST),
-  async (req: any, res: any) => {
-    try {
-      const postId = parseInt(req.params.id);
-      if (Number.isNaN(postId)) {
-        return res.status(400).json({ message: "Invalid post id" });
-      }
-
-      const data = updatePostSchema.parse(req.body);
-
-      // Check if post exists and user is author
-      const [existingPost] = await db
-        .select()
-        .from(feedPosts)
-        .where(eq(feedPosts.id, postId))
-        .limit(1);
-
-      if (!existingPost) {
-        return res.status(404).json({ message: "Post not found" });
-      }
-
-      if (existingPost.authorId !== req.user.id && req.user.globalRole !== "global_administrator") {
-        return res.status(403).json({ message: "Not authorized to update this post" });
-      }
-
-      const [updatedPost] = await db
-        .update(feedPosts)
-        .set({
-          ...data,
-          updatedAt: new Date(),
-        })
-        .where(eq(feedPosts.id, postId))
-        .returning();
-
-      res.json(updatedPost);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Validation error", errors: error.errors });
-      }
-      console.error("[Feed] Failed to update post", error);
-      res.status(500).json({ message: "Failed to update post" });
+router.put("/posts/:id", async (req: any, res: any) => {
+  try {
+    const postId = parseInt(req.params.id);
+    if (Number.isNaN(postId)) {
+      return res.status(400).json({ message: "Invalid post id" });
     }
+
+    const data = updatePostSchema.parse(req.body);
+
+    // Check if post exists and user is author
+    const [existingPost] = await db
+      .select()
+      .from(feedPosts)
+      .where(eq(feedPosts.id, postId))
+      .limit(1);
+
+    if (!existingPost) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (existingPost.authorId !== req.user.id && req.user.globalRole !== "global_administrator") {
+      return res.status(403).json({ message: "Not authorized to update this post" });
+    }
+
+    const [updatedPost] = await db
+      .update(feedPosts)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(feedPosts.id, postId))
+      .returning();
+
+    await activityLogger.logCRUD(
+      ACTIVITY_ACTIONS.FEED_POST_UPDATE,
+      RESOURCE_TYPES.FEED_POST,
+      {
+        userId: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      },
+      postId,
+      { content: existingPost.content },
+      { content: updatedPost.content }
+    );
+
+    res.json(updatedPost);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ message: "Validation error", errors: error.errors });
+    }
+    console.error("[Feed] Failed to update post", error);
+    res.status(500).json({ message: "Failed to update post" });
   }
-);
+});
 
 // DELETE /api/feed/posts/:id - Delete post
-router.delete(
-  "/posts/:id",
-  activityLogger(ACTIVITY_ACTIONS.DELETE, RESOURCE_TYPES.FEED_POST),
-  async (req: any, res: any) => {
-    try {
-      const postId = parseInt(req.params.id);
-      if (Number.isNaN(postId)) {
-        return res.status(400).json({ message: "Invalid post id" });
-      }
-
-      // Check if post exists and user is author or admin
-      const [existingPost] = await db
-        .select()
-        .from(feedPosts)
-        .where(eq(feedPosts.id, postId))
-        .limit(1);
-
-      if (!existingPost) {
-        return res.status(404).json({ message: "Post not found" });
-      }
-
-      if (existingPost.authorId !== req.user.id && req.user.globalRole !== "global_administrator") {
-        return res.status(403).json({ message: "Not authorized to delete this post" });
-      }
-
-      await db.delete(feedPosts).where(eq(feedPosts.id, postId));
-
-      res.json({ message: "Post deleted successfully" });
-    } catch (error) {
-      console.error("[Feed] Failed to delete post", error);
-      res.status(500).json({ message: "Failed to delete post" });
+router.delete("/posts/:id", async (req: any, res: any) => {
+  try {
+    const postId = parseInt(req.params.id);
+    if (Number.isNaN(postId)) {
+      return res.status(400).json({ message: "Invalid post id" });
     }
+
+    // Check if post exists and user is author or admin
+    const [existingPost] = await db
+      .select()
+      .from(feedPosts)
+      .where(eq(feedPosts.id, postId))
+      .limit(1);
+
+    if (!existingPost) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (existingPost.authorId !== req.user.id && req.user.globalRole !== "global_administrator") {
+      return res.status(403).json({ message: "Not authorized to delete this post" });
+    }
+
+    await db.delete(feedPosts).where(eq(feedPosts.id, postId));
+
+    await activityLogger.logCRUD(
+      ACTIVITY_ACTIONS.FEED_POST_DELETE,
+      RESOURCE_TYPES.FEED_POST,
+      {
+        userId: req.user.id,
+        ipAddress: req.ip,
+        userAgent: req.get("user-agent"),
+      },
+      postId,
+      { content: existingPost.content },
+      undefined
+    );
+
+    res.json({ message: "Post deleted successfully" });
+  } catch (error) {
+    console.error("[Feed] Failed to delete post", error);
+    res.status(500).json({ message: "Failed to delete post" });
   }
-);
+});
 
 // PUT /api/feed/posts/:id/pin - Toggle pin status (admin only)
 router.put("/posts/:id/pin", async (req: any, res: any) => {

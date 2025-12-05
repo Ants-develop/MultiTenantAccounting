@@ -26,6 +26,7 @@ import { ClientPortalInvoices } from "@/pages/client-portal/ClientPortalInvoices
 
 // Top Level & Practice Management
 import Home from "@/pages/Home";
+import Feed from "@/pages/Feed";
 import CRM from "@/pages/CRM";
 import Clients from "@/pages/admin/Clients";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
@@ -123,6 +124,7 @@ function ProtectedApp() {
           <Route path="/home" component={Home} />
 
           {/* Practice Management */}
+          <Route path="/feed" component={Feed} />
           <Route path="/crm" component={CRM} />
           <Route path="/clients" component={Clients} />
           <Route path="/pipelines" component={PipelinesDashboard} />
