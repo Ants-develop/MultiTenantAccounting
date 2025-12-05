@@ -80,14 +80,16 @@ function ProtectedApp() {
   const [location, setLocation] = useLocation();
   const { useFlexLayout } = useLayoutPreference();
 
-  // Redirect unauthenticated users to login without setting state during render
+  // Redirect unauthenticated users to login
+  // Only depends on auth state, not location, to avoid circular dependency
   useEffect(() => {
     if (!isLoading && !user) {
       setLocation("/login");
     }
-  }, [isLoading, user, location, setLocation]);
+  }, [isLoading, user, setLocation]);
 
-  // Redirect root to /home without render-time state updates
+  // Redirect root "/" to /home for authenticated users
+  // Only depends on auth state and current location to avoid circular dependency
   useEffect(() => {
     if (!isLoading && user && location === "/") {
       setLocation("/home");
