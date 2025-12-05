@@ -143,23 +143,22 @@ FROM mssql_restores;
 
 COMMENT ON VIEW backup_restore_history IS 'Backward compatibility view for backup_restore_history (deprecated, use mssql_restores)';
 
--- DOWN migration (for rollback)
--- DROP VIEW IF EXISTS backup_restore_history;
--- DROP TABLE IF EXISTS backup_migration_logs;
--- DROP INDEX IF EXISTS idx_mssql_restores_restore_timestamp;
--- DROP INDEX IF EXISTS idx_mssql_restores_is_active;
--- DROP INDEX IF EXISTS idx_mssql_restores_restored_db_name;
--- DROP INDEX IF EXISTS idx_mssql_restores_download_id;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS local_backup_path;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS is_active;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS database_size_mb;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS original_backup_date;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS restore_timestamp;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS restored_db_name;
--- ALTER TABLE mssql_restores DROP COLUMN IF EXISTS download_id;
--- ALTER TABLE mssql_restores RENAME TO backup_restore_history;
--- DROP INDEX IF EXISTS idx_gdrive_downloads_gdrive_file_id;
--- DROP INDEX IF EXISTS idx_gdrive_downloads_download_timestamp;
--- DROP INDEX IF EXISTS idx_gdrive_downloads_status;
--- DROP TABLE IF EXISTS gdrive_downloads;
-
+-- DOWN
+DROP VIEW IF EXISTS backup_restore_history;
+DROP TABLE IF EXISTS backup_migration_logs;
+DROP INDEX IF EXISTS idx_mssql_restores_restore_timestamp;
+DROP INDEX IF EXISTS idx_mssql_restores_is_active;
+DROP INDEX IF EXISTS idx_mssql_restores_restored_db_name;
+DROP INDEX IF EXISTS idx_mssql_restores_download_id;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS local_backup_path;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS is_active;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS database_size_mb;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS original_backup_date;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS restore_timestamp;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS restored_db_name;
+ALTER TABLE mssql_restores DROP COLUMN IF EXISTS download_id;
+ALTER TABLE mssql_restores RENAME TO backup_restore_history;
+DROP INDEX IF EXISTS idx_gdrive_downloads_gdrive_file_id;
+DROP INDEX IF EXISTS idx_gdrive_downloads_download_timestamp;
+DROP INDEX IF EXISTS idx_gdrive_downloads_status;
+DROP TABLE IF EXISTS gdrive_downloads;

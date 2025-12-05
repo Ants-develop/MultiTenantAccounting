@@ -45,6 +45,8 @@ import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
+import permissionsMgmtRouter from "./api/permissions-mgmt";
+
 
 declare module "express-session" {
   interface SessionData {
@@ -266,6 +268,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
           error: 'MISSING_TABLES'
         });
       }
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // NEW: Get user permissions for frontend context
+  app.get('/api/auth/permissions', requireAuth, async (req, res) => {
+    try {
+      const { permissionService } = await import('./services/permissions');
+      const permissions = await permissionService.getUserPermissions(req.session.userId!);
+      res.json(permissions);
+    } catch (error) {
+      console.error('Get permissions error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // NEW: Get user's accessible clients
+  app.get('/api/auth/clients', requireAuth, async (req, res) => {
+    try {
+      const { permissionService } = await import('./services/permissions');
+      const clients = await permissionService.getUserClients(req.session.userId!);
+      // Map to match frontend expectations: clientId -> id, clientName -> name, clientCode -> code
+      const mapped = clients.map((c: any) => ({
+        id: c.clientId,
+        name: c.clientName,
+        code: c.clientCode,
+      }));
+      res.json(mapped);
+    } catch (error) {
+      console.error('Get user clients error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
@@ -629,6 +661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/mssql', mssqlRestoreSshRouter); // SSH-based restore with real-time logging
   app.use('/api/connections', requireAuth, connectionsRouter);
   app.use('/api/permissions', permissionsRouter);
+  app.use('/api/permissions', requireAuth, permissionsMgmtRouter); // NEW: Role-based permission management
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);

@@ -14,7 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useTranslation } from "react-i18next";
-import { 
+import {
   Plus, Edit, Trash2, Save, X, Shield, Building2, Users, Database,
   Activity, BarChart3, Settings, Globe, UserPlus, Building, Eye,
   Download, Upload, RefreshCw, AlertTriangle, CheckCircle, XCircle,
@@ -28,6 +28,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Role, GlobalRole } from "@shared/permissions";
 import { ClientCompaniesGrid } from "@/components/admin/ClientCompaniesGrid";
+import PermissionsV2 from "./PermissionsV2";
 
 interface ClientCompanyUserPreview {
   id: number;
@@ -160,7 +161,7 @@ export default function GlobalAdministration() {
   const [editingAssignment, setEditingAssignment] = useState<UserAssignment | null>(null);
 
   const { user } = useAuth();
-  
+
   // Check if user is global administrator
   const isGlobalAdmin = user?.globalRole === 'global_administrator';
   const { toast } = useToast();
@@ -227,7 +228,7 @@ export default function GlobalAdministration() {
           params.append(key, value.toString());
         }
       });
-      
+
       const response = await fetch(`/api/activity-logs?${params}`);
       if (!response.ok) {
         throw new Error('Failed to fetch activity logs');
@@ -338,7 +339,7 @@ export default function GlobalAdministration() {
   });
 
   const updateGlobalUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<GlobalUserForm> }) => 
+    mutationFn: ({ id, data }: { id: number; data: Partial<GlobalUserForm> }) =>
       apiRequest('PUT', `/api/global-admin/users/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
@@ -363,7 +364,7 @@ export default function GlobalAdministration() {
   });
 
   const toggleUserStatusMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => 
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       apiRequest('PUT', `/api/global-admin/users/${id}/status`, { isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
@@ -384,7 +385,7 @@ export default function GlobalAdministration() {
   });
 
   const toggleCompanyStatusMutation = useMutation({
-    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) => 
+    mutationFn: ({ id, isActive }: { id: number; isActive: boolean }) =>
       apiRequest('PUT', `/api/global-admin/clients/${id}/status`, { isActive }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
@@ -448,7 +449,7 @@ export default function GlobalAdministration() {
   });
 
   const updateUserRoleMutation = useMutation({
-    mutationFn: ({ assignmentId, role }: { assignmentId: number; role: string }) => 
+    mutationFn: ({ assignmentId, role }: { assignmentId: number; role: string }) =>
       apiRequest('PUT', `/api/global-admin/user-assignments/${assignmentId}`, { role }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/global-admin/company-users', managingCompany?.id] });
@@ -546,14 +547,14 @@ export default function GlobalAdministration() {
   };
 
   const getRoleColor = (role: GlobalRole) => {
-    return role === 'global_administrator' ? 
-      'bg-red-100 text-red-800' : 
+    return role === 'global_administrator' ?
+      'bg-red-100 text-red-800' :
       'bg-blue-100 text-blue-800';
   };
 
   const getStatusColor = (isActive: boolean) => {
-    return isActive ? 
-      'bg-green-100 text-green-800' : 
+    return isActive ?
+      'bg-green-100 text-green-800' :
       'bg-gray-100 text-gray-800';
   };
 
@@ -577,25 +578,25 @@ export default function GlobalAdministration() {
   };
 
   const roles = [
-    { 
-      value: "administrator", 
-      label: "Administrator", 
-      description: "Full system access including user management, company creation, and all accounting operations across all companies." 
+    {
+      value: "administrator",
+      label: "Administrator",
+      description: "Full system access including user management, company creation, and all accounting operations across all companies."
     },
-    { 
-      value: "manager", 
-      label: "Manager", 
-      description: "Complete accounting access plus company management. Can manage users within their company and modify company settings." 
+    {
+      value: "manager",
+      label: "Manager",
+      description: "Complete accounting access plus company management. Can manage users within their company and modify company settings."
     },
-    { 
-      value: "accountant", 
-      label: "Accountant", 
-      description: "Full accounting operations including journal entries, invoices, bills, and financial reporting. Cannot manage users or companies." 
+    {
+      value: "accountant",
+      label: "Accountant",
+      description: "Full accounting operations including journal entries, invoices, bills, and financial reporting. Cannot manage users or companies."
     },
-    { 
-      value: "assistant", 
-      label: "Assistant Accountant", 
-      description: "Limited data entry and basic reporting access. Can create customers, vendors, and basic transactions but cannot modify system settings." 
+    {
+      value: "assistant",
+      label: "Assistant Accountant",
+      description: "Limited data entry and basic reporting access. Can create customers, vendors, and basic transactions but cannot modify system settings."
     },
   ];
 
@@ -680,8 +681,8 @@ export default function GlobalAdministration() {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => {
               queryClient.invalidateQueries({ queryKey: ['/api/global-admin/clients'] });
               queryClient.invalidateQueries({ queryKey: ['/api/global-admin/users'] });
@@ -708,10 +709,11 @@ export default function GlobalAdministration() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="companies">Client Companies</TabsTrigger>
           <TabsTrigger value="users">Global Users</TabsTrigger>
+          <TabsTrigger value="permissions">Permissions V2</TabsTrigger>
           <TabsTrigger value="activity">Activity Logs</TabsTrigger>
         </TabsList>
 
@@ -730,7 +732,7 @@ export default function GlobalAdministration() {
                 </p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -913,9 +915,9 @@ export default function GlobalAdministration() {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="text-destructive"
                                 disabled={deleteGlobalUserMutation.isPending}
                               >
@@ -959,9 +961,9 @@ export default function GlobalAdministration() {
             </div>
             <div className="flex space-x-2">
               <Button variant="outline" onClick={() => refetchLogs()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Refresh
+              </Button>
               <Button variant="outline">
                 <Download className="w-4 h-4 mr-2" />
                 Export Logs
@@ -972,7 +974,7 @@ export default function GlobalAdministration() {
           {/* Activity Summary Cards */}
           {activitySummary?.data && (
             <div className="grid gap-4 md:grid-cols-4">
-          <Card>
+              <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Actions</CardTitle>
                   <Activity className="h-4 w-4 text-muted-foreground" />
@@ -986,7 +988,7 @@ export default function GlobalAdministration() {
                   </p>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Top Action</CardTitle>
@@ -1050,7 +1052,7 @@ export default function GlobalAdministration() {
                     onChange={(e) => setActivityFilters(prev => ({ ...prev, search: e.target.value, page: 1 }))}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="action">Action</Label>
                   <Select
@@ -1131,10 +1133,10 @@ export default function GlobalAdministration() {
                   />
                 </div>
               </div>
-              
+
               <div className="flex justify-between items-center mt-4">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setActivityFilters({
                     page: 1,
                     limit: 50,
@@ -1148,7 +1150,7 @@ export default function GlobalAdministration() {
                 >
                   Clear Filters
                 </Button>
-                
+
                 <div className="flex items-center space-x-2">
                   <Label htmlFor="limit">Per page:</Label>
                   <Select
@@ -1183,19 +1185,19 @@ export default function GlobalAdministration() {
             </CardHeader>
             <CardContent className="p-0">
               <ScrollArea className="h-[600px]">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Resource</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>IP Address</TableHead>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>User</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Resource</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>IP Address</TableHead>
                       <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {logsLoading ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8">
@@ -1211,26 +1213,26 @@ export default function GlobalAdministration() {
                       </TableRow>
                     ) : (
                       activityData?.data?.logs?.map((log: any) => (
-                    <TableRow key={log.id}>
+                        <TableRow key={log.id}>
                           <TableCell className="font-mono text-xs">
                             {log.formattedTimestamp}
                           </TableCell>
-                      <TableCell>
+                          <TableCell>
                             <div>
                               <div className="font-medium">{log.user?.name}</div>
                               <div className="text-xs text-muted-foreground">@{log.user?.username}</div>
                             </div>
-                      </TableCell>
-                      <TableCell>
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline" className="text-xs">
                               {log.actionDisplayName}
                             </Badge>
-                      </TableCell>
+                          </TableCell>
                           <TableCell>
                             <Badge variant="secondary" className="text-xs">
                               {log.resourceDisplayName}
                             </Badge>
-                      </TableCell>
+                          </TableCell>
                           <TableCell className="max-w-xs">
                             <div className="text-xs">
                               {log.details?.error ? (
@@ -1272,12 +1274,12 @@ export default function GlobalAdministration() {
                                 Failed
                               </Badge>
                             )}
-                      </TableCell>
-                    </TableRow>
+                          </TableCell>
+                        </TableRow>
                       ))
                     )}
-                </TableBody>
-              </Table>
+                  </TableBody>
+                </Table>
               </ScrollArea>
             </CardContent>
           </Card>
@@ -1311,6 +1313,11 @@ export default function GlobalAdministration() {
         </TabsContent>
 
 
+        {/* Permissions V2 Tab */}
+        <TabsContent value="permissions">
+          <PermissionsV2 />
+        </TabsContent>
+
       </Tabs>
 
       {/* Global User Dialog */}
@@ -1321,7 +1328,7 @@ export default function GlobalAdministration() {
               {editingUser ? `Edit User: ${editingUser.username}` : 'Create New Global User'}
             </DialogTitle>
           </DialogHeader>
-          
+
           <form onSubmit={userForm.handleSubmit(onUserSubmit)} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -1416,20 +1423,20 @@ export default function GlobalAdministration() {
             </div>
 
             <div className="flex justify-end space-x-3">
-              <Button 
-                type="button" 
-                variant="outline" 
+              <Button
+                type="button"
+                variant="outline"
                 onClick={() => setIsUserDialogOpen(false)}
               >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={createGlobalUserMutation.isPending || updateGlobalUserMutation.isPending}
               >
                 <Save className="w-4 h-4 mr-2" />
-                {(createGlobalUserMutation.isPending || updateGlobalUserMutation.isPending) 
-                  ? 'Saving...' 
+                {(createGlobalUserMutation.isPending || updateGlobalUserMutation.isPending)
+                  ? 'Saving...'
                   : editingUser ? 'Update User' : 'Create User'
                 }
               </Button>
@@ -1446,7 +1453,7 @@ export default function GlobalAdministration() {
               Manage Users - {managingCompany?.name}
             </DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
@@ -1526,17 +1533,17 @@ export default function GlobalAdministration() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end space-x-2">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   title="Edit User Role"
                                   onClick={() => handleEditUserRole(user)}
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   title="Remove from Company"
                                   className="text-destructive"
                                   onClick={() => handleRemoveUser(user)}
@@ -1555,8 +1562,8 @@ export default function GlobalAdministration() {
             )}
 
             <div className="flex justify-end">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setIsCompanyUsersDialogOpen(false)}
               >
                 Close
@@ -1586,10 +1593,10 @@ export default function GlobalAdministration() {
                   {availableUsers
                     .filter(user => !companyUsers.some(cu => cu.id === user.id))
                     .map((user) => (
-                    <SelectItem key={user.id} value={user.id.toString()}>
-                      {user.firstName} {user.lastName} ({user.username})
-                    </SelectItem>
-                  ))}
+                      <SelectItem key={user.id} value={user.id.toString()}>
+                        {user.firstName} {user.lastName} ({user.username})
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
               {assignmentForm.formState.errors.userId && (
@@ -1598,7 +1605,7 @@ export default function GlobalAdministration() {
                 </p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="role">Role</Label>
               <Select
@@ -1657,7 +1664,7 @@ export default function GlobalAdministration() {
                 </Badge>
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="newRole">New Role</Label>
               <Select

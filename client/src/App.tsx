@@ -11,6 +11,7 @@ import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { initializeTypographyPreferences } from "@/hooks/useTypographyPreferences";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
+import { PermissionProvider } from "@/contexts/PermissionContext";
 import Login from "@/pages/Login";
 import Setup from "@/pages/Setup";
 import Landing from "@/pages/Landing";
@@ -47,8 +48,7 @@ import AuditDashboard from "@/pages/audit/AuditDashboard";
 // Admin
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import UserManagement from "@/pages/admin/UserManagement";
-import RoleManagement from "@/pages/admin/RoleManagement";
-import PermissionsManagement from "@/pages/admin/PermissionsManagement";
+// Note: Old RoleManagement and PermissionsManagement removed - use PermissionsV2 in GlobalAdministration
 
 // Additional Pages
 import JobsDashboard from "@/pages/jobs/JobsDashboard";
@@ -80,6 +80,20 @@ function ProtectedApp() {
   const [location, setLocation] = useLocation();
   const { useFlexLayout } = useLayoutPreference();
 
+  // Redirect unauthenticated users to login without setting state during render
+  useEffect(() => {
+    if (!isLoading && !user) {
+      setLocation("/login");
+    }
+  }, [isLoading, user, location, setLocation]);
+
+  // Redirect root to /home without render-time state updates
+  useEffect(() => {
+    if (!isLoading && user && location === "/") {
+      setLocation("/home");
+    }
+  }, [isLoading, user, location, setLocation]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -91,21 +105,21 @@ function ProtectedApp() {
     );
   }
 
-  if (!user) {
-    // Redirect unauthenticated users to /login
-    setLocation("/login");
-    return null;
-  }
-
   // If setup is needed, redirect to setup page
   if (needsSetup) {
     return <Setup />;
   }
 
-  // Redirect logged-in users from root "/" to "/home"
-  if (location === "/") {
-    setLocation("/home");
-    return null;
+  // Show loading while redirect is processing
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-sm text-muted-foreground">Redirecting...</p>
+        </div>
+      </div>
+    );
   }
 
   // Profile and Settings pages should always render outside FlexLayout
@@ -152,7 +166,7 @@ function ProtectedApp() {
           {/* Admin - Using CORRECT paths from navigation.ts */}
           <Route path="/global-administration" component={GlobalAdministration} />
           <Route path="/user-management" component={UserManagement} />
-          <Route path="/permissions-management" component={PermissionsManagement} />
+          {/* Old /permissions-management and /role-management removed - use /global-administration Permissions V2 tab */}
           <Route path="/admin/import-clients" component={ClientImport} />
 
           {/* Additional Pages */}
@@ -178,7 +192,7 @@ function ProtectedApp() {
           <Route path="/purchases" component={Purchases} />
           <Route path="/accounts-receivable" component={AccountsReceivable} />
           <Route path="/accounts-payable" component={AccountsPayable} />
-          <Route path="/roles-management" component={RoleManagement} />
+          {/* Old /roles-management removed - use Permissions V2 in Global Administration */}
 
           {/* 404 */}
           <Route component={NotFound} />
@@ -200,11 +214,14 @@ function LoginPageWrapper() {
   const { user, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
-  // Redirect authenticated users away from login
-  if (!isLoading && user) {
-    setLocation("/home");
-    return null;
-  }
+  // Redirect authenticated users away from login without render-time updates
+  useEffect(() => {
+    if (!isLoading && user) {
+      setLocation("/home");
+    }
+  }, [isLoading, user, setLocation]);
+
+  if (!isLoading && user) return null;
 
   return <Login />;
 }
@@ -212,8 +229,7 @@ function LoginPageWrapper() {
 function Router() {
   return (
     <Switch>
-      {/* Public routes */}
-      <Route path="/" component={Landing} />
+      {/* Public routes - exact matches first */}
       <Route path="/login" component={LoginPageWrapper} />
       <Route path="/setup" component={Setup} />
 
@@ -226,8 +242,10 @@ function Router() {
       <Route path="/client-portal/messages" component={ClientPortalMessages} />
       <Route path="/client-portal/invoices" component={ClientPortalInvoices} />
 
+      {/* Landing page - for unauthenticated users at root "/" */}
+      <Route path="/">{() => <Landing />}</Route>
+
       {/* All other routes are protected and handled by ProtectedApp */}
-      <Route path="/:rest*" component={ProtectedApp} />
       <Route component={ProtectedApp} />
     </Switch>
   );
@@ -241,14 +259,16 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
-        <TooltipProvider>
-          <MessengerProvider>
-            <Toaster />
-            <Router />
-          </MessengerProvider>
-        </TooltipProvider>
-      </ThemeProvider>
+      <PermissionProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <TooltipProvider>
+            <MessengerProvider>
+              <Toaster />
+              <Router />
+            </MessengerProvider>
+          </TooltipProvider>
+        </ThemeProvider>
+      </PermissionProvider>
     </QueryClientProvider>
   );
 }

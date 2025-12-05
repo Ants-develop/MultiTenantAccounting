@@ -18,8 +18,7 @@ import FinancialStatements from "@/pages/reports/FinancialStatements";
 import UserManagement from "@/pages/admin/UserManagement";
 import Profile from "@/pages/Profile";
 import CompanyProfile from "@/pages/CompanyProfile";
-import RoleManagement from "@/pages/admin/RoleManagement";
-import PermissionsManagement from "@/pages/admin/PermissionsManagement";
+// Note: RoleManagement and PermissionsManagement removed - use PermissionsV2 in GlobalAdministration
 import Clients from "@/pages/admin/Clients";
 import ClientImport from "@/pages/admin/ClientImport";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
@@ -154,16 +153,7 @@ export const pageRegistry: PageConfig = {
     component: UserManagement,
     path: "/user-management",
   },
-  "/role-management": {
-    title: "Role Management",
-    component: RoleManagement,
-    path: "/role-management",
-  },
-  "/permissions-management": {
-    title: "Permissions Management",
-    component: PermissionsManagement,
-    path: "/permissions-management",
-  },
+  // Old /role-management and /permissions-management removed - use /global-administration Permissions V2 tab
   "/clients": {
     title: "Clients",
     component: Clients,

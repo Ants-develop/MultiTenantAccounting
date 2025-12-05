@@ -16,6 +16,22 @@ async function isUserGlobalAdmin(userId: number): Promise<boolean> {
 
 // Get all clients for a user in a specific module (with read permission)
 export async function getUserClientsByModule(userId: number, module: string) {
+  // UPGRADED: Now uses new authorization system
+  const { permissionService } = await import('../services/permissions');
+
+  // Map legacy module names to permission resources
+  const moduleResourceMap: Record<string, string> = {
+    banking: 'bank',
+    bank: 'bank',
+    accounting: 'accounting',
+    accounts: 'accounting',
+    'journal-entries': 'accounting',
+    journal: 'accounting',
+    audit: 'audit',
+    reporting: 'reports',
+  };
+  const resource = moduleResourceMap[module] || module;
+
   // Global admins have access to all clients
   if (await isUserGlobalAdmin(userId)) {
     const allClients = await db
@@ -25,17 +41,19 @@ export async function getUserClientsByModule(userId: number, module: string) {
     return allClients;
   }
 
-  // Regular users - return only clients with explicit permissions
-  return await db
-    .select({ clientId: userClientModules.clientId })
-    .from(userClientModules)
-    .where(
-      and(
-        eq(userClientModules.userId, userId),
-        eq(userClientModules.module, module),
-        eq(userClientModules.canView, true)
-      )
-    );
+  // Use new permission system - get clients user has access to
+  const userClients = await permissionService.getUserClients(userId);
+
+  // Filter by module permission
+  const clientsWithModuleAccess = [];
+  for (const client of userClients) {
+    const hasAccess = await permissionService.checkPermission(userId, resource, 'view', client.clientId);
+    if (hasAccess) {
+      clientsWithModuleAccess.push({ clientId: client.clientId });
+    }
+  }
+
+  return clientsWithModuleAccess;
 }
 
 // Check module-level permission
@@ -45,40 +63,22 @@ export async function checkModulePermission(
   module: string,
   action: "view" | "create" | "edit" | "delete"
 ): Promise<boolean> {
-  // Global admins bypass all checks
-  if (await isUserGlobalAdmin(userId)) {
-    return true;
-  }
+  // UPGRADED: Now uses new authorization system
+  const { permissionService } = await import('../services/permissions');
 
-  const permissions = await db
-    .select()
-    .from(userClientModules)
-    .where(
-      and(
-        eq(userClientModules.userId, userId),
-        eq(userClientModules.clientId, clientId),
-        eq(userClientModules.module, module)
-      )
-    )
-    .limit(1);
+  const moduleResourceMap: Record<string, string> = {
+    banking: 'bank',
+    bank: 'bank',
+    accounting: 'accounting',
+    accounts: 'accounting',
+    'journal-entries': 'accounting',
+    journal: 'accounting',
+    audit: 'audit',
+    reporting: 'reports',
+  };
+  const resource = moduleResourceMap[module] || module;
 
-  if (permissions.length === 0) {
-    return false;
-  }
-
-  const perm = permissions[0];
-  switch (action) {
-    case "view":
-      return perm.canView;
-    case "create":
-      return perm.canCreate;
-    case "edit":
-      return perm.canEdit;
-    case "delete":
-      return perm.canDelete;
-    default:
-      return false;
-  }
+  return await permissionService.checkPermission(userId, resource, action, clientId);
 }
 
 // Check feature-level permission
@@ -88,40 +88,22 @@ export async function checkFeaturePermission(
   feature: string,
   action: "view" | "create" | "edit" | "delete"
 ): Promise<boolean> {
-  // Global admins bypass all checks
-  if (await isUserGlobalAdmin(userId)) {
-    return true;
-  }
+  // UPGRADED: Now uses new authorization system
+  const { permissionService } = await import('../services/permissions');
 
-  const permissions = await db
-    .select()
-    .from(userClientFeatures)
-    .where(
-      and(
-        eq(userClientFeatures.userId, userId),
-        eq(userClientFeatures.clientId, clientId),
-        eq(userClientFeatures.feature, feature)
-      )
-    )
-    .limit(1);
+  const moduleResourceMap: Record<string, string> = {
+    banking: 'bank',
+    bank: 'bank',
+    accounting: 'accounting',
+    accounts: 'accounting',
+    'journal-entries': 'accounting',
+    journal: 'accounting',
+    audit: 'audit',
+    reporting: 'reports',
+  };
+  const resource = moduleResourceMap[feature] || feature;
 
-  if (permissions.length === 0) {
-    return false;
-  }
-
-  const perm = permissions[0];
-  switch (action) {
-    case "view":
-      return perm.canView;
-    case "create":
-      return perm.canCreate;
-    case "edit":
-      return perm.canEdit;
-    case "delete":
-      return perm.canDelete;
-    default:
-      return false;
-  }
+  return await permissionService.checkPermission(userId, resource, action, clientId);
 }
 
 // Check if user is global admin (helper) - already defined above
@@ -133,9 +115,9 @@ export function requireModuleAccess(
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
     const userId = (req.session as any)?.userId;
-    const clientId = parseInt(req.query.clientId as string) || 
-                     (req as any).params?.clientId ||
-                     (req.body?.clientId);
+    const clientId = parseInt(req.query.clientId as string) ||
+      (req as any).params?.clientId ||
+      (req.body?.clientId);
 
     if (!userId || !clientId) {
       return res.status(400).json({ message: "User ID and Client ID required" });
@@ -163,8 +145,8 @@ export function requireFeatureAccess(
   return async (req: Request, res: Response, next: NextFunction) => {
     const userId = (req.session as any)?.userId;
     const clientId = parseInt(req.query.clientId as string) ||
-                     (req as any).params?.clientId ||
-                     (req.body?.clientId);
+      (req as any).params?.clientId ||
+      (req.body?.clientId);
 
     if (!userId || !clientId) {
       return res.status(400).json({ message: "User ID and Client ID required" });
@@ -198,3 +180,73 @@ export function requireMainCompanyAccess() {
   };
 }
 
+// ============ NEW AUTHORIZATION SYSTEM (v2) ============
+import { permissionService } from '../services/permissions';
+
+/**
+ * NEW: Middleware to check permission before route handler
+ * Usage: router.get('/crm', requirePermission('crm', 'view'), handler)
+ */
+export function requirePermission(resource: string, action: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.session as any)?.userId || (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const clientId = req.query.clientId as string | undefined;
+
+    const hasPermission = await permissionService.checkPermission(
+      userId,
+      resource,
+      action,
+      clientId ? parseInt(clientId) : undefined
+    );
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        message: `Permission denied: ${action} on ${resource}`,
+      });
+    }
+
+    next();
+  };
+}
+
+/**
+ * NEW: Middleware to check if user has access to a specific client
+ */
+export function requireClientAccess(clientIdParam: string = 'clientId') {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req.session as any)?.userId || (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
+    const clientId = parseInt(
+      (req.params[clientIdParam] || req.query[clientIdParam]) as string
+    );
+
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID required' });
+    }
+
+    const userClients = await permissionService.getUserClients(userId);
+    const hasAccess = userClients.some((c) => c.clientId === clientId);
+
+    // Check global admin
+    const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+
+    if (!hasAccess && user?.globalRole !== 'global_administrator') {
+      return res.status(403).json({
+        message: 'Access denied to this client',
+      });
+    }
+
+    // Attach client context to request
+    (req as any).clientId = clientId;
+    next();
+  };
+}

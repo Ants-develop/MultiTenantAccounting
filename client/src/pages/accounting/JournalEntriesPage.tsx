@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useClientFilter } from "@/hooks/useClientFilter";
 import { ClientFilter } from "@/components/filters/ClientFilter";
 import { apiRequest } from "@/lib/queryClient";
 import { JournalEntriesGrid } from "@/components/accounting/JournalEntriesGrid";
@@ -88,52 +89,9 @@ export default function JournalEntriesPage() {
   
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState<number>(500);
-  const [selectedClientIds, setSelectedClientIds] = useState<number[]>([]);
-
-  // Fetch all available clients directly (like MSSQLImport.tsx)
-  const { data: availableClients = [], isLoading: clientsLoading } = useQuery({
-    queryKey: ['/api/clients'],
-    queryFn: async () => {
-      const response = await apiRequest('GET', '/api/clients');
-      const data = await response.json();
-      return data || [];
-    },
-    enabled: !!mainCompany?.id,
-  });
-
-  // Transform clients to match ClientFilter expected format
-  const accessibleClients = availableClients.map((client: any) => ({
-    id: client.id,
-    name: client.name,
-    code: client.code,
-  }));
-
-  // Load from localStorage on mount and set default selection
-  useEffect(() => {
-    const stored = localStorage.getItem('clientFilter_accounting');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setSelectedClientIds(parsed);
-          return;
-        }
-      } catch {
-        // Invalid JSON, ignore
-      }
-    }
-    
-    // Default to first client if available
-    if (availableClients.length > 0) {
-      setSelectedClientIds([availableClients[0].id]);
-    }
-  }, [availableClients]);
-
-  // Save to localStorage on change
-  const handleClientSelectionChange = (ids: number[]) => {
-    setSelectedClientIds(ids);
-    localStorage.setItem('clientFilter_accounting', JSON.stringify(ids));
-  };
+  
+  // Use proper permission-based client filtering
+  const { selectedClientIds, setSelectedClientIds, accessibleClients, isLoading: clientsLoading } = useClientFilter('accounting');
 
   // Get company name
   const companyName = mainCompany?.name || 'Loading...';
@@ -206,6 +164,21 @@ export default function JournalEntriesPage() {
     );
   }
 
+  if (accessibleClients.length === 0 && !clientsLoading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <p className="text-center text-muted-foreground">
+            You don't have access to any clients for the accounting module.
+          </p>
+          <p className="text-center text-sm text-muted-foreground mt-2">
+            Please contact your administrator to request access.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Card className="flex flex-col h-full flex-1 min-h-0">
@@ -226,7 +199,7 @@ export default function JournalEntriesPage() {
           <div className="flex items-start">
             <ClientFilter
               selectedIds={selectedClientIds}
-              onSelectionChange={handleClientSelectionChange}
+              onSelectionChange={setSelectedClientIds}
               clients={accessibleClients}
               isLoading={clientsLoading}
             />

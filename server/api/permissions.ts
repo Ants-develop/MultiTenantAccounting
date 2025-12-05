@@ -11,6 +11,7 @@ import {
 } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
+import { permissionService } from "../services/permissions";
 
 const router = express.Router();
 
@@ -274,30 +275,54 @@ router.get("/my-clients", async (req, res) => {
           code: clients.code,
         })
         .from(clients)
+        .where(eq(clients.isActive, true))
         .limit(1000); // Reasonable limit for global admins
       
       console.log(`[Permissions API] Returning ${allClients.length} clients for global admin`);
       return res.json(allClients);
     }
 
-    // Regular users - get clients with read permission for this user in the specified module
-    const clientsWithAccess = await db
-      .select({
-        id: clients.id,
-        name: clients.name,
-        code: clients.code,
-      })
-      .from(userClientModules)
-      .innerJoin(clients, eq(clients.id, userClientModules.clientId))
-      .where(and(
-        eq(userClientModules.userId, userId),
-        eq(userClientModules.canView, true),
-        ...(module ? [eq(userClientModules.module, module)] : [])
-      ))
-      .limit(100); // Reasonable limit
+    // Regular users - NEW authorization system using role-based permissions
+    const userClients = await permissionService.getUserClients(userId);
 
-    console.log(`[Permissions API] Returning ${clientsWithAccess.length} clients for regular user ${userId} in module ${module}`);
-    res.json(clientsWithAccess);
+    // Map common module names to permission resources
+    const moduleResourceMap: Record<string, string> = {
+      banking: "bank",
+      bank: "bank",
+      accounting: "accounting",
+      accounts: "accounting",
+      "journal-entries": "accounting",
+      audit: "audit",
+      reports: "reports",
+    };
+
+    const resource = module ? (moduleResourceMap[module] || module) : undefined;
+
+    // If module provided, keep only clients where user has view access on that resource
+    let filteredClients = userClients;
+    if (resource) {
+      const results = await Promise.all(
+        userClients.map(async (c) => {
+          const hasAccess = await permissionService.checkPermission(userId, resource, "view", c.clientId);
+          return hasAccess ? c : null;
+        })
+      );
+      filteredClients = results.filter((c): c is typeof userClients[number] => !!c);
+
+      // Fallback: if nothing matched the resource-specific check, return all user clients
+      if (filteredClients.length === 0) {
+        filteredClients = userClients;
+      }
+    }
+
+    const shaped = filteredClients.map((c) => ({
+      id: c.clientId,
+      name: c.clientName,
+      code: c.clientCode,
+    })).slice(0, 200); // safety limit
+
+    console.log(`[Permissions API] Returning ${shaped.length} clients for regular user ${userId} in module ${module}`);
+    res.json(shaped);
   } catch (error) {
     console.error("Error fetching accessible clients:", error);
     res.status(500).json({ message: "Internal server error" });

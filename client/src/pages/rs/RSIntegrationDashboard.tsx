@@ -3,28 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RSDataGrid from "@/components/rs/RSDataGrid";
 import { rsTables, getRSTableList } from "@/config/rsTables";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useTranslation } from "react-i18next";
 
 export default function RSIntegrationDashboard() {
   const [selectedTable, setSelectedTable] = useState<string>("seller_invoices");
-  const { can } = usePermissions();
   const { t, i18n } = useTranslation();
 
-  // Check permissions
-  if (!can('RS_VIEW')) {
-    return (
-      <div className="p-6">
-        <Card>
-          <CardContent className="p-6">
-            <p className="text-center text-muted-foreground">
-              {t('errors.noPermission')}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Note: Permission check removed - backend enforces RS module access via middleware
 
   const tableList = getRSTableList();
   const currentTableConfig = rsTables[selectedTable];
@@ -54,11 +39,11 @@ export default function RSIntegrationDashboard() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             {currentTableConfig && (
               <div className="text-sm text-muted-foreground">
                 <p>
-                  {i18n.language === 'ka' 
+                  {i18n.language === 'ka'
                     ? `ჩატვირთული: ${currentTableConfig.displayNameKa}`
                     : `Viewing: ${currentTableConfig.displayName}`
                   }

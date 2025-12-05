@@ -5,7 +5,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import {
   FolderKanban, LogOut, ChevronsUpDown, Building2, ChevronDown, Database, User, Settings, Link as LinkIcon
 } from "lucide-react";
-import { usePermissions } from "@/hooks/usePermissions";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useSidebar } from "@/components/ui/sidebar";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -54,9 +54,12 @@ import {
 
 export default function Sidebar() {
   const [location, setLocation] = useLocation();
-  const { can, isGlobalAdministrator } = usePermissions();
   const { t } = useTranslation();
   const { user, logout } = useAuth();
+
+  // Check if user is global administrator (has full access to all pages)
+  const isGlobalAdministrator = () => user?.globalRole === 'global_administrator';
+  const can = () => true; // Frontend doesn't enforce - backend does via API
 
   // Get FlexLayout context
   const flexLayoutContext = useFlexLayout();

@@ -13,7 +13,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Plus, Edit, Trash2, UserPlus, Building, Shield, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { usePermissions } from "@/hooks/usePermissions";
+
 import { apiRequest } from "@/lib/queryClient";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -78,25 +78,25 @@ type CompanyForm = z.infer<typeof companySchema>;
 type UserCompanyForm = z.infer<typeof userCompanySchema>;
 
 const roles = [
-  { 
-    value: "administrator", 
-    label: "Administrator", 
-    description: "Full system access including user management, company creation, and all accounting operations across all companies." 
+  {
+    value: "administrator",
+    label: "Administrator",
+    description: "Full system access including user management, company creation, and all accounting operations across all companies."
   },
-  { 
-    value: "manager", 
-    label: "Manager", 
-    description: "Complete accounting access plus company management. Can manage users within their company and modify company settings." 
+  {
+    value: "manager",
+    label: "Manager",
+    description: "Complete accounting access plus company management. Can manage users within their company and modify company settings."
   },
-  { 
-    value: "accountant", 
-    label: "Accountant", 
-    description: "Full accounting operations including journal entries, invoices, bills, and financial reporting. Cannot manage users or companies." 
+  {
+    value: "accountant",
+    label: "Accountant",
+    description: "Full accounting operations including journal entries, invoices, bills, and financial reporting. Cannot manage users or companies."
   },
-  { 
-    value: "assistant", 
-    label: "Assistant Accountant", 
-    description: "Limited data entry and basic reporting access. Can create customers, vendors, and basic transactions but cannot modify system settings." 
+  {
+    value: "assistant",
+    label: "Assistant Accountant",
+    description: "Limited data entry and basic reporting access. Can create customers, vendors, and basic transactions but cannot modify system settings."
   },
 ];
 
@@ -380,8 +380,8 @@ export default function UserManagement() {
 
         <TabsContent value="users" className="space-y-6">
           <div className="flex justify-end">
-            <Dialog 
-              open={isUserDialogOpen} 
+            <Dialog
+              open={isUserDialogOpen}
               onOpenChange={(open) => {
                 setIsUserDialogOpen(open);
                 if (!open) {
@@ -429,7 +429,7 @@ export default function UserManagement() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="username">Username</Label>
                     <Input
@@ -443,7 +443,7 @@ export default function UserManagement() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -458,7 +458,7 @@ export default function UserManagement() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
                     <Input
@@ -530,16 +530,16 @@ export default function UserManagement() {
                           <TableCell>{formatDate(user.createdAt)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end space-x-2">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => handleEditUser(user)}
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="text-destructive"
                                 onClick={() => handleDeleteUser(user)}
                               >
@@ -565,8 +565,8 @@ export default function UserManagement() {
 
         <TabsContent value="companies" className="space-y-6">
           <div className="flex justify-end">
-            <Dialog 
-              open={isCompanyDialogOpen} 
+            <Dialog
+              open={isCompanyDialogOpen}
               onOpenChange={(open) => {
                 setIsCompanyDialogOpen(open);
                 if (!open) {
@@ -614,7 +614,7 @@ export default function UserManagement() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="companyEmail">Email</Label>
                     <Input
@@ -629,7 +629,7 @@ export default function UserManagement() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="companyAddress">Address</Label>
                     <Input
@@ -691,16 +691,16 @@ export default function UserManagement() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end space-x-2">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => handleEditCompany(company)}
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 className="text-destructive"
                                 onClick={() => handleDeleteCompany(company)}
                               >
@@ -761,7 +761,7 @@ export default function UserManagement() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="companyId">Company</Label>
                     <Select
@@ -785,7 +785,7 @@ export default function UserManagement() {
                       </p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="role">Role</Label>
                     <Select
@@ -876,8 +876,8 @@ export default function UserManagement() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end space-x-2">
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => {
                                     toast({
@@ -888,13 +888,13 @@ export default function UserManagement() {
                                 >
                                   <Edit className="w-4 h-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
                                   className="text-destructive"
                                   onClick={() => {
                                     toast({
-                                      title: "Delete Assignment", 
+                                      title: "Delete Assignment",
                                       description: "Delete functionality will be implemented here",
                                     });
                                   }}
@@ -933,7 +933,7 @@ export default function UserManagement() {
                 {roles.map((role) => {
                   const permissions = getRolePermissions(role.value as Role);
                   const isCurrentRole = currentRole === role.value;
-                  
+
                   // Group permissions by module
                   const groupedPermissions = permissions.reduce((acc, perm) => {
                     if (!acc[perm.module]) {

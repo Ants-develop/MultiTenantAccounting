@@ -71,6 +71,7 @@ export default function FlexLayoutContainer({
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
   const contextNotifiedRef = useRef(false);
   const [layoutInitialized, setLayoutInitialized] = useState(false);
+  const ensuredDefaultTabRef = useRef(false);
 
   // Component factory for FlexLayout
   // Factory receives a TabNode and returns the React component to render
@@ -271,6 +272,26 @@ export default function FlexLayoutContainer({
     setModel(newModel);
     setLayoutInitialized(true);
   }, [defaultPath, createDefaultModel, updateTabsFromModel]);
+
+  // Ensure the current route (defaultPath) is opened as a tab when layout is ready.
+  // This effect runs whenever defaultPath changes (e.g., from sidebar clicks)
+  useEffect(() => {
+    if (!layoutInitialized || !model || !defaultPath) return;
+
+    // Check if there's already a tab for this path
+    const existingTab = Array.from(tabs.values()).find(
+      (tab) => tab.path === defaultPath
+    );
+
+    if (!existingTab) {
+      // No tab exists for this path - open a new one
+      openTab(defaultPath);
+    } else if (existingTab.id !== activeTabId) {
+      // Tab exists but isn't active - switch to it
+      setActiveTab(existingTab.id);
+    }
+    // If tab exists and is already active, do nothing
+  }, [layoutInitialized, model, defaultPath, tabs, activeTabId, openTab, setActiveTab]);
 
   // Set active tab - use Actions API for proper model updates
   const setActiveTab = useCallback((tabId: string) => {

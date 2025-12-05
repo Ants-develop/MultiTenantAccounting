@@ -269,6 +269,59 @@ export const userClientFeatures = pgTable("user_client_features", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// ============ NEW AUTHORIZATION SYSTEM ============
+
+// Roles table
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  scope: text("scope").notNull(), // 'global', 'client', 'custom'
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Permissions table
+export const permissions = pgTable("permissions", {
+  id: serial("id").primaryKey(),
+  resource: text("resource").notNull(),
+  action: text("action").notNull(),
+  description: text("description"),
+  isSystem: boolean("is_system").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Role-Permission mapping
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  roleId: integer("role_id").references(() => roles.id, { onDelete: 'cascade' }),
+  permissionId: integer("permission_id").references(() => permissions.id, { onDelete: 'cascade' }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// User-specific permissions (overrides)
+export const userPermissions = pgTable("user_permissions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: 'cascade' }),
+  permissionId: integer("permission_id").references(() => permissions.id, { onDelete: 'cascade' }),
+  isGranted: boolean("is_granted").default(true),
+  grantedBy: integer("granted_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// User-Client-Role mapping (new authorization model)
+export const userClientRoles = pgTable("user_client_roles", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: 'cascade' }),
+  clientId: integer("client_id").references(() => clients.id, { onDelete: 'cascade' }),
+  roleId: integer("role_id").references(() => roles.id, { onDelete: 'cascade' }),
+  isActive: boolean("is_active").default(true),
+  assignedBy: integer("assigned_by").references(() => users.id),
+  assignedAt: timestamp("assigned_at").defaultNow(),
+});
+
 // Chart of Accounts
 export const accounts = accounting.table("accounts", {
   id: serial("id").primaryKey(),
@@ -1380,3 +1433,21 @@ export const insertMssqlRestoresSchema = createInsertSchema(mssqlRestores).omit(
 export const insertBackupMigrationLogsSchema = createInsertSchema(backupMigrationLogs).omit({ id: true, createdAt: true, updatedAt: true });
 // Legacy schema for backward compatibility
 export const insertBackupRestoreHistorySchema = insertMssqlRestoresSchema;
+
+// ============ AUTHORIZATION TYPES & SCHEMAS ============
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = typeof roles.$inferInsert;
+export type Permission = typeof permissions.$inferSelect;
+export type InsertPermission = typeof permissions.$inferInsert;
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = typeof rolePermissions.$inferInsert;
+export type UserPermission = typeof userPermissions.$inferSelect;
+export type InsertUserPermission = typeof userPermissions.$inferInsert;
+export type UserClientRole = typeof userClientRoles.$inferSelect;
+export type InsertUserClientRole = typeof userClientRoles.$inferInsert;
+
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPermissionSchema = createInsertSchema(permissions).omit({ id: true, createdAt: true });
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({ id: true, createdAt: true });
+export const insertUserPermissionSchema = createInsertSchema(userPermissions).omit({ id: true, createdAt: true });
+export const insertUserClientRoleSchema = createInsertSchema(userClientRoles).omit({ id: true, assignedAt: true });

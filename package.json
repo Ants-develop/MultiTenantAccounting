@@ -18,6 +18,8 @@
     "db:reset-migrate": "tsx --env-file=.env scripts/reset-and-migrate.ts",
     "db:status": "tsx --env-file=.env scripts/db-status.ts",
     "db:verify-clients": "tsx --env-file=.env scripts/verify-clients.ts",
+    "db:diagnostics": "tsx --env-file=.env scripts/db-diagnostics.ts",
+    "db:cleanup": "tsx --env-file=.env scripts/db-cleanup.ts",
     "test:company-users": "tsx --env-file=.env scripts/test-company-users.ts",
     "db:test-queries": "tsx --env-file=.env scripts/run-test-queries.ts",
     "db:quick-check": "tsx --env-file=.env scripts/run-test-queries.ts --quick",

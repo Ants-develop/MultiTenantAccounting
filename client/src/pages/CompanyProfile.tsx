@@ -16,7 +16,7 @@ import {
   FileText, Archive, Database, Lock, Eye, EyeOff, BarChart3, Palette, Sun, Moon, Monitor
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { usePermissions } from "@/hooks/usePermissions";
+// Note: Old usePermissions hook removed - permission checks now in backend
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -117,11 +117,16 @@ export default function CompanyProfile() {
   const [showTaxId, setShowTaxId] = useState(false);
 
   const { mainCompany } = useAuth();
-  const { canEditSettings, canViewSettings } = usePermissions();
+  // Note: Permission checks removed - backend API routes enforce company:settings permissions
+  // Simple stubs for backward compatibility (always return true since backend enforces)
+  const canEditSettings = () => true;
+  const canViewSettings = () => true;
+
   const queryClient = useQueryClient();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { useFlexLayout, toggleLayout } = useLayoutPreference();
   const { preferences, setFontWeight, setFontSize, resetToDefaults } = useTypographyPreferences();
+
   // Helper function to toggle theme
   const toggleTheme = () => {
     const currentTheme = theme || "system";
@@ -143,7 +148,7 @@ export default function CompanyProfile() {
       }
       return response.json();
     },
-    enabled: !!mainCompany && canViewSettings(),
+    enabled: !!mainCompany,
   });
 
   // Forms
@@ -1350,7 +1355,7 @@ export default function CompanyProfile() {
                     <p className="text-xs text-muted-foreground mb-2">Preview:</p>
                     <p className="mb-2">The quick brown fox jumps over the lazy dog</p>
                     <p className="text-sm text-muted-foreground">
-                      Current: {preferences.fontWeight.charAt(0).toUpperCase() + preferences.fontWeight.slice(1)} weight, 
+                      Current: {preferences.fontWeight.charAt(0).toUpperCase() + preferences.fontWeight.slice(1)} weight,
                       {' '}{preferences.fontSize.charAt(0).toUpperCase() + preferences.fontSize.slice(1)} size
                     </p>
                   </div>
