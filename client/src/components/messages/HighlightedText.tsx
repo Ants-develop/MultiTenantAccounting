@@ -29,3 +29,4 @@ export const HighlightedText = ({ text, searchTerm }: HighlightedTextProps) => {
   );
 };
 
+
