@@ -1,6 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { restoreBackupViaPowerShellScripts, extractDateFromBackupFilename } from '../services/mssql-restore';
 import { RestoreProgress } from '../services/mssql-restore';
+import { db } from '../db';
+import { connections } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -12,6 +15,8 @@ const router = Router();
 router.get('/restore-ssh', async (req: Request, res: Response) => {
     const fileName = req.query.fileName as string;
     const clientId = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
+    const sshConnectionId = req.query.sshConnectionId ? parseInt(req.query.sshConnectionId as string) : undefined;
+    const mssqlConnectionId = req.query.mssqlConnectionId ? parseInt(req.query.mssqlConnectionId as string) : undefined;
 
     if (!fileName) {
         return res.status(400).json({ error: 'fileName query parameter is required' });
@@ -20,6 +25,8 @@ router.get('/restore-ssh', async (req: Request, res: Response) => {
     console.log(`📡 [API] SSH Restore request received`);
     console.log(`   [API] File: ${fileName}`);
     console.log(`   [API] Client ID: ${clientId || 'none'}`);
+    console.log(`   [API] SSH Connection ID: ${sshConnectionId || 'none'}`);
+    console.log(`   [API] MSSQL Connection ID: ${mssqlConnectionId || 'none'}`);
 
     // Validate filename format
     const extractedDate = extractDateFromBackupFilename(fileName);
@@ -43,10 +50,48 @@ router.get('/restore-ssh', async (req: Request, res: Response) => {
     })}\n\n`);
 
     try {
+        // Fetch connection details if provided
+        let sshConfig = undefined;
+        let targetDatabase = undefined;
+
+        if (sshConnectionId) {
+            const [sshConn] = await db.select().from(connections).where(eq(connections.id, sshConnectionId)).limit(1);
+            if (sshConn) {
+                sshConfig = {
+                    host: sshConn.server,
+                    port: sshConn.port || 22,
+                    username: sshConn.username,
+                    password: sshConn.password || undefined,
+                    privateKey: sshConn.privateKey || undefined
+                };
+                console.log(`   [API] Using SSH connection: ${sshConn.name} (${sshConn.server})`);
+            } else {
+                throw new Error(`SSH Connection ID ${sshConnectionId} not found`);
+            }
+        }
+
+        if (mssqlConnectionId) {
+            const [mssqlConn] = await db.select().from(connections).where(eq(connections.id, mssqlConnectionId)).limit(1);
+            if (mssqlConn) {
+                if (mssqlConn.database) {
+                    targetDatabase = mssqlConn.database;
+                    console.log(`   [API] Using target database: ${targetDatabase}`);
+                } else {
+                    console.warn(`   [API] MSSQL connection ${mssqlConn.name} does not have a database specified`);
+                }
+            } else {
+                throw new Error(`MSSQL Connection ID ${mssqlConnectionId} not found`);
+            }
+        }
+
         // Execute restore with progress callback
         const restoreId = await restoreBackupViaPowerShellScripts(
             fileName,
-            { clientId },
+            {
+                clientId,
+                sshConfig,
+                targetDatabase
+            },
             (progress: RestoreProgress) => {
                 // Stream progress to client via SSE
                 res.write(`data: ${JSON.stringify({

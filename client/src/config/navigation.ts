@@ -23,7 +23,8 @@ import {
     Link,
     Archive,
     HardDrive,
-    Newspaper
+    Newspaper,
+    Terminal
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -216,6 +217,18 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
+        name: "SQL Queries",
+        href: "/connections/queries",
+        icon: FileText,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "DB Settings",
+        href: "/connections/settings",
+        icon: Settings,
+        requiresGlobalAdmin: true,
+    },
+    {
         name: "Bank Import",
         href: "/bank/import",
         icon: Upload,
@@ -237,6 +250,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         name: "Testing",
         href: "/testing",
         icon: Building2,
+        requiresGlobalAdmin: true,
+    },
+    {
+        name: "SSH Terminal",
+        href: "/admin/ssh-terminal",
+        icon: Terminal,
         requiresGlobalAdmin: true,
     },
 ];

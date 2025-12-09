@@ -56,8 +56,11 @@ import JobsDashboard from "@/pages/jobs/JobsDashboard";
 // import EmailInbox from "@/pages/EmailInbox"; // TODO: Create this page
 import MSSQLImport from "@/pages/admin/MSSQLImport";
 import BackupRestore from "@/pages/admin/BackupRestore";
+import SSHTerminalPage from "@/pages/admin/SSHTerminalPage";
 import MSSQLMigration from "@/pages/admin/MSSQLMigration";
 import Connections from "@/pages/admin/MSSQLConnection";
+import MSSQLQueries from "@/pages/admin/MSSQLQueries";
+import MSSQLSettings from "@/pages/admin/MSSQLSettings";
 import ClientImport from "@/pages/admin/ClientImport";
 import ImportStatement from "@/pages/bank/ImportStatement";
 import RSIntegrationDashboard from "@/pages/rs/RSIntegrationDashboard";
@@ -177,8 +180,11 @@ function ProtectedApp() {
           {/* <Route path="/email" component={EmailInbox} /> */}
           <Route path="/mssql-import" component={MSSQLImport} />
           <Route path="/backup-restore" component={BackupRestore} />
+          <Route path="/admin/ssh-terminal" component={SSHTerminalPage} />
           <Route path="/mssql-migration" component={MSSQLMigration} />
           <Route path="/connections" component={Connections} />
+          <Route path="/connections/queries" component={MSSQLQueries} />
+          <Route path="/connections/settings" component={MSSQLSettings} />
           <Route path="/bank/import" component={ImportStatement} />
           <Route path="/rs-integration" component={RSIntegrationDashboard} />
           <Route path="/rs-admin" component={RSAdmin} />

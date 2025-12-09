@@ -10,8 +10,7 @@ export default defineConfig(async ({ mode }) => {
   
   return {
     server: {
-      host: "::",
-      port: 81,
+      middlewareMode: true,
       proxy: {
         "/api": {
           target: `http://localhost:${backendPort}`,

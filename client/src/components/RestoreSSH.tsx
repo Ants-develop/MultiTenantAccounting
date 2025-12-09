@@ -1,14 +1,19 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CheckCircle2, XCircle, Terminal, Cloud, RefreshCw } from 'lucide-react';
+import { Loader2, CheckCircle2, XCircle, Terminal, Cloud, RefreshCw, Server, Database } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { backupRestoreApi, DriveFile } from '@/api/backup-restore';
+import { apiRequest } from "@/lib/queryClient";
+import { Connection } from "@shared/schema";
+
+import { RestoreHistory } from '@/api/backup-restore';
+
 
 interface RestoreLog {
     timestamp: string;
@@ -17,10 +22,11 @@ interface RestoreLog {
 }
 
 interface RestoreSSHProps {
+    activeRestore?: RestoreHistory | null;
     onComplete?: (restoreId: number) => void;
 }
 
-export function RestoreSSH({ onComplete }: RestoreSSHProps) {
+export function RestoreSSH({ activeRestore, onComplete }: RestoreSSHProps) {
     const [fileName, setFileName] = useState('');
     const [selectedFileId, setSelectedFileId] = useState<string>('');
     const [extractedDate, setExtractedDate] = useState<string | null>(null);
@@ -32,11 +38,50 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
     const eventSourceRef = useRef<EventSource | null>(null);
     const logsEndRef = useRef<HTMLDivElement>(null);
 
+    // Initialize state from activeRestore
+    useEffect(() => {
+        if (activeRestore) {
+            setFileName(activeRestore.googleDriveFileName);
+            setStatus(activeRestore.restoreStatus as any);
+            setIsRestoring(['downloading', 'restoring', 'migrating'].includes(activeRestore.restoreStatus));
+
+            // If we have connection details in restoreOptions, we could set them here
+            // But currently the backend doesn't return detailed options in listing
+            // We can at least show that it is running
+
+            if (activeRestore.errorMessage) {
+                setError(activeRestore.errorMessage);
+            }
+        }
+    }, [activeRestore]);
+
+    // New state for unified connections
+    const [selectedSshConnection, setSelectedSshConnection] = useState<string>("");
+    const [selectedMssqlConnection, setSelectedMssqlConnection] = useState<string>("");
+
     // Fetch Google Drive files
     const { data: driveFiles = [], isLoading: filesLoading, refetch: refetchFiles } = useQuery<DriveFile[]>({
         queryKey: ["/api/backup-restore/drive-files"],
         queryFn: () => backupRestoreApi.fetchDriveFiles(),
         retry: false,
+    });
+
+    // Fetch SSH Connections
+    const { data: sshConnections = [] } = useQuery<Connection[]>({
+        queryKey: ["/api/mssql-explorer/connections", { type: "ssh" }],
+        queryFn: async () => {
+            const res = await apiRequest("GET", "/api/mssql-explorer/connections?type=ssh");
+            return res.json();
+        },
+    });
+
+    // Fetch MSSQL Connections
+    const { data: mssqlConnections = [] } = useQuery<Connection[]>({
+        queryKey: ["/api/mssql-explorer/connections", { type: "mssql" }],
+        queryFn: async () => {
+            const res = await apiRequest("GET", "/api/mssql-explorer/connections?type=mssql");
+            return res.json();
+        },
     });
 
     // Auto-scroll to bottom when new logs arrive
@@ -133,6 +178,11 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
             return;
         }
 
+        if (!selectedSshConnection || !selectedMssqlConnection) {
+            setError('Please select both SSH and MSSQL connections');
+            return;
+        }
+
         setIsRestoring(true);
         setStatus('connecting');
         setError(null);
@@ -142,6 +192,12 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
         addLog('Initiating restore operation...', 'info');
         addLog(`Filename: ${fileName}`, 'info');
 
+        const sshConn = sshConnections.find(c => c.id === parseInt(selectedSshConnection));
+        const mssqlConn = mssqlConnections.find(c => c.id === parseInt(selectedMssqlConnection));
+
+        addLog(`Using SSH Server: ${sshConn?.name} (${sshConn?.server})`, 'info');
+        addLog(`Target Database: ${mssqlConn?.name} (${mssqlConn?.database})`, 'info');
+
         try {
             // Close any existing EventSource
             if (eventSourceRef.current) {
@@ -149,8 +205,9 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
             }
 
             // Create EventSource for Server-Sent Events
+            // Note: passing connection IDs to the backend
             const eventSource = new EventSource(
-                `/api/mssql/restore-ssh?fileName=${encodeURIComponent(fileName.trim())}`
+                `/api/backup-restore/restore-ssh?fileName=${encodeURIComponent(fileName.trim())}&sshConnectionId=${selectedSshConnection}&mssqlConnectionId=${selectedMssqlConnection}`
             );
             eventSourceRef.current = eventSource;
 
@@ -287,6 +344,48 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+
+                {/* Connection Selectors */}
+                <div className="grid grid-cols-2 gap-4 border-b pb-4 mb-4">
+                    <div className="space-y-2">
+                        <Label>Source SSH Connection</Label>
+                        <Select value={selectedSshConnection} onValueChange={setSelectedSshConnection} disabled={isRestoring}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select SSH Server" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {sshConnections.map(conn => (
+                                    <SelectItem key={conn.id} value={conn.id.toString()}>
+                                        <div className="flex items-center gap-2">
+                                            <Server className="h-4 w-4" />
+                                            <span>{conn.name} ({conn.server})</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Target MSSQL Connection</Label>
+                        <Select value={selectedMssqlConnection} onValueChange={setSelectedMssqlConnection} disabled={isRestoring}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select Database" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {mssqlConnections.map(conn => (
+                                    <SelectItem key={conn.id} value={conn.id.toString()}>
+                                        <div className="flex items-center gap-2">
+                                            <Database className="h-4 w-4" />
+                                            <span>{conn.name} ({conn.database})</span>
+                                        </div>
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
                 {/* Google Drive File Selector */}
                 <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -390,7 +489,7 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
                 <div className="flex gap-2">
                     <Button
                         onClick={startRestore}
-                        disabled={isRestoring || !fileName.trim()}
+                        disabled={isRestoring || !fileName.trim() || !selectedSshConnection || !selectedMssqlConnection}
                         className="flex-1"
                     >
                         {isRestoring ? (
@@ -424,10 +523,10 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
                                     <div
                                         key={index}
                                         className={`flex gap-2 ${log.type === 'error'
-                                                ? 'text-red-400'
-                                                : log.type === 'success'
-                                                    ? 'text-green-400'
-                                                    : 'text-slate-300'
+                                            ? 'text-red-400'
+                                            : log.type === 'success'
+                                                ? 'text-green-400'
+                                                : 'text-slate-300'
                                             }`}
                                     >
                                         <span className="text-slate-500">[{log.timestamp}]</span>

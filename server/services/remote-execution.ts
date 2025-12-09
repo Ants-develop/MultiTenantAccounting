@@ -63,8 +63,8 @@ async function getSSHConfig(): Promise<SSHConfig> {
 /**
  * Create and connect SSH client with comprehensive logging
  */
-export async function connectSSH(): Promise<Client> {
-  const config = await getSSHConfig();
+export async function connectSSH(customConfig?: SSHConfig): Promise<Client> {
+  const config = customConfig || await getSSHConfig();
   const startTime = Date.now();
 
   console.log(`🔌 [SSH] Connecting to ${config.username}@${config.host}:${config.port}...`);

@@ -1,4 +1,5 @@
 // MSSQL Restore Service (Phase 2)
+import { Client } from 'ssh2';
 import { db } from '../db';
 import { mssqlRestores, gdriveDownloads } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
@@ -18,6 +19,7 @@ import sql from 'mssql';
 import { connectMSSQL, migrateGeneralLedger, exportToAudit } from './mssql-migration';
 import os from 'os';
 import { ensureBackupDirectory } from './backup-download';
+import type { SSHConfig } from './remote-execution';
 
 // Backward compatibility
 const backupRestoreHistory = mssqlRestores;
@@ -38,6 +40,8 @@ export interface RestoreOptions {
   tableName?: string;
   companyTin?: string;
   yearOffset?: number;
+  sshConfig?: SSHConfig;
+  targetDatabase?: string;
 }
 
 /**
@@ -1056,7 +1060,7 @@ export async function restoreBackupViaPowerShellScripts(
     .insert(mssqlRestores)
     .values({
       googleDriveFileName: fileName,
-      restoredDbName: 'AntsDBRestore', // Will be updated by script
+      restoredDbName: options.targetDatabase || 'AntsDBRestore', // Will be updated by script
       storageSource: 'google_drive',
       restoreStatus: 'downloading',
       restoreTimestamp: new Date(),
@@ -1068,13 +1072,15 @@ export async function restoreBackupViaPowerShellScripts(
 
   const restoreId = restoreRecord.id;
 
+  let sshClient: Client | undefined;
+
   try {
     // Import remote execution functions
     const { executeRemotePowerShellScript, connectSSH } = await import('./remote-execution');
 
     // Establish persistent connection
     console.log(`🔌 [PS Restore] Establishing persistent SSH connection...`);
-    const sshClient = await connectSSH();
+    sshClient = await connectSSH(options.sshConfig);
 
     // Step 2: Execute Script 1 - Download and Import
     const script1Path = 'C:\\SQL-export-Powershell\\1.download_Import_SQL-full.ps1';

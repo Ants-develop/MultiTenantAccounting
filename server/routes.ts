@@ -1,5 +1,6 @@
 import express, { type Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer } from "ws";
 import session from "express-session";
 import { storage } from "./storage";
 import { authenticateUser, hashPassword, getUserWithCompanies } from "./auth";
@@ -46,6 +47,10 @@ import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
 import permissionsMgmtRouter from "./api/permissions-mgmt";
+import mssqlExplorerRouter from "./api/mssql-explorer";
+import sshTerminalRouter from "./api/ssh-terminal";
+import sshScriptsRouter from "./api/ssh-scripts";
+import { handleSSHWebSocket } from "./ssh-websocket-handler";
 
 
 declare module "express-session" {
@@ -60,12 +65,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Trust proxy if behind reverse proxy (nginx, etc.)
   app.set('trust proxy', 1);
 
-  // Session middleware
-  // Determine if we should use secure cookies (only if actually using HTTPS)
+  // Session middleware configuration
   const isSecure = process.env.SECURE_COOKIES === 'true' ||
     (process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true');
 
-  app.use(session({
+  const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || 'accounting-app-secret',
     resave: false,
     saveUninitialized: false,
@@ -80,7 +84,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
     // Store configuration - use memory store by default (for production, consider using a database store)
     store: undefined // Uses default MemoryStore
-  }));
+  });
+
+  // Determine if we should use secure cookies (only if actually using HTTPS)
+  app.use(sessionMiddleware);
 
   // Auth routes
   app.post('/api/auth/login', async (req, res) => {
@@ -660,13 +667,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/mssql', mssqlImportRouter);
   app.use('/api/mssql', mssqlRestoreSshRouter); // SSH-based restore with real-time logging
   app.use('/api/connections', requireAuth, connectionsRouter);
+  app.use('/api/mssql-explorer', requireAuth, mssqlExplorerRouter);
   app.use('/api/permissions', permissionsRouter);
   app.use('/api/permissions', requireAuth, permissionsMgmtRouter); // NEW: Role-based permission management
+  app.use('/api/ssh-terminal', requireAuth, sshTerminalRouter); // SSH Terminal management
+  app.use('/api/ssh-terminal', requireAuth, sshScriptsRouter); // SSH Scripts management
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
 
   // Start server
   const server = createServer(app);
+
+  // Setup WebSocket server for SSH terminal
+  // IMPORTANT: We need to handle session for WebSocket upgrades since they bypass Express middleware
+  const wss = new WebSocketServer({ server, path: "/ssh-terminal" });
+  
+  wss.on('connection', async (ws, req) => {
+    try {
+      // WebSocket upgrade bypasses Express middleware, so we need to manually run session middleware
+      // Use the session middleware to populate req.session from cookies
+      await new Promise<void>((resolve, reject) => {
+        sessionMiddleware(req as any, {} as any, (err: any) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+
+      const userId = (req as any).session?.userId;
+      
+      console.log('[SSH WS] New connection:', {
+        hasSession: !!(req as any).session,
+        userId,
+        path: req.url,
+      });
+      
+      if (!userId) {
+        console.log('[SSH WS] ❌ Connection rejected: No userId in session');
+        ws.send(JSON.stringify({ 
+          type: 'error', 
+          message: 'Not authenticated - please log in' 
+        }));
+        ws.close(1008, 'Unauthorized');
+        return;
+      }
+      
+      console.log('[SSH WS] ✓ User authenticated, passing to handler');
+      await handleSSHWebSocket(ws, req, userId);
+    } catch (err) {
+      console.error('[SSH WS] ❌ Connection handler error:', err);
+      ws.send(JSON.stringify({ type: 'error', message: 'Connection error' }));
+      ws.close(1011, 'Server error');
+    }
+  });
+
   return server;
 }

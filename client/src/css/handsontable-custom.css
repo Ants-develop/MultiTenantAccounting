@@ -104,13 +104,13 @@
   --ht-header-highlighted-background-color: hsl(var(--accent));
   --ht-header-highlighted-foreground-color: hsl(var(--accent-foreground));
   
-  /* Selection */
-  --ht-cell-selection-background-color: hsl(var(--accent) / 0.2);
-  --ht-cell-selection-border-color: hsl(var(--primary));
-  
-  /* Indicators */
-  --ht-resize-indicator-color: hsl(var(--primary));
-  --ht-move-indicator-color: hsl(var(--primary));
+        /* Selection */
+        --ht-cell-selection-background-color: hsl(var(--accent) / 0.2);
+        --ht-cell-selection-border-color: hsl(var(--primary));
+        
+        /* Indicators */
+        --ht-resize-indicator-color: hsl(var(--primary));
+        --ht-move-indicator-color: hsl(var(--primary));
   
   /* Scrollbar */
   --ht-scrollbar-thumb-color: hsl(var(--muted-foreground) / 0.3);

@@ -1,0 +1,101 @@
+/* xterm.js custom styles */
+
+/* Import xterm base styles - already imported via ESM in component */
+
+/* Terminal container */
+.xterm-screen {
+  overflow: hidden;
+}
+
+/* Terminal text */
+.xterm-viewport {
+  overflow-y: scroll;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Text styling */
+.xterm {
+  font-size: 14px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  line-height: 1.2;
+}
+
+.xterm-cursor {
+  visibility: visible;
+}
+
+.xterm-cursor.blinking {
+  animation: xterm-blink 1s infinite;
+}
+
+@keyframes xterm-blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Selection */
+.xterm-selection {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Links */
+.xterm-underline {
+  text-decoration: underline;
+}
+
+.xterm-link {
+  cursor: pointer;
+  text-decoration: underline;
+  color: #4a9eff;
+}
+
+.xterm-link:hover {
+  color: #6ab0ff;
+}
+
+/* Dim text */
+.xterm-dim {
+  opacity: 0.5;
+}
+
+/* Bold text */
+.xterm-bold {
+  font-weight: bold;
+}
+
+/* Italic text */
+.xterm-italic {
+  font-style: italic;
+}
+
+/* Colors - Standard ANSI colors */
+.xterm-fgcolor {
+  color: #d4d4d4;
+}
+
+.xterm-bgcolor {
+  background-color: #1e1e1e;
+}
+

@@ -3,17 +3,9 @@ import { storage } from "../storage";
 
 // Auth middleware - requires user to be logged in
 export const requireAuth = (req: any, res: any, next: any) => {
-  // Debug session info (enabled for production debugging)
-  console.log('Session check:', {
-    path: req.path,
-    hasSession: !!req.session,
-    userId: req.session?.userId,
-    sessionId: req.sessionID,
-    cookies: req.headers.cookie
-  });
-
   if (!req.session.userId) {
-    console.log('Authentication failed - no userId in session');
+    // Only log auth failures, not every request
+    console.log('Auth failed:', req.path);
     return res.status(401).json({ message: 'Authentication required' });
   }
 

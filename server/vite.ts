@@ -25,9 +25,10 @@ export async function setupVite(app: Express, server: Server) {
   
   const serverOptions = {
     middlewareMode: true,
-    hmr: { 
-      server,
-      clientPort: process.env.PORT ? parseInt(process.env.PORT) : 5000,
+    // CRITICAL: Pass the HTTP server so Vite can handle WebSocket upgrades for HMR
+    // This allows Vite to intercept the upgrade at the server level, not Express middleware level
+    hmr: {
+      server: server,
     },
     // Allow all hosts for LAN access in development
     allowedHosts: process.env.NODE_ENV === 'production' 

@@ -575,6 +575,43 @@ export const companySettings = pgTable("company_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Unified Connections (MSSQL and SSH)
+export const connections = pgTable("connections", {
+  id: serial("id").primaryKey(),
+  type: text("type").notNull().default("mssql"), // "mssql" | "ssh"
+  name: text("name").notNull(),
+  server: text("server").notNull(), // Host for SSH, Server for MSSQL
+  database: text("database"), // Required for MSSQL, ignored for SSH
+  username: text("username").notNull(),
+  password: text("password"),
+  privateKey: text("private_key"), // For SSH key-based auth
+  port: integer("port").default(1433), // 1433 for MSSQL, 22 for SSH
+  encrypt: boolean("encrypt").default(true), // MSSQL specific
+  trustServerCertificate: boolean("trust_server_certificate").default(true), // MSSQL specific
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertConnectionSchema = createInsertSchema(connections);
+export type InsertConnection = z.infer<typeof insertConnectionSchema>;
+export type Connection = typeof connections.$inferSelect;
+
+// SSH Scripts table - store custom scripts for remote execution
+export const sshScripts = pgTable("ssh_scripts", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  command: text("command").notNull(), // The command/script to run
+  category: text("category").default("custom"), // "predefined" or "custom"
+  createdBy: integer("created_by"), // User ID who created it
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSshScriptSchema = createInsertSchema(sshScripts);
+export type InsertSshScript = z.infer<typeof insertSshScriptSchema>;
+export type SshScript = typeof sshScripts.$inferSelect;
+
 // Main Company Settings - dedicated table for the accounting firm's own company information
 // Only ONE row should exist in this table (system-wide main company)
 export const mainCompanySettings = pgTable("main_company_settings", {
@@ -706,36 +743,19 @@ export const insertClientSchema = createInsertSchema(clients).omit({ id: true, c
 // Backwards compatibility alias
 export const insertCompanySchema = insertClientSchema;
 export const insertUserCompanySchema = createInsertSchema(userCompanies).omit({ id: true, createdAt: true });
+
 export const insertUserClientModuleSchema = createInsertSchema(userClientModules).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertUserClientFeatureSchema = createInsertSchema(userClientFeatures).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertRsUserSchema = createInsertSchema(rsUsers).omit({ id: true, createdAt: true, updatedAt: true, createdByUserId: true });
+export const insertRsUserSchema = createInsertSchema(rsUsers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAccountSchema = createInsertSchema(accounts).omit({ id: true, createdAt: true });
 export const insertJournalEntrySchema = createInsertSchema(journalEntries).omit({ id: true, createdAt: true });
 export const insertJournalEntryLineSchema = createInsertSchema(journalEntryLines).omit({ id: true, createdAt: true });
 export const insertCustomerSchema = createInsertSchema(customers).omit({ id: true, createdAt: true });
 export const insertVendorSchema = createInsertSchema(vendors).omit({ id: true, createdAt: true });
-export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true, userId: true });
-export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true, userId: true });
-export const insertActivityLogSchema = createInsertSchema(activityLogs).omit({ id: true, timestamp: true, clientId: true });
-export const insertCompanySettingsSchema = createInsertSchema(companySettings).omit({ id: true, createdAt: true, updatedAt: true });
-
-// Main Company Settings Schemas
-export const insertMainCompanySettingsSchema = createInsertSchema(mainCompanySettings).omit({ id: true, createdAt: true, updatedAt: true });
-export const updateMainCompanySettingsSchema = createInsertSchema(mainCompanySettings).partial().omit({ id: true, createdAt: true, updatedAt: true });
-
-// Enhanced validation schemas with business rules
-export const insertUserSchemaEnhanced = insertUserSchema.extend({
-  email: z.string().email("Invalid email format"),
-  username: z.string().min(3, "Username must be at least 3 characters").max(50, "Username too long"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  globalRole: z.enum(["user", "global_administrator"]).default("user")
-});
-
+export const insertInvoiceSchema = createInsertSchema(invoices).omit({ id: true, createdAt: true });
+export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true });
+// Enhanced client schema
 export const insertClientSchemaEnhanced = insertClientSchema.extend({
-  name: z.string().min(1, "Client name is required").max(100, "Client name too long"),
-  code: z.string().min(2, "Client code must be at least 2 characters").max(10, "Client code too long").regex(/^[A-Z0-9]+$/, "Client code must contain only uppercase letters and numbers"),
   email: z.string().email("Invalid email format").optional(),
   tenantCode: z.union([z.string(), z.number()]).optional().nullable().transform((val) => {
     // Convert to string for storage (VARCHAR(50))
@@ -749,8 +769,18 @@ export const insertClientSchemaEnhanced = insertClientSchema.extend({
   idCode: z.string().max(50, "ID code too long").optional(),
   isActive: z.boolean().default(true),
 });
+
 // Backwards compatibility alias
 export const insertCompanySchemaEnhanced = insertClientSchemaEnhanced;
+
+export const insertUserSchemaEnhanced = insertUserSchema.extend({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  globalRole: z.enum(["admin", "user", "client_user"]).optional().default("user"), // Fixed enum values
+  isActive: z.boolean().default(true),
+});
 
 export const insertAccountSchemaEnhanced = insertAccountSchema.extend({
   code: z.string().min(1, "Account code is required").max(20, "Account code too long"),
@@ -1000,23 +1030,6 @@ export type Customer = typeof customers.$inferSelect;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type Vendor = typeof vendors.$inferSelect;
 export type InsertVendor = z.infer<typeof insertVendorSchema>;
-export type Invoice = typeof invoices.$inferSelect;
-export type InsertInvoice = z.infer<typeof insertInvoiceSchema>;
-export type Bill = typeof bills.$inferSelect;
-export type InsertBill = z.infer<typeof insertBillSchema>;
-export type ActivityLog = typeof activityLogs.$inferSelect;
-export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
-export type CompanySettings = typeof companySettings.$inferSelect;
-export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
-export type BankAccount = typeof bankAccounts.$inferSelect;
-export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
-export type RawBankTransaction = typeof rawBankTransactions.$inferSelect;
-export type InsertRawBankTransaction = z.infer<typeof insertRawBankTransactionSchema>;
-export type NormalizedBankTransaction = typeof normalizedBankTransactions.$inferSelect;
-export type InsertNormalizedBankTransaction = z.infer<typeof insertNormalizedBankTransactionSchema>;
-export type MainCompanySettings = typeof mainCompanySettings.$inferSelect;
-export type InsertMainCompanySettings = z.infer<typeof insertMainCompanySettingsSchema>;
-export type UpdateMainCompanySettings = z.infer<typeof updateMainCompanySettingsSchema>;
 
 // ============ TAXDOME MODULE ============
 
