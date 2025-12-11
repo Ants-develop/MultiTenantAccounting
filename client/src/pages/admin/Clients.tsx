@@ -69,13 +69,7 @@ export default function Clients() {
     queryKey: ['/api/global-admin/company-users', managingCompany?.id],
     queryFn: async () => {
       if (!managingCompany?.id) return [];
-      const response = await fetch(`/api/global-admin/clients/${managingCompany.id}/users`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch company users: ${errorText}`);
-      }
+      const response = await apiRequest("GET", `/api/global-admin/clients/${managingCompany.id}/users`);
       return response.json();
     },
     enabled: !!managingCompany?.id,
@@ -85,12 +79,7 @@ export default function Clients() {
   const { data: availableUsers = [] } = useQuery<AvailableUser[]>({
     queryKey: ['/api/global-admin/users'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/users', {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
+      const response = await apiRequest("GET", '/api/global-admin/users');
       return response.json();
     },
   });
@@ -225,11 +214,6 @@ export default function Clients() {
 
       <ClientCompaniesGrid
         onManageUsers={handleManageCompanyUsers}
-        onViewProfile={(company) => {
-          if (flexLayout) {
-            flexLayout.openTab(`/clients/${company.id}/profile`, { id: company.id.toString() });
-          }
-        }}
         onViewOnboarding={(company) => {
           if (flexLayout) {
             flexLayout.openTab(`/clients/${company.id}/onboarding`, { id: company.id.toString() });

@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { getAccessToken, refreshAccessTokenFn } from "./auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -10,17 +11,44 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/**
+ * Make authenticated API request with JWT token in Authorization header
+ */
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const res = await fetch(url, {
+  const token = getAccessToken();
+  
+  const headers: Record<string, string> = data
+    ? { "Content-Type": "application/json" }
+    : {};
+
+  // Add Authorization header if token exists
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  let res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
+
+  // If unauthorized (401) and we have a refresh token, try to refresh
+  if (res.status === 401) {
+    const newToken = await refreshAccessTokenFn();
+    if (newToken) {
+      // Retry request with new token
+      headers["Authorization"] = `Bearer ${newToken}`;
+      res = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -32,9 +60,28 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    let res = await fetch(queryKey[0] as string, {
+      headers,
     });
+
+    // If unauthorized (401) and we have a refresh token, try to refresh
+    if (res.status === 401) {
+      const newToken = await refreshAccessTokenFn();
+      if (newToken) {
+        // Retry request with new token
+        headers["Authorization"] = `Bearer ${newToken}`;
+        res = await fetch(queryKey[0] as string, {
+          headers,
+        });
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

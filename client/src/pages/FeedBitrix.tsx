@@ -466,7 +466,7 @@ export default function FeedBitrix() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto p-4 space-y-6">
+      <div className="w-full p-4 space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-semibold">Feed (Bitrix24)</h1>
@@ -481,9 +481,9 @@ export default function FeedBitrix() {
           onFilter={(q: string) => setSearch(q)}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+        <div className="flex gap-6">
           {/* Main column */}
-          <div className="min-w-0 space-y-4">
+          <div className="flex-1 max-w-4xl space-y-4 min-w-0">
             <PostComposer mode={composerMode} onCreate={handleCreate} userId={user?.id} />
 
             {pendingNew.length > 0 && (
@@ -535,7 +535,7 @@ export default function FeedBitrix() {
           </div>
 
           {/* Right column */}
-          <div className="hidden lg:block sticky top-6 self-start">
+          <div className="hidden xl:block w-80 flex-shrink-0 sticky top-6 self-start">
             <RightWidgets />
           </div>
         </div>

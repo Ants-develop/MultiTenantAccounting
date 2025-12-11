@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { MessengerProvider } from "@/contexts/MessengerContext";
 import { ThemeProvider } from "next-themes";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
+import { useEffect } from "react";
+import { getAccessToken, getRefreshToken, clearTokens } from "@/lib/auth";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
@@ -28,6 +30,7 @@ import { ClientPortalInvoices } from "@/pages/client-portal/ClientPortalInvoices
 import Home from "@/pages/Home";
 import CRM from "@/pages/CRM";
 import Clients from "@/pages/admin/Clients";
+import ClientDetail from "@/pages/admin/ClientDetail";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import Messages from "@/pages/Messages";
@@ -35,6 +38,9 @@ import FeedPage from "@/pages/Feed";
 import FeedBitrix from "@/pages/FeedBitrix";
 import SystemArchitecture from "@/pages/SystemArchitecture";
 import Calendar from "@/pages/Calendar";
+import Passwords from "@/pages/Passwords";
+import Tasks from "@/pages/Tasks";
+import Workflows from "@/pages/Workflows";
 
 // Data Warehouse
 import ChartOfAccounts from "@/pages/accounting/ChartOfAccounts";
@@ -136,12 +142,16 @@ function ProtectedApp() {
           {/* Practice Management */}
           <Route path="/crm" component={CRM} />
           <Route path="/clients" component={Clients} />
+          <Route path="/clients/:id" component={ClientDetail} />
+          <Route path="/workflows" component={Workflows} />
           <Route path="/pipelines" component={PipelinesDashboard} />
-          <Route path="/tasks" component={TasksDashboard} />
+          <Route path="/tasks" component={Tasks} />
+          <Route path="/tasks-dashboard" component={TasksDashboard} />
           <Route path="/feed" component={FeedPage} />
           <Route path="/feed-bitrix" component={FeedBitrix} />
           <Route path="/messages" component={Messages} />
           <Route path="/calendar" component={Calendar} />
+          <Route path="/passwords" component={Passwords} />
 
           {/* Data Warehouse - Using CORRECT paths from navigation.ts */}
           <Route path="/accounting/chart-of-accounts" component={ChartOfAccounts} />
@@ -221,6 +231,29 @@ function Router() {
 }
 
 function App() {
+  // Clean up expired tokens on app initialization
+  useEffect(() => {
+    const accessToken = getAccessToken();
+    const refreshToken = getRefreshToken();
+    
+    // If we have tokens, check if both are expired
+    if (accessToken && refreshToken) {
+      try {
+        // Check if refresh token is expired
+        const refreshPayload = JSON.parse(atob(refreshToken.split('.')[1]));
+        const now = Math.floor(Date.now() / 1000);
+        
+        if (refreshPayload.exp < now) {
+          console.log('🔄 Refresh token expired, clearing all tokens');
+          clearTokens();
+        }
+      } catch (error) {
+        console.error('Error checking token expiration:', error);
+        clearTokens();
+      }
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

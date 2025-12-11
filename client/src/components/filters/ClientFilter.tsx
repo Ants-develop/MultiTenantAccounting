@@ -68,7 +68,7 @@ export function ClientFilter({
           <ChevronDown className="h-4 w-4 ml-2 flex-shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
+      <DropdownMenuContent align="start" className="w-56 z-[9999]" style={{ zIndex: 9999 }}>
         <DropdownMenuLabel>Select Clients</DropdownMenuLabel>
         <DropdownMenuSeparator />
         

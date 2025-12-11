@@ -10,6 +10,7 @@ import { FileText, Upload, Download, Calendar, AlertCircle, ArrowLeft } from "lu
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/auth";
 import dayjs from "dayjs";
 
 export const ClientPortalDocuments: React.FC = () => {
@@ -32,11 +33,17 @@ export const ClientPortalDocuments: React.FC = () => {
 
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      // Use fetch directly for file uploads (apiRequest might not handle FormData correctly)
+      // Use fetch directly for file uploads but attach token manually
+      const token = getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch("/api/client-portal/documents/upload", {
         method: "POST",
+        headers,
         body: formData,
-        credentials: "include",
       });
       if (!response.ok) {
         const error = await response.json();

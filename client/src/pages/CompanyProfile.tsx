@@ -135,10 +135,7 @@ export default function CompanyProfile() {
   const { data: companySettings, isLoading: settingsLoading } = useQuery<CompanySettings>({
     queryKey: ['/api/company/profile'],
     queryFn: async () => {
-      const response = await fetch(`/api/company/profile`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch company profile');
-      }
+      const response = await apiRequest("GET", `/api/company/profile`);
       return response.json();
     },
     enabled: !!mainCompany && canViewSettings(),
@@ -1052,12 +1049,7 @@ export default function CompanyProfile() {
                       variant="outline"
                       onClick={async () => {
                         try {
-                          const response = await fetch(`/api/company/profile/export`, {
-                            credentials: 'include'
-                          });
-                          if (!response.ok) {
-                            throw new Error('Failed to export data');
-                          }
+                          const response = await apiRequest("GET", `/api/company/profile/export`);
 
                           // Get JSON data directly instead of blob for better memory efficiency
                           const data = await response.json();
@@ -1105,12 +1097,7 @@ export default function CompanyProfile() {
                       onClick={async () => {
                         if (window.confirm('Are you sure you want to archive this company? This will make it inactive but data will be preserved.')) {
                           try {
-                            const response = await fetch(`/api/company/profile/archive`, {
-                              method: 'PUT',
-                            });
-                            if (!response.ok) {
-                              throw new Error('Failed to archive company');
-                            }
+                            await apiRequest("PUT", `/api/company/profile/archive`);
 
                             toast.success("Company archived", {
                               description: "The company has been archived successfully.",

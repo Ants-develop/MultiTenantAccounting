@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ClientFilter } from "@/components/filters/ClientFilter";
 import { useClientFilter } from "@/hooks/useClientFilter";
 import { useAuth } from "@/hooks/useAuth";
+import { apiRequest } from "@/lib/queryClient";
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { RawBankTransaction, BankAccount } from "@shared/schema";
 import { format } from "date-fns";
 
@@ -216,14 +217,7 @@ export default function ImportStatement() {
     queryKey: ["/api/bank/accounts", selectedClientIds],
     queryFn: async () => {
       const clientIdsParam = selectedClientIds.length > 0 ? `?clientIds=${selectedClientIds.join(',')}` : '';
-      const response = await fetch(`/api/bank/accounts${clientIdsParam}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      if (!response.ok) throw new Error('Failed to fetch accounts');
+      const response = await apiRequest("GET", `/api/bank/accounts${clientIdsParam}`);
       return response.json();
     },
     enabled: selectedClientIds.length > 0,
@@ -241,14 +235,7 @@ export default function ImportStatement() {
       if (params.bankAccountId && params.bankAccountId !== 'all') queryParams.set('bankAccountId', params.bankAccountId);
       if (params.clientIds && params.clientIds.length > 0) queryParams.set('clientIds', params.clientIds.join(','));
       
-      const response = await fetch(`${url}?${queryParams}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        }
-      });
-      if (!response.ok) throw new Error('Failed to fetch transactions');
+      const response = await apiRequest("GET", `${url}?${queryParams}`);
       return response.json();
     },
     enabled: selectedClientIds.length > 0,

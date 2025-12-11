@@ -23,7 +23,8 @@ import {
     Bell,
     Link,
     Archive,
-    HardDrive
+    HardDrive,
+    Lock
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -70,7 +71,7 @@ export const practiceManagementNavigation: NavigationItem[] = [
     },
     {
         name: "Workflows",
-        href: "/pipelines",
+        href: "/workflows",
         icon: List,
         permission: "TASKS_VIEW",
     },
@@ -91,6 +92,12 @@ export const practiceManagementNavigation: NavigationItem[] = [
         href: "/calendar",
         icon: Calendar,
         permission: "TASKS_VIEW",
+    },
+    {
+        name: "Passwords",
+        href: "/passwords",
+        icon: Lock,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
     },
 ];
 

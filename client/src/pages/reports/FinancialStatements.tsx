@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { FileText, Download, Printer, Calendar } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Account {
   id: number;
@@ -68,12 +69,7 @@ export default function FinancialStatements() {
         startDate,
         endDate,
       });
-      const response = await fetch(`/api/reports/financial-statements?${params}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch financial statements');
-      }
+      const response = await apiRequest("GET", `/api/reports/financial-statements?${params}`);
       return response.json();
     },
     enabled: !!mainCompany && (reportType === 'profit-loss' || reportType === 'balance-sheet'),
@@ -85,16 +81,12 @@ export default function FinancialStatements() {
       const params = new URLSearchParams({
         date: endDate,
       });
-      const response = await fetch(`/api/reports/trial-balance?${params}`, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch trial balance');
-      }
+      const response = await apiRequest("GET", `/api/reports/trial-balance?${params}`);
       return response.json();
     },
     enabled: !!mainCompany && reportType === 'trial-balance',
   });
+
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {

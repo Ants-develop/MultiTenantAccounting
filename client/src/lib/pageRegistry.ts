@@ -21,6 +21,7 @@ import CompanyProfile from "@/pages/CompanyProfile";
 import RoleManagement from "@/pages/admin/RoleManagement";
 import PermissionsManagement from "@/pages/admin/PermissionsManagement";
 import Clients from "@/pages/admin/Clients";
+import ClientDetail from "@/pages/admin/ClientDetail";
 import ClientImport from "@/pages/admin/ClientImport";
 import GlobalAdministration from "@/pages/admin/GlobalAdministration";
 import MSSQLImport from "@/pages/admin/MSSQLImport";
@@ -168,6 +169,12 @@ export const pageRegistry: PageConfig = {
     title: "Clients",
     component: Clients,
     path: "/clients",
+  },
+  "/clients/:id": {
+    title: "Client Detail",
+    component: ClientDetail,
+    path: "/clients/:id",
+    isDynamic: true,
   },
   "/clients/:id/profile": {
     title: "Client Profile",

@@ -1,3 +1,5 @@
+import { apiRequest } from "@/lib/queryClient";
+
 export interface Notification {
     id: number;
     userId: number;
@@ -13,40 +15,23 @@ export interface Notification {
 
 export const notificationService = {
     async getNotifications(): Promise<Notification[]> {
-        const response = await fetch("/api/notifications");
-        if (!response.ok) {
-            throw new Error("Failed to fetch notifications");
-        }
+        const response = await apiRequest("GET", "/api/notifications");
         return response.json();
     },
 
     async markAsRead(id: number): Promise<Notification> {
-        const response = await fetch(`/api/notifications/${id}/read`, {
-            method: "PATCH",
-        });
-        if (!response.ok) {
-            throw new Error("Failed to mark notification as read");
-        }
+        const response = await apiRequest("PATCH", `/api/notifications/${id}/read`);
         return response.json();
     },
 
     async markAllAsRead(): Promise<void> {
-        const response = await fetch("/api/notifications/read-all", {
-            method: "PATCH",
-        });
-        if (!response.ok) {
-            throw new Error("Failed to mark all notifications as read");
-        }
+        await apiRequest("PATCH", "/api/notifications/read-all");
     },
 
     async deleteNotification(id: number): Promise<void> {
-        const response = await fetch(`/api/notifications/${id}`, {
-            method: "DELETE",
-        });
-        if (!response.ok) {
-            throw new Error("Failed to delete notification");
-        }
+        await apiRequest("DELETE", `/api/notifications/${id}`);
     },
+
 
     async clearRead(): Promise<void> {
         const response = await fetch("/api/notifications/read", {

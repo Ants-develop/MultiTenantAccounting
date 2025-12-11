@@ -12,12 +12,12 @@ export default function FeedPage() {
     const posts = data?.pages.flatMap(page => page) || [];
 
     return (
-        <div className="max-w-5xl mx-auto py-8 px-4">
+        <div className="w-full py-8 px-4">
             <h1 className="text-2xl font-semibold mb-6 text-gray-900">Activity Feed</h1>
             
             <div className="flex gap-6">
                 {/* Main Feed Column */}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 max-w-3xl min-w-0">
                     <PostComposer onPostCreated={() => refetch()} />
 
                     <div className="space-y-4">

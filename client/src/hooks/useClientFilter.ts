@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from './useAuth';
+import { apiRequest } from "@/lib/queryClient";
 
 interface ClientOption {
   id: number;
@@ -16,18 +17,12 @@ export function useClientFilter(module: string) {
   const { data: accessibleClients, isLoading, error } = useQuery({
     queryKey: ['/api/permissions/my-clients', module],
     queryFn: async () => {
-      const res = await fetch(`/api/permissions/my-clients?module=${module}`, {
-        credentials: 'include', // Important: include cookies for session
-      });
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error(`[useClientFilter] Failed to fetch clients for module ${module}:`, res.status, errorText);
-        throw new Error(`Failed to fetch accessible clients: ${res.status} ${errorText}`);
-      }
+      const res = await apiRequest("GET", `/api/permissions/my-clients?module=${module}`);
       const data = await res.json();
       console.log(`[useClientFilter] Fetched ${data.length} clients for module ${module}:`, data);
       return data as ClientOption[];
     },
+
     retry: false, // Don't retry on error
   });
 

@@ -1,159 +1,200 @@
+import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Conversation, Message } from "@/types/messages";
+import { supabase } from "@/lib/supabase";
+import { getAccessToken } from "@/lib/auth";
 
-// Mock conversations
-const mockConversations: Conversation[] = [
-    {
-        id: "1",
-        title: null,
-        type: "direct",
-        last_message_at: new Date().toISOString(),
-        unread_count: 2,
-        created_at: new Date().toISOString(),
-        participants: [{ full_name: "John Doe" }],
-    },
-    {
-        id: "2",
-        title: "Project Team",
-        type: "group",
-        last_message_at: new Date(Date.now() - 3600000).toISOString(),
-        unread_count: 0,
-        created_at: new Date().toISOString(),
-        participants: [{ full_name: "Jane Smith" }, { full_name: "Bob Johnson" }],
-    },
-    {
-        id: "3",
-        title: null,
-        type: "direct",
-        last_message_at: new Date(Date.now() - 86400000).toISOString(),
-        created_at: new Date().toISOString(),
-        client: { name: "Acme Corporation" },
-    },
-];
+export interface Conversation {
+  id: string;
+  title?: string | null;
+  type: "direct" | "group";
+  last_message_at?: string;
+  unread_count?: number;
+  created_at: string;
+  participants?: ConversationParticipant[];
+  messages?: Message[];
+}
 
-// Mock messages by conversation
-const mockMessages: Record<string, Message[]> = {
-    "1": [
-        {
-            id: "1-1",
-            conversation_id: "1",
-            content: "Hey, can we schedule a meeting for next week?",
-            sender_id: "other",
-            type: "text",
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            is_deleted: false,
-            sender: { full_name: "John Doe" },
-        },
-        {
-            id: "1-2",
-            conversation_id: "1",
-            content: "Sure! How about Tuesday at 2 PM?",
-            sender_id: "current",
-            type: "text",
-            created_at: new Date(Date.now() - 1800000).toISOString(),
-            is_deleted: false,
-            sender: { full_name: "You" },
-        },
-        {
-            id: "1-3",
-            conversation_id: "1",
-            content: "Perfect, I'll send a calendar invite.",
-            sender_id: "other",
-            type: "text",
-            created_at: new Date().toISOString(),
-            is_deleted: false,
-            sender: { full_name: "John Doe" },
-        },
-    ],
-    "2": [
-        {
-            id: "2-1",
-            conversation_id: "2",
-            content: "Great work on the presentation everyone!",
-            sender_id: "other",
-            type: "text",
-            created_at: new Date(Date.now() - 7200000).toISOString(),
-            is_deleted: false,
-            sender: { full_name: "Jane Smith" },
-        },
-    ],
-    "3": [
-        {
-            id: "3-1",
-            conversation_id: "3",
-            content: "Thanks for the tax filing services!",
-            sender_id: "other",
-            type: "text",
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            is_deleted: false,
-            sender: { full_name: "Acme Corporation" },
-        },
-    ],
+export interface ConversationParticipant {
+  id: string;
+  user_id: string;
+  user?: {
+    id: string;
+    display_name?: string;
+    avatar_url?: string;
+  };
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  content: string;
+  message_type?: "text" | "file" | "voice" | "image";
+  created_at: string;
+  created_by: string;
+  is_deleted?: boolean;
+  created_by_user?: {
+    id: string;
+    display_name?: string;
+    avatar_url?: string;
+  };
+  reactions?: MessageReaction[];
+}
+
+export interface MessageReaction {
+  id: string;
+  message_id: string;
+  emoji: string;
+  created_by: string;
+}
+
+export const useConversations = () => {
+  const queryClient = useQueryClient();
+  const subscriptionRef = useRef<any>(null);
+
+  // Setup real-time subscription
+  useEffect(() => {
+    const setupSubscription = async () => {
+      try {
+        subscriptionRef.current = supabase
+          .channel("conversations")
+          .on(
+            "postgres_changes",
+            { event: "*", schema: "public", table: "conversations" },
+            (payload: any) => {
+              queryClient.invalidateQueries({ queryKey: ["conversations"] });
+            }
+          )
+          .subscribe();
+      } catch (error) {
+        console.error("Error setting up conversations subscription:", error);
+      }
+    };
+
+    setupSubscription();
+
+    return () => {
+      if (subscriptionRef.current) {
+        subscriptionRef.current.unsubscribe();
+      }
+    };
+  }, [queryClient]);
+
+  return useQuery({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select(
+          `
+          *,
+          participants:conversation_participants(
+            id,
+            user_id,
+            user:users(id, display_name, avatar_url)
+          ),
+          messages:conversation_messages(
+            id,
+            content,
+            message_type,
+            created_at,
+            created_by,
+            is_deleted,
+            created_by_user:users(id, display_name, avatar_url)
+          )
+        `
+        )
+        .order("last_message_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as Conversation[];
+    },
+  });
 };
 
-export function useConversations() {
-    return useQuery({
-        queryKey: ["conversations"],
-        queryFn: async () => {
-            // TODO: Replace with actual API call
-            // const response = await fetch("/api/messages/conversations");
-            // return await response.json();
-            return mockConversations;
-        },
-    });
-}
+export const useSendMessage = () => {
+  const queryClient = useQueryClient();
 
-export function useMessages(conversationId: string) {
-    return useQuery({
-        queryKey: ["messages", conversationId],
-        queryFn: async () => {
-            // TODO: Replace with actual API call
-            // const response = await fetch(`/api/messages/conversations/${conversationId}/messages`);
-            // return await response.json();
-            return mockMessages[conversationId] || [];
-        },
-        enabled: !!conversationId,
-    });
-}
+  return useMutation({
+    mutationFn: async (payload: {
+      conversation_id: string;
+      content: string;
+      message_type?: "text" | "file" | "voice" | "image";
+    }) => {
+      const token = getAccessToken();
 
-export function useMessageMutations(conversationId: string) {
-    const queryClient = useQueryClient();
+      const { data, error } = await supabase
+        .from("conversation_messages")
+        .insert([
+          {
+            conversation_id: payload.conversation_id,
+            content: payload.content,
+            message_type: payload.message_type || "text",
+            created_by: token,
+          },
+        ])
+        .select(
+          `
+          *,
+          created_by_user:users(id, display_name, avatar_url)
+        `
+        )
+        .single();
 
-    const sendMessage = useMutation({
-        mutationFn: async (content: string) => {
-            // TODO: Replace with actual API call
-            // const response = await fetch(`/api/messages/conversations/${conversationId}/messages`, {
-            //   method: "POST",
-            //   headers: { "Content-Type": "application/json" },
-            //   body: JSON.stringify({ content }),
-            // });
-            // return await response.json();
-            console.log("Send message:", content);
+      if (error) throw error;
+      return data as Message;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+};
 
-            const newMessage: Message = {
-                id: Date.now().toString(),
-                conversation_id: conversationId,
-                content,
-                sender_id: "current",
-                type: "text",
-                created_at: new Date().toISOString(),
-                is_deleted: false,
-                sender: { full_name: "You" },
-            };
+export const useDeleteMessage = () => {
+  const queryClient = useQueryClient();
 
-            // Update mock data
-            if (!mockMessages[conversationId]) {
-                mockMessages[conversationId] = [];
-            }
-            mockMessages[conversationId].push(newMessage);
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const { error } = await supabase
+        .from("conversation_messages")
+        .update({ is_deleted: true })
+        .eq("id", messageId);
 
-            return newMessage;
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["messages", conversationId] });
-            queryClient.invalidateQueries({ queryKey: ["conversations"] });
-        },
-    });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+};
 
-    return { sendMessage };
-}
+export const useAddMessageReaction = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      message_id: string;
+      emoji: string;
+    }) => {
+      const token = getAccessToken();
+
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .insert([
+          {
+            message_id: payload.message_id,
+            emoji: payload.emoji,
+            created_by: token,
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as MessageReaction;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+};

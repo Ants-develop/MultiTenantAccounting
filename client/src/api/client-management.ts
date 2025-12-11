@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/auth";
 
 // =====================================================
 // Types
@@ -132,10 +133,16 @@ export async function uploadClientDocument(
     formData.append("expirationDate", expirationDate);
   }
 
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`/api/clients/${clientId}/documents`, {
     method: "POST",
+    headers,
     body: formData,
-    credentials: "include",
   });
 
   if (!res.ok) {
@@ -150,16 +157,10 @@ export async function downloadClientDocument(
   clientId: number,
   docId: number
 ): Promise<Blob> {
-  const response = await fetch(
-    `${import.meta.env.VITE_API_URL || ""}/api/clients/${clientId}/documents/${docId}`,
-    {
-      method: "GET",
-      credentials: "include",
-    }
-  );
+  const response = await apiRequest("GET", `/api/clients/${clientId}/documents/${docId}`);
 
   if (!response.ok) {
-    throw new Error(`Failed to download document: ${response.statusText}`);
+    throw new Error("Failed to download document");
   }
 
   return response.blob();

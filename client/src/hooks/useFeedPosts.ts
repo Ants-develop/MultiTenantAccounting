@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
 import { FeedPost, FeedItemType, FeedComment } from '@/types/feed';
+import { apiRequest } from "@/lib/queryClient";
 
 export function useFeedPosts() {
   const queryClient = useQueryClient();
@@ -10,16 +11,7 @@ export function useFeedPosts() {
         const from = pageParam * 10;
         const to = from + 9;
 
-        const response = await fetch(`/api/feed/posts?from=${from}&to=${to}`, {
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error("Error fetching feed posts:", error);
-          throw new Error(error.error || 'Failed to fetch feed posts');
-        }
-
+        const response = await apiRequest("GET", `/api/feed/posts?from=${from}&to=${to}`);
         const data = await response.json();
         return data as FeedPost[];
     },
@@ -42,25 +34,11 @@ export function useCreateFeedPost(userId?: number) {
       type: FeedItemType;
       meta?: Record<string, any>;
     }) => {
-      const response = await fetch('/api/feed/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
+      const response = await apiRequest("POST", '/api/feed/posts', {
           content: post.content,
           type: post.type,
           meta: post.meta || {},
-        }),
       });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Error creating post:', error);
-        throw new Error(error.error || 'Failed to create post');
-      }
-
       const data = await response.json();
       return data as FeedPost;
     },
@@ -100,16 +78,7 @@ export function useToggleLike() {
 
   return useMutation({
     mutationFn: async (postId: string) => {
-      const response = await fetch(`/api/feed/posts/${postId}/like`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to toggle like');
-      }
-
+      const response = await apiRequest("POST", `/api/feed/posts/${postId}/like`);
       return response.json();
     },
     onSuccess: () => {
@@ -123,15 +92,7 @@ export function usePostLikes(postId: string) {
   return useQuery({
     queryKey: ['feed_post_likes', postId],
     queryFn: async () => {
-      const response = await fetch(`/api/feed/posts/${postId}/likes`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch likes');
-      }
-
+      const response = await apiRequest("GET", `/api/feed/posts/${postId}/likes`);
       return response.json();
     },
     enabled: !!postId,
@@ -143,15 +104,7 @@ export function usePostComments(postId: string) {
   return useQuery({
     queryKey: ['feed_post_comments', postId],
     queryFn: async () => {
-      const response = await fetch(`/api/feed/posts/${postId}/comments`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to fetch comments');
-      }
-
+      const response = await apiRequest("GET", `/api/feed/posts/${postId}/comments`);
       return response.json();
     },
     enabled: !!postId,
@@ -164,20 +117,7 @@ export function useCreateComment() {
 
   return useMutation({
     mutationFn: async ({ postId, content }: { postId: string; content: string }) => {
-      const response = await fetch(`/api/feed/posts/${postId}/comments`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ content }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to create comment');
-      }
-
+      const response = await apiRequest("POST", `/api/feed/posts/${postId}/comments`, { content });
       return response.json();
     },
     onSuccess: (_, variables) => {

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from './useAuth';
+import { apiRequest } from "@/lib/queryClient";
 
 export function useProfileSync() {
   const { user } = useAuth();
@@ -9,15 +10,7 @@ export function useProfileSync() {
 
     const syncProfile = async () => {
       try {
-        const response = await fetch('/api/feed/profile-sync', {
-          method: 'POST',
-          credentials: 'include',
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Error syncing profile to backend:', error);
-        }
+        await apiRequest("POST", '/api/feed/profile-sync');
       } catch (err) {
         console.error('Error syncing profile:', err);
       }

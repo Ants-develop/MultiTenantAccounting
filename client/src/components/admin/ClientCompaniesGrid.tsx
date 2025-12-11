@@ -15,13 +15,14 @@ import {
 import {
   Plus, Loader2, Search, Eye, Edit, Trash2, RefreshCw, Users, User, ClipboardList
 } from "lucide-react";
+import { useLocation } from "wouter";
+import { useFlexLayout } from "@/hooks/useFlexLayout";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertClientSchemaEnhanced } from "@shared/schema";
 import { z } from "zod";
-import { ClientProfileDialog } from "@/pages/clients/ClientProfileDialog";
 
 export interface ClientCompanyGridItem {
   id: number;
@@ -73,7 +74,16 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<ClientCompanyGridItem | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [selectedClientId, setSelectedClientId] = useState<number | null>(null);
+  const [location, setLocation] = useLocation();
+  const flexLayout = useFlexLayout();
+
+  const handleClientClick = (clientId: number, clientName: string) => {
+    if (flexLayout) {
+      flexLayout.openTab(`/clients/${clientId}`, undefined, clientName);
+    } else {
+      setLocation(`/clients/${clientId}`);
+    }
+  };
 
   const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<ClientCompanyFormData>({
     resolver: zodResolver(insertClientSchemaEnhanced),
@@ -363,7 +373,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
                       <TableCell>
                         <div
                           className="font-medium cursor-pointer hover:text-primary hover:underline transition-colors"
-                          onClick={() => setSelectedClientId(company.id)}
+                          onClick={() => handleClientClick(company.id, company.name)}
                         >
                           {company.name}
                         </div>
@@ -393,7 +403,7 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleEdit(company)}
+                            onClick={() => handleClientClick(company.id, company.name)}
                             title="Edit"
                           >
                             <Edit className="h-4 w-4" />
@@ -669,15 +679,6 @@ export function ClientCompaniesGrid<T extends ClientCompanyGridItem = ClientComp
             </div>
           </DialogContent>
         </Dialog>
-      )}
-
-      {/* Client Profile Dialog */}
-      {selectedClientId && (
-        <ClientProfileDialog
-          open={!!selectedClientId}
-          onOpenChange={(open) => !open && setSelectedClientId(null)}
-          clientId={selectedClientId}
-        />
       )}
     </div>
   );

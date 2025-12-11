@@ -170,10 +170,7 @@ export default function GlobalAdministration() {
   const { data: systemStats, isLoading: statsLoading } = useQuery<SystemStats>({
     queryKey: ['/api/global-admin/stats'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/stats');
-      if (!response.ok) {
-        throw new Error('Failed to fetch system stats');
-      }
+      const response = await apiRequest("GET", '/api/global-admin/stats');
       return response.json();
     },
   });
@@ -181,10 +178,7 @@ export default function GlobalAdministration() {
   const { data: companiesData = [], isLoading: companiesLoading } = useQuery<ClientCompany[]>({
     queryKey: ['/api/global-admin/clients'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/clients');
-      if (!response.ok) {
-        throw new Error('Failed to fetch companies');
-      }
+      const response = await apiRequest("GET", '/api/global-admin/clients');
       const result = await response.json();
       // Backend returns { data: [...] }, extract the array
       return Array.isArray(result.data) ? result.data : (Array.isArray(result) ? result : []);
@@ -197,7 +191,7 @@ export default function GlobalAdministration() {
   const { data: globalUsers = [], isLoading: usersLoading } = useQuery<GlobalUser[]>({
     queryKey: ['/api/global-admin/users'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/users');
+      const response = await apiRequest("GET", '/api/global-admin/users');
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }
@@ -228,10 +222,7 @@ export default function GlobalAdministration() {
         }
       });
       
-      const response = await fetch(`/api/activity-logs?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity logs');
-      }
+      const response = await apiRequest("GET", `/api/activity-logs?${params}`);
       return response.json();
     },
   });
@@ -239,10 +230,7 @@ export default function GlobalAdministration() {
   const { data: activityFiltersData } = useQuery({
     queryKey: ['/api/activity-logs/filters'],
     queryFn: async () => {
-      const response = await fetch('/api/activity-logs/filters');
-      if (!response.ok) {
-        throw new Error('Failed to fetch filter options');
-      }
+      const response = await apiRequest("GET", '/api/activity-logs/filters');
       return response.json();
     },
   });
@@ -250,10 +238,7 @@ export default function GlobalAdministration() {
   const { data: activitySummary } = useQuery({
     queryKey: ['/api/activity-logs/summary'],
     queryFn: async () => {
-      const response = await fetch('/api/activity-logs/summary?days=7');
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity summary');
-      }
+      const response = await apiRequest("GET", '/api/activity-logs/summary?days=7');
       return response.json();
     },
   });
@@ -263,13 +248,7 @@ export default function GlobalAdministration() {
     queryKey: ['/api/global-admin/company-users', managingCompany?.id],
     queryFn: async () => {
       if (!managingCompany?.id) return [];
-      const response = await fetch(`/api/global-admin/clients/${managingCompany.id}/users`, {
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to fetch company users: ${errorText}`);
-      }
+      const response = await apiRequest("GET", `/api/global-admin/clients/${managingCompany.id}/users`);
       return response.json();
     },
     enabled: !!managingCompany?.id,
@@ -279,9 +258,7 @@ export default function GlobalAdministration() {
   const { data: availableUsers = [] } = useQuery<AvailableUser[]>({
     queryKey: ['/api/global-admin/users'],
     queryFn: async () => {
-      const response = await fetch('/api/global-admin/users', {
-        credentials: 'include'
-      });
+      const response = await apiRequest("GET", '/api/global-admin/users');
       if (!response.ok) {
         throw new Error('Failed to fetch users');
       }

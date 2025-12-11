@@ -1,5 +1,6 @@
 // Storage API Client
 import { apiRequest } from "@/lib/queryClient";
+import { getAccessToken } from "@/lib/auth";
 
 export interface Bucket {
   id: string;
@@ -121,10 +122,16 @@ export const storageApi = {
       formData.append("path", path);
     }
 
+    const token = getAccessToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
     const response = await fetch(`/api/storage/buckets/${encodeURIComponent(bucket)}/upload`, {
       method: "POST",
+      headers,
       body: formData,
-      credentials: "include",
     });
 
     if (!response.ok) {
