@@ -1,33 +1,79 @@
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
+import { supabaseAdmin } from '../services/supabase';
 import { db } from '../db';
 import { users as usersTable } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
 
-const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
+// Use the existing supabaseAdmin client from services/supabase.ts
+// It's already configured with SUPABASE_SERVICE_ROLE_KEY
+// Log configuration on startup
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
 
-// Use service role key if available, otherwise use anon key (with permissive RLS)
-const supabaseKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
-
-if (!SUPABASE_URL || !supabaseKey) {
-  console.warn('Supabase environment variables are not set for feed operations.');
+// Decode JWT to verify it's a service role key
+let keyRole = 'UNKNOWN';
+if (SUPABASE_SERVICE_KEY) {
+  try {
+    // Service role keys typically have "service_role" in the payload
+    const parts = SUPABASE_SERVICE_KEY.split('.');
+    if (parts.length === 3) {
+      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      keyRole = payload.role || 'UNKNOWN';
+    }
+  } catch (e) {
+    // Not a valid JWT format
+  }
 }
+
+console.log('[Feed API] Supabase configuration:', {
+  url: SUPABASE_URL ? `${SUPABASE_URL.substring(0, 30)}...` : 'NOT SET',
+  hasServiceKey: !!SUPABASE_SERVICE_KEY,
+  usingKey: SUPABASE_SERVICE_KEY ? 'SERVICE_ROLE' : 'MISSING',
+  serviceKeyLength: SUPABASE_SERVICE_KEY?.length || 0,
+  keyRole: keyRole,
+  keyPreview: SUPABASE_SERVICE_KEY ? `${SUPABASE_SERVICE_KEY.substring(0, 20)}...${SUPABASE_SERVICE_KEY.substring(SUPABASE_SERVICE_KEY.length - 10)}` : 'N/A',
+});
 
 if (!SUPABASE_SERVICE_KEY) {
-  console.warn('[Feed API] Service role key not found, using anon key with RLS policies');
+  console.error('[Feed API] ⚠️  SUPABASE_SERVICE_ROLE_KEY not found in environment variables!');
+  console.error('[Feed API] Add it to your .env file: SUPABASE_SERVICE_ROLE_KEY=your-key-here');
+} else if (keyRole !== 'service_role') {
+  console.error('[Feed API] ⚠️  WARNING: Key role is "' + keyRole + '", expected "service_role"');
+  console.error('[Feed API] Make sure you copied the SERVICE_ROLE key, not the ANON key from Supabase dashboard');
 }
 
-// Create Supabase client for backend operations
-const supabaseAdmin = createClient(SUPABASE_URL, supabaseKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+// Test Supabase connection on startup (async, don't block)
+if (SUPABASE_URL && SUPABASE_SERVICE_KEY) {
+  (async () => {
+    try {
+      // First test: Try to query feed_profiles
+      const { data, error } = await supabaseAdmin.from('feed_profiles').select('id').limit(1);
+      if (error) {
+        console.error('[Feed API] ✗ Test query failed:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        
+        if (error.code === '42501') {
+          console.error('[Feed API] ⚠️  Permission denied error details:');
+          console.error('[Feed API]   - This should NOT happen with service_role key');
+          console.error('[Feed API]   - Verify the key is the SERVICE_ROLE key (not anon key)');
+          console.error('[Feed API]   - Check Supabase Dashboard > Settings > API');
+          console.error('[Feed API]   - Service role key should be ~200+ characters long');
+          console.error('[Feed API]   - Key role detected:', keyRole);
+        }
+        return;
+      }
+      console.log('[Feed API] ✓ Supabase connection test successful');
+    } catch (error: any) {
+      console.error('[Feed API] ✗ Supabase connection test exception:', error.message);
+    }
+  })();
+}
 
 // GET /api/feed/posts - Get paginated feed posts
 router.get('/posts', async (req, res) => {
@@ -47,7 +93,10 @@ router.get('/posts', async (req, res) => {
 
     if (error) {
       console.error('[Feed API] Error fetching posts:', error);
-      return res.status(500).json({ error: error.message });
+      if (error.code === '42501') {
+        console.error('[Feed API] Permission denied - Check RLS policies or set SUPABASE_SERVICE_ROLE_KEY');
+      }
+      return res.status(500).json({ error: error.message, code: error.code });
     }
 
     res.json(data);
@@ -71,10 +120,24 @@ router.post('/posts', async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
 
-    // Sync user profile first (profile sync will happen via /profile-sync endpoint)
-    // We'll just use the userId here
+    // Sync user profile first to ensure it exists
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    if (user) {
+      const { error: profileError } = await supabaseAdmin.from('feed_profiles').upsert({
+        id: user.id,
+        full_name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
+        job_title: user.globalRole || 'User',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'id' });
+      
+      if (profileError) {
+        console.error('[Feed API] Error syncing profile before post creation:', profileError);
+        // Continue anyway - the post can be created without the profile
+      }
+    }
 
-    const { data, error } = await supabaseAdmin
+    // Insert post first without the join to avoid RLS issues
+    const { data: insertedPost, error: insertError } = await supabaseAdmin
       .from('feed_posts')
       .insert({
         author_id: userId,
@@ -84,15 +147,34 @@ router.post('/posts', async (req, res) => {
         visibility: 'public',
         attachments: [],
       })
+      .select('*')
+      .single();
+
+    if (insertError) {
+      console.error('[Feed API] Error creating post:', insertError);
+      if (insertError.code === '42501') {
+        console.error('[Feed API] Permission denied - Check RLS policies or set SUPABASE_SERVICE_ROLE_KEY');
+        console.error('[Feed API] Current key type:', SUPABASE_SERVICE_KEY ? 'SERVICE_ROLE' : 'ANON');
+      } else if (insertError.code === 'PGRST204') {
+        console.error('[Feed API] Column not found - Run migrations: npx supabase db push');
+      }
+      return res.status(500).json({ error: insertError.message, code: insertError.code });
+    }
+
+    // Now fetch the post with the author join
+    const { data, error } = await supabaseAdmin
+      .from('feed_posts')
       .select(`
         *,
         author:feed_profiles!feed_posts_author_id_fkey(*)
       `)
+      .eq('id', insertedPost.id)
       .single();
 
     if (error) {
-      console.error('[Feed API] Error creating post:', error);
-      return res.status(500).json({ error: error.message });
+      console.error('[Feed API] Error fetching post with author:', error);
+      // If we can't fetch with author, return the post without it
+      return res.json(insertedPost);
     }
 
     res.json(data);
@@ -127,7 +209,10 @@ router.post('/profile-sync', async (req, res) => {
 
     if (error) {
       console.error('[Feed API] Error syncing profile:', error);
-      return res.status(500).json({ error: error.message });
+      if (error.code === '42501') {
+        console.error('[Feed API] Permission denied - Check RLS policies or set SUPABASE_SERVICE_ROLE_KEY');
+      }
+      return res.status(500).json({ error: error.message, code: error.code });
     }
 
     res.json({ success: true });
