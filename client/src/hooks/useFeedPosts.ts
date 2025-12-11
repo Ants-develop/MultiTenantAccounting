@@ -1,7 +1,5 @@
 import { useInfiniteQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { FeedPost, FeedItemType } from '@/types/feed';
-import { useEffect } from 'react';
 
 export function useFeedPosts() {
   const queryClient = useQueryClient();
@@ -9,56 +7,28 @@ export function useFeedPosts() {
   const query = useInfiniteQuery({
     queryKey: ['feed_posts'],
     queryFn: async ({ pageParam = 0 }) => {
-        // Range is inclusive
         const from = pageParam * 10;
         const to = from + 9;
 
-        const { data, error } = await supabase
-            .from('feed_posts')
-            .select(`
-                *,
-                author:feed_profiles!feed_posts_author_id_fkey(*)
-            `)
-            .order('created_at', { ascending: false })
-            .range(from, to);
-        
-        if (error) {
-            console.error("Error fetching feed posts:", error);
-            throw error;
+        const response = await fetch(`/api/feed/posts?from=${from}&to=${to}`, {
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          console.error("Error fetching feed posts:", error);
+          throw new Error(error.error || 'Failed to fetch feed posts');
         }
+
+        const data = await response.json();
         return data as FeedPost[];
     },
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-        // If we got fewer than 10 items, there are no more pages
         return lastPage.length === 10 ? allPages.length : undefined;
     },
     refetchOnWindowFocus: false,
   });
-
-  // Realtime subscription
-  useEffect(() => {
-    const channel = supabase
-      .channel('feed_updates')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'feed_posts',
-        },
-        (payload) => {
-          console.log('Realtime update received:', payload);
-          // Invalidate query to refetch latest posts
-          queryClient.invalidateQueries({ queryKey: ['feed_posts'] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient]);
 
   return query;
 }
@@ -72,34 +42,29 @@ export function useCreateFeedPost(userId?: number) {
       type: FeedItemType;
       meta?: Record<string, any>;
     }) => {
-      if (!userId) throw new Error('User ID is required');
-
-      // Insert directly via Supabase
-      const { data, error } = await supabase
-        .from('feed_posts')
-        .insert({
+      const response = await fetch('/api/feed/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
           content: post.content,
           type: post.type,
           meta: post.meta || {},
-          author_id: userId,
-          visibility: 'public',
-          attachments: [],
-        })
-        .select(`
-          *,
-          author:feed_profiles!feed_posts_author_id_fkey(*)
-        `)
-        .single();
+        }),
+      });
 
-      if (error) {
+      if (!response.ok) {
+        const error = await response.json();
         console.error('Error creating post:', error);
-        throw error;
+        throw new Error(error.error || 'Failed to create post');
       }
 
+      const data = await response.json();
       return data as FeedPost;
     },
     onSuccess: () => {
-      // Invalidate the feed posts query to refetch
       queryClient.invalidateQueries({ queryKey: ['feed_posts'] });
     },
     onError: (error) => {
@@ -108,3 +73,23 @@ export function useCreateFeedPost(userId?: number) {
   });
 }
 
+export function useSyncProfile() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/feed/profile-sync', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to sync profile');
+      }
+
+      return response.json();
+    },
+    onError: (error) => {
+      console.error('Error syncing profile:', error);
+    },
+  });
+}

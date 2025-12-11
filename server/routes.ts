@@ -44,6 +44,7 @@ import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
+import feedRouter from "./routes/feed";
 
 declare module "express-session" {
   interface SessionData {
@@ -628,6 +629,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
+  app.use('/api/feed', requireAuth, feedRouter);
 
   // Start server
   const server = createServer(app);
