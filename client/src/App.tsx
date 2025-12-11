@@ -32,6 +32,7 @@ import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import Messages from "@/pages/Messages";
 import FeedPage from "@/pages/Feed";
+import FeedBitrix from "@/pages/FeedBitrix";
 import SystemArchitecture from "@/pages/SystemArchitecture";
 import Calendar from "@/pages/Calendar";
 
@@ -138,6 +139,7 @@ function ProtectedApp() {
           <Route path="/pipelines" component={PipelinesDashboard} />
           <Route path="/tasks" component={TasksDashboard} />
           <Route path="/feed" component={FeedPage} />
+          <Route path="/feed-bitrix" component={FeedBitrix} />
           <Route path="/messages" component={Messages} />
           <Route path="/calendar" component={Calendar} />
 

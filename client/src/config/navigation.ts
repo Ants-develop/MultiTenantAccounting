@@ -51,6 +51,12 @@ export const practiceManagementNavigation: NavigationItem[] = [
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
     },
     {
+        name: "Feed (Bitrix24)",
+        href: "/feed-bitrix",
+        icon: Activity,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
         name: "CRM",
         href: "/crm",
         icon: Users,

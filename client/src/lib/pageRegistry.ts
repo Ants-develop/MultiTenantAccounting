@@ -53,6 +53,7 @@ import CRM from "@/pages/CRM";
 import Messages from "@/pages/Messages";
 import Notifications from "@/pages/Notifications";
 import Storage from "@/pages/admin/Storage";
+import FeedBitrix from "@/pages/FeedBitrix";
 
 export interface PageMetadata {
   title: string;
@@ -352,6 +353,11 @@ export const pageRegistry: PageConfig = {
     title: "Messages",
     component: Messages,
     path: "/messages",
+  },
+  "/feed-bitrix": {
+    title: "Feed (Bitrix24)",
+    component: FeedBitrix,
+    path: "/feed-bitrix",
   },
   "/notifications": {
     title: "Notifications",

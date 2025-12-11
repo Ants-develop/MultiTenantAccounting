@@ -1,6 +1,6 @@
-import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { FeedPost } from '@/types/feed';
+import { FeedPost, FeedItemType } from '@/types/feed';
 import { useEffect } from 'react';
 
 export function useFeedPosts() {
@@ -61,5 +61,50 @@ export function useFeedPosts() {
   }, [queryClient]);
 
   return query;
+}
+
+export function useCreateFeedPost(userId?: number) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (post: {
+      content: string;
+      type: FeedItemType;
+      meta?: Record<string, any>;
+    }) => {
+      if (!userId) throw new Error('User ID is required');
+
+      // Insert directly via Supabase
+      const { data, error } = await supabase
+        .from('feed_posts')
+        .insert({
+          content: post.content,
+          type: post.type,
+          meta: post.meta || {},
+          author_id: userId,
+          visibility: 'public',
+          attachments: [],
+        })
+        .select(`
+          *,
+          author:feed_profiles(*)
+        `)
+        .single();
+
+      if (error) {
+        console.error('Error creating post:', error);
+        throw error;
+      }
+
+      return data as FeedPost;
+    },
+    onSuccess: () => {
+      // Invalidate the feed posts query to refetch
+      queryClient.invalidateQueries({ queryKey: ['feed_posts'] });
+    },
+    onError: (error) => {
+      console.error('Error creating feed post:', error);
+    },
+  });
 }
 
