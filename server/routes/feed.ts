@@ -8,13 +8,21 @@ const router = Router();
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
-if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+// Use service role key if available, otherwise use anon key (with permissive RLS)
+const supabaseKey = SUPABASE_SERVICE_KEY || SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !supabaseKey) {
   console.warn('Supabase environment variables are not set for feed operations.');
 }
 
-// Create Supabase client with service role key for backend operations
-const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+if (!SUPABASE_SERVICE_KEY) {
+  console.warn('[Feed API] Service role key not found, using anon key with RLS policies');
+}
+
+// Create Supabase client for backend operations
+const supabaseAdmin = createClient(SUPABASE_URL, supabaseKey, {
   auth: {
     persistSession: false,
     autoRefreshToken: false,
