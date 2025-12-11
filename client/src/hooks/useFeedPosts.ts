@@ -17,7 +17,7 @@ export function useFeedPosts() {
             .from('feed_posts')
             .select(`
                 *,
-                author:feed_profiles(*)
+                author:feed_profiles!feed_posts_author_id_fkey(*)
             `)
             .order('created_at', { ascending: false })
             .range(from, to);
@@ -87,7 +87,7 @@ export function useCreateFeedPost(userId?: number) {
         })
         .select(`
           *,
-          author:feed_profiles(*)
+          author:feed_profiles!feed_posts_author_id_fkey(*)
         `)
         .single();
 
