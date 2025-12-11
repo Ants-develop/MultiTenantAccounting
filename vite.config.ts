@@ -19,6 +19,7 @@ export default defineConfig(async ({ mode }) => {
         },
       },
     },
+    envPrefix: ['VITE_', 'SUPABASE_'], // Allow SUPABASE_ prefix for unified env vars
   plugins: [
     react(),
     mode === "development" && componentTagger(),

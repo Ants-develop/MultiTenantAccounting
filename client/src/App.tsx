@@ -31,6 +31,8 @@ import Clients from "@/pages/admin/Clients";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import Messages from "@/pages/Messages";
+import FeedPage from "@/pages/Feed";
+import SystemArchitecture from "@/pages/SystemArchitecture";
 import Calendar from "@/pages/Calendar";
 
 // Data Warehouse
@@ -113,6 +115,14 @@ function ProtectedApp() {
     );
   }
 
+  if (location === "/settings/architecture") {
+    return (
+      <SimplePageLayout>
+        <SystemArchitecture />
+      </SimplePageLayout>
+    );
+  }
+
   // If user prefers simple layout, render all pages in SimplePageLayout
   if (!useFlexLayout) {
     return (
@@ -127,6 +137,7 @@ function ProtectedApp() {
           <Route path="/clients" component={Clients} />
           <Route path="/pipelines" component={PipelinesDashboard} />
           <Route path="/tasks" component={TasksDashboard} />
+          <Route path="/feed" component={FeedPage} />
           <Route path="/messages" component={Messages} />
           <Route path="/calendar" component={Calendar} />
 

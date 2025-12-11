@@ -1,5 +1,6 @@
 import {
     LayoutDashboard,
+    Activity,
     Building2,
     CheckSquare,
     List,
@@ -43,6 +44,12 @@ export const topLevelNavigation: NavigationItem[] = [
 ];
 
 export const practiceManagementNavigation: NavigationItem[] = [
+    {
+        name: "Feed",
+        href: "/feed",
+        icon: Activity,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
     {
         name: "CRM",
         href: "/crm",
