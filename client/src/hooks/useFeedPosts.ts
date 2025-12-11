@@ -1,5 +1,5 @@
-import { useInfiniteQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { FeedPost, FeedItemType } from '@/types/feed';
+import { useInfiniteQuery, useQueryClient, useMutation, useQuery } from '@tanstack/react-query';
+import { FeedPost, FeedItemType, FeedComment } from '@/types/feed';
 
 export function useFeedPosts() {
   const queryClient = useQueryClient();
@@ -90,6 +90,99 @@ export function useSyncProfile() {
     },
     onError: (error) => {
       console.error('Error syncing profile:', error);
+    },
+  });
+}
+
+// Hook for toggling like on a post
+export function useToggleLike() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (postId: string) => {
+      const response = await fetch(`/api/feed/posts/${postId}/like`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to toggle like');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['feed_posts'] });
+    },
+  });
+}
+
+// Hook for fetching likes info for a post
+export function usePostLikes(postId: string) {
+  return useQuery({
+    queryKey: ['feed_post_likes', postId],
+    queryFn: async () => {
+      const response = await fetch(`/api/feed/posts/${postId}/likes`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch likes');
+      }
+
+      return response.json();
+    },
+    enabled: !!postId,
+  });
+}
+
+// Hook for fetching comments for a post
+export function usePostComments(postId: string) {
+  return useQuery({
+    queryKey: ['feed_post_comments', postId],
+    queryFn: async () => {
+      const response = await fetch(`/api/feed/posts/${postId}/comments`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch comments');
+      }
+
+      return response.json();
+    },
+    enabled: !!postId,
+  });
+}
+
+// Hook for creating a comment
+export function useCreateComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ postId, content }: { postId: string; content: string }) => {
+      const response = await fetch(`/api/feed/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to create comment');
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['feed_post_comments', variables.postId] });
+      queryClient.invalidateQueries({ queryKey: ['feed_posts'] });
     },
   });
 }

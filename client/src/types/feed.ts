@@ -49,3 +49,9 @@ export interface FeedComment {
   author?: FeedProfile;
 }
 
+export interface FeedLike {
+  post_id: string;
+  user_id: number;
+  created_at: string;
+}
+

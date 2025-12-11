@@ -129,5 +129,159 @@ router.post('/profile-sync', async (req, res) => {
   }
 });
 
+// POST /api/feed/posts/:postId/like - Toggle like on a post
+router.post('/posts/:postId/like', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { postId } = req.params;
+
+    // Check if already liked
+    const { data: existingLike } = await supabaseAdmin
+      .from('feed_likes')
+      .select('*')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .single();
+
+    if (existingLike) {
+      // Unlike
+      const { error } = await supabaseAdmin
+        .from('feed_likes')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', userId);
+
+      if (error) {
+        console.error('[Feed API] Error unliking post:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ liked: false });
+    } else {
+      // Like
+      const { error } = await supabaseAdmin
+        .from('feed_likes')
+        .insert({ post_id: postId, user_id: userId });
+
+      if (error) {
+        console.error('[Feed API] Error liking post:', error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json({ liked: true });
+    }
+  } catch (err: any) {
+    console.error('[Feed API] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/feed/posts/:postId/likes - Get likes count for a post
+router.get('/posts/:postId/likes', async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const userId = req.session?.userId;
+
+    // Get total likes count
+    const { count, error: countError } = await supabaseAdmin
+      .from('feed_likes')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_id', postId);
+
+    if (countError) {
+      console.error('[Feed API] Error fetching likes count:', countError);
+      return res.status(500).json({ error: countError.message });
+    }
+
+    // Check if current user liked
+    let userLiked = false;
+    if (userId) {
+      const { data: userLike } = await supabaseAdmin
+        .from('feed_likes')
+        .select('*')
+        .eq('post_id', postId)
+        .eq('user_id', userId)
+        .single();
+      
+      userLiked = !!userLike;
+    }
+
+    res.json({ count: count || 0, userLiked });
+  } catch (err: any) {
+    console.error('[Feed API] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/feed/posts/:postId/comments - Get comments for a post
+router.get('/posts/:postId/comments', async (req, res) => {
+  try {
+    const { postId } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('feed_comments')
+      .select(`
+        *,
+        author:feed_profiles!feed_comments_author_id_fkey(*)
+      `)
+      .eq('post_id', postId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[Feed API] Error fetching comments:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    console.error('[Feed API] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/feed/posts/:postId/comments - Create a comment on a post
+router.post('/posts/:postId/comments', async (req, res) => {
+  try {
+    const userId = req.session?.userId;
+    if (!userId) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { postId } = req.params;
+    const { content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('feed_comments')
+      .insert({
+        post_id: postId,
+        author_id: userId,
+        content,
+      })
+      .select(`
+        *,
+        author:feed_profiles!feed_comments_author_id_fkey(*)
+      `)
+      .single();
+
+    if (error) {
+      console.error('[Feed API] Error creating comment:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json(data);
+  } catch (err: any) {
+    console.error('[Feed API] Error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
 

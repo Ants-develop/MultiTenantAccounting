@@ -20,10 +20,17 @@ import {
   X,
 } from 'lucide-react';
 
-import { useFeedPosts, useCreateFeedPost } from '@/hooks/useFeedPosts';
+import { 
+  useFeedPosts, 
+  useCreateFeedPost, 
+  useToggleLike, 
+  usePostLikes, 
+  usePostComments, 
+  useCreateComment 
+} from '@/hooks/useFeedPosts';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileSync } from '@/hooks/useProfileSync';
-import { FeedPost, FeedItemType } from '@/types/feed';
+import { FeedPost, FeedItemType, FeedComment } from '@/types/feed';
 
 // -------------------- Subcomponents --------------------
 
@@ -192,21 +199,26 @@ function PostComposer({ mode, onCreate, userId }: { mode: FeedItemType; onCreate
 }
 
 function PostCard({ item }: { item: FeedPost }) {
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState('');
 
+  const { mutate: toggleLike } = useToggleLike();
+  const { data: likesData } = usePostLikes(item.id);
+  const { data: commentsData } = usePostComments(item.id);
+  const { mutate: createComment } = useCreateComment();
+
+  const likesCount = likesData?.count || 0;
+  const userLiked = likesData?.userLiked || false;
+  const comments = (commentsData || []) as FeedComment[];
+
   const handleLike = () => {
-    setLiked(!liked);
-    setLikesCount(liked ? likesCount - 1 : likesCount + 1);
+    toggleLike(item.id);
   };
 
   const handleComment = () => {
     if (!commentText.trim()) return;
-    // TODO: Implement comment creation via API
+    createComment({ postId: item.id, content: commentText });
     setCommentText('');
-    setShowComments(false);
   };
 
   return (
@@ -293,7 +305,7 @@ function PostCard({ item }: { item: FeedPost }) {
       <div className="px-4 py-2 border-t border-gray-100 flex items-center text-sm text-gray-500">
         <span>{likesCount} likes</span>
         <span className="mx-2">·</span>
-        <span>0 comments</span>
+        <span>{comments.length} comments</span>
       </div>
 
       {/* Action Buttons */}
@@ -301,10 +313,10 @@ function PostCard({ item }: { item: FeedPost }) {
         <button
           onClick={handleLike}
           className={`flex-1 flex items-center justify-center space-x-2 py-2 rounded-lg hover:bg-gray-50 transition ${
-            liked ? 'text-red-600' : 'text-gray-600'
+            userLiked ? 'text-red-600' : 'text-gray-600'
           }`}
         >
-          <Heart className={`w-5 h-5 ${liked ? 'fill-current' : ''}`} />
+          <Heart className={`w-5 h-5 ${userLiked ? 'fill-current' : ''}`} />
           <span className="font-medium">Like</span>
         </button>
         <button
@@ -319,6 +331,28 @@ function PostCard({ item }: { item: FeedPost }) {
           <span className="font-medium">Share</span>
         </button>
       </div>
+
+      {/* Comments Section */}
+      {comments.length > 0 && (
+        <div className="px-4 py-3 border-t border-gray-100 space-y-3">
+          {comments.map((comment) => (
+            <div key={comment.id} className="flex items-start space-x-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-teal-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0">
+                {comment.author?.full_name?.[0] || 'U'}
+              </div>
+              <div className="flex-1">
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <h4 className="font-semibold text-sm text-gray-900">{comment.author?.full_name || 'Unknown'}</h4>
+                  <p className="text-sm text-gray-800 mt-1">{comment.content}</p>
+                </div>
+                <div className="flex items-center space-x-4 mt-1 text-xs text-gray-500">
+                  <span>{new Date(comment.created_at).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Comment Input */}
       {showComments && (
