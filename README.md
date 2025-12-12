@@ -318,29 +318,43 @@ cat .env | grep -v PASSWORD  # View .env without passwords
 
 3. **Update .env file** with your `DATABASE_URL`
 
-### 8. Database Migration
+### 8. Database Schema & Migrations
 
-Initialize the PostgreSQL database schema:
+**Important**: This project uses Supabase for database management. The complete schema is defined in a single unified migration file for clarity and maintainability.
 
+**Schema Location**: `supabase/migrations/20251213000000_unified_schema.sql`
+
+This unified migration includes:
+- **Core Module**: User profiles, roles, and permissions
+- **Client Module**: Client management, contacts, team assignments
+- **Workflow Module**: Templates, stages, pipelines, and workflow execution
+- **Task Module**: Task management with templates and checklists
+- **CRM Module**: Deal pipeline with stages, activities, and contacts
+- **Calendar Module**: Events and participants with RLS
+- **Messaging Module**: Conversations, participants, and messages
+- **Notification Module**: User notifications
+- **Feed Module**: Social feed with posts, likes, and comments
+
+**For New Installations**:
 ```bash
-# Push database schema to Neon (creates all tables)
-npm run db:push
+# Link to your Supabase project
+npx supabase link --project-ref your-project-ref
 
-# Verify tables were created (optional - opens database browser)
-npx drizzle-kit studio
+# Push the unified schema to your database
+npx supabase db push --linked
+
+# Verify migration status
+npx supabase migration list --linked
 ```
 
-**Alternative**: If you prefer to run migrations manually:
-```bash
-# Run SQL migrations
-npm run db:migrate
-
-# Check migration status
-npm run db:status
-```
+**For Existing Installations**:
+The database is already up to date. Old migrations have been archived to `supabase/migrations/archive/` for historical reference.
 
 **Verification:**
 ```bash
+# Check migration status (all should show as applied)
+npx supabase migration list --linked
+
 # Test database connection
 npm run db:status
 ```
