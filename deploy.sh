@@ -53,7 +53,20 @@ if [ ! -f ".env" ]; then
     exit 1
 fi
 
-print_status "Environment variables loaded from .env"
+# Check if client/.env file exists
+if [ ! -f "client/.env" ]; then
+    print_warning "client/.env file not found! Frontend build may fail or be missing configuration."
+    print_warning "Creating client/.env from .env (filtering for VITE_ variables)..."
+    grep "^VITE_" .env > client/.env || true
+    if [ ! -s "client/.env" ]; then
+        print_error "No VITE_ variables found in .env and client/.env is missing."
+        print_error "Please create client/.env with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY"
+        exit 1
+    fi
+    print_status "Created client/.env from .env"
+fi
+
+print_status "Environment variables loaded"
 
 # Create logs directory
 mkdir -p logs
