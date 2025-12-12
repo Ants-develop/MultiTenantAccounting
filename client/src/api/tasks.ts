@@ -1,108 +1,75 @@
-// Tasks API Client (TaxDome-style)
+// Tasks API Client
 import { apiRequest } from "@/lib/queryClient";
-
-export interface Subtask {
-  id: number;
-  taskId: number;
-  title: string;
-  done: boolean;
-  orderIndex: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface Task {
   id: number;
-  workspaceId: number;
+  workspaceId?: number;
   jobId?: number;
   title: string;
   description?: string;
-  status: "todo" | "in_progress" | "done" | "cancelled" | "blocked";
-  priority: "low" | "medium" | "high" | "urgent";
-  assigneeId?: number;
-  reporterId?: number;
+  status: string;
+  priority: string;
   dueDate?: string;
-  startDate?: string;
+  assignedTo?: number;
   completedAt?: string;
-  recurrence?: Record<string, any>;
-  matrixRoomId?: string;
-  metadata?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
-  subtasks?: Subtask[];
 }
 
 export interface CreateTaskPayload {
-  workspaceId: number;
+  workspaceId?: number;
   jobId?: number;
   title: string;
   description?: string;
-  status?: "todo" | "in_progress" | "done" | "cancelled" | "blocked";
-  priority?: "low" | "medium" | "high" | "urgent";
-  assigneeId?: number;
-  reporterId?: number;
+  status?: string;
+  priority?: string;
   dueDate?: string;
-  startDate?: string;
-  recurrence?: Record<string, any>;
-  metadata?: Record<string, any>;
-  createMatrixRoom?: boolean;
+  assignedTo?: number;
 }
 
 export const tasksApi = {
-  fetchTasks: async (filters?: {
-    workspaceId?: number;
-    jobId?: number;
-    status?: string;
-    assigneeId?: number;
-    priority?: string;
-  }): Promise<Task[]> => {
-    const params = new URLSearchParams();
-    if (filters?.workspaceId) params.append("workspaceId", filters.workspaceId.toString());
-    if (filters?.jobId) params.append("jobId", filters.jobId.toString());
-    if (filters?.status) params.append("status", filters.status);
-    if (filters?.assigneeId) params.append("assigneeId", filters.assigneeId.toString());
-    if (filters?.priority) params.append("priority", filters.priority);
+  /**
+   * Fetch all tasks
+   */
+  fetchTasks: async (params?: { workspaceId?: number; jobId?: number; status?: string }): Promise<Task[]> => {
+    const searchParams = new URLSearchParams();
+    if (params?.workspaceId) searchParams.set('workspaceId', params.workspaceId.toString());
+    if (params?.jobId) searchParams.set('jobId', params.jobId.toString());
+    if (params?.status) searchParams.set('status', params.status);
     
-    const query = params.toString() ? `?${params.toString()}` : "";
-    const response = await apiRequest("GET", `/api/tasks${query}`);
+    const url = searchParams.toString() ? `/api/tasks?${searchParams}` : '/api/tasks';
+    const response = await apiRequest('GET', url);
     return response.json();
   },
 
+  /**
+   * Fetch a single task
+   */
   fetchTask: async (id: number): Promise<Task> => {
-    const response = await apiRequest("GET", `/api/tasks/${id}`);
+    const response = await apiRequest('GET', `/api/tasks/${id}`);
     return response.json();
   },
 
+  /**
+   * Create a new task
+   */
   createTask: async (data: CreateTaskPayload): Promise<Task> => {
-    const response = await apiRequest("POST", "/api/tasks", data);
+    const response = await apiRequest('POST', '/api/tasks', data);
     return response.json();
   },
 
+  /**
+   * Update a task
+   */
   updateTask: async (id: number, data: Partial<CreateTaskPayload>): Promise<Task> => {
-    const response = await apiRequest("PATCH", `/api/tasks/${id}`, data);
+    const response = await apiRequest('PUT', `/api/tasks/${id}`, data);
     return response.json();
   },
 
+  /**
+   * Delete a task
+   */
   deleteTask: async (id: number): Promise<void> => {
-    await apiRequest("DELETE", `/api/tasks/${id}`);
-  },
-
-  // Subtasks
-  addSubtask: async (taskId: number, title: string, orderIndex?: number): Promise<Subtask> => {
-    const response = await apiRequest("POST", `/api/tasks/${taskId}/subtasks`, {
-      title,
-      orderIndex: orderIndex || 0,
-    });
-    return response.json();
-  },
-
-  updateSubtask: async (taskId: number, subtaskId: number, data: Partial<{ title: string; done: boolean; orderIndex: number }>): Promise<Subtask> => {
-    const response = await apiRequest("PATCH", `/api/tasks/${taskId}/subtasks/${subtaskId}`, data);
-    return response.json();
-  },
-
-  deleteSubtask: async (taskId: number, subtaskId: number): Promise<void> => {
-    await apiRequest("DELETE", `/api/tasks/${taskId}/subtasks/${subtaskId}`);
+    await apiRequest('DELETE', `/api/tasks/${id}`);
   },
 };
-

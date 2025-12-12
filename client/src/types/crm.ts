@@ -34,8 +34,11 @@ export interface Deal {
     updated_at: string;
     created_by: string | null;
     // Joined data
-    deal_stages?: DealStage;
-    profiles?: {
+    stage?: {
+        name: string;
+        color: string;
+    };
+    owner?: {
         full_name: string;
         avatar_url: string | null;
     };

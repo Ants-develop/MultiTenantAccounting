@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { tasksApi, Task, CreateTaskPayload } from "@/api/tasks";
+import { useQueryClient } from "@tanstack/react-query";
+import { useTasks, useTaskMutations, Task } from "@/hooks/useTasks";
 import { useLocation } from "wouter";
 import { KanbanBoard } from "@/components/tasks/KanbanBoard";
 import { TaskForm } from "@/components/tasks/TaskForm";
@@ -19,43 +19,23 @@ export default function TasksDashboard() {
   // Filters
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
-  const [assigneeFilter, setAssigneeFilter] = useState<number | undefined>();
+  const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>();
 
-  // For now, use a default workspace ID (will be replaced with workspace selection)
-  const workspaceId = 1;
-
-  const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["/api/tasks", { workspaceId, status: statusFilter, priority: priorityFilter, assigneeId: assigneeFilter }],
-    queryFn: () => tasksApi.fetchTasks({
-      workspaceId,
-      status: statusFilter,
-      priority: priorityFilter,
-      assigneeId: assigneeFilter,
-    }),
+  const { data: tasks = [], isLoading } = useTasks({
+    status: statusFilter,
+    priority: priorityFilter,
+    assigned_to: assigneeFilter,
   });
 
-  const updateTaskMutation = useMutation({
-    mutationFn: ({ taskId, updates }: { taskId: number; updates: Partial<Task> }) =>
-      tasksApi.updateTask(taskId, updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-    },
-  });
+  const { createTask, updateTask } = useTaskMutations();
 
-  const createTaskMutation = useMutation({
-    mutationFn: (data: CreateTaskPayload) => tasksApi.createTask(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/tasks"] });
-      setIsTaskFormOpen(false);
-    },
-  });
-
-  const handleTaskUpdate = async (taskId: number, updates: Partial<Task>) => {
-    await updateTaskMutation.mutateAsync({ taskId, updates });
+  const handleTaskUpdate = async (taskId: string, updates: Partial<Task>) => {
+    await updateTask.mutateAsync({ id: taskId, ...updates });
   };
 
-  const handleCreateTask = async (data: CreateTaskPayload) => {
-    await createTaskMutation.mutateAsync(data);
+  const handleCreateTask = async (data: Partial<Task>) => {
+    await createTask.mutateAsync(data);
+    setIsTaskFormOpen(false);
   };
 
   const handleTaskClick = (task: Task) => {
@@ -99,17 +79,14 @@ export default function TasksDashboard() {
         tasks={tasks}
         onTaskUpdate={handleTaskUpdate}
         isLoading={isLoading}
+        onTaskClick={handleTaskClick}
       />
 
       <TaskForm
         isOpen={isTaskFormOpen}
-        onClose={() => {
-          setIsTaskFormOpen(false);
-          setEditingTask(undefined);
-        }}
-        onSubmit={handleCreateTask}
+        onClose={() => setIsTaskFormOpen(false)}
+        onSubmit={editingTask ? (updates) => handleTaskUpdate(editingTask.id, updates) : handleCreateTask}
         initialData={editingTask}
-        workspaceId={workspaceId}
       />
     </div>
   );

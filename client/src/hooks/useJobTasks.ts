@@ -9,7 +9,7 @@ interface JobTask {
   status: string;
   assigned_to?: string;
   due_date?: string;
-  order_index: number;
+  order_position: number;
   is_required: boolean;
   created_at: string;
   completed_at?: string;
@@ -26,13 +26,13 @@ export const useJobTasks = (workflowId?: string) => {
       if (!workflowId) return [];
 
       const { data, error } = await supabase
-        .from("workflow_tasks")
+        .from("tasks")
         .select(`
           *,
           assigned_to_user:assigned_to(full_name, avatar_url)
         `)
         .eq("workflow_id", workflowId)
-        .order("order_index", { ascending: true });
+        .order("order_position", { ascending: true });
 
       if (error) throw error;
       return (data || []) as unknown as JobTask[];

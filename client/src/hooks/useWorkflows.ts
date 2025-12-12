@@ -49,6 +49,16 @@ export const useWorkflows = (filters?: WorkflowFilters) => {
 
       // Client-side search filter
       let workflows = (data || []) as unknown as WorkflowWithDetails[];
+
+      workflows = (workflows as any[]).map((w) => {
+        const u = w.assigned_to_user;
+        if (!u) return w;
+        const fullName = [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "User";
+        return {
+          ...w,
+          assigned_to_user: { full_name: fullName, avatar_url: null },
+        };
+      }) as WorkflowWithDetails[];
       
       if (filters?.search) {
         const searchLower = filters.search.toLowerCase();
@@ -81,7 +91,7 @@ export const useWorkflow = (workflowId?: string) => {
         .single();
 
       if (error) throw error;
-      return data as unknown as WorkflowWithDetails;
+      return data as WorkflowWithDetails;
     },
     enabled: !!workflowId,
   });

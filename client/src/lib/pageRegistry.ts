@@ -38,8 +38,7 @@ import TasksDashboard from "@/pages/tasks/TasksDashboard";
 import TaskDetail from "@/pages/tasks/TaskDetail";
 import PipelinesDashboard from "@/pages/pipelines/PipelinesDashboard";
 import PipelineBuilder from "@/pages/pipelines/PipelineBuilder";
-import JobsDashboard from "@/pages/jobs/JobsDashboard";
-import JobDetail from "@/pages/jobs/JobDetail";
+import Workflows from "@/pages/Workflows";
 import Calendar from "@/pages/Calendar";
 import { AutomationsDashboard } from "@/pages/automations/AutomationsDashboard";
 import { ClientProfile } from "@/pages/clients/ClientProfile";
@@ -54,6 +53,7 @@ import CRM from "@/pages/CRM";
 import Messages from "@/pages/Messages";
 import Notifications from "@/pages/Notifications";
 import Storage from "@/pages/admin/Storage";
+import SupabaseStatus from "@/pages/admin/SupabaseStatus";
 import FeedBitrix from "@/pages/FeedBitrix";
 
 export interface PageMetadata {
@@ -297,19 +297,8 @@ export const pageRegistry: PageConfig = {
   },
   "/jobs": {
     title: "Jobs",
-    component: JobsDashboard,
+    component: Workflows,
     path: "/jobs",
-  },
-  "/jobs/new": {
-    title: "New Job",
-    component: JobDetail,
-    path: "/jobs/new",
-  },
-  "/jobs/:id": {
-    title: "Job Detail",
-    component: JobDetail,
-    path: "/jobs/:id",
-    isDynamic: true,
   },
   "/calendar": {
     title: "Calendar",
@@ -375,6 +364,11 @@ export const pageRegistry: PageConfig = {
     title: "Storage",
     component: Storage,
     path: "/storage",
+  },
+  "/admin/supabase-status": {
+    title: "Supabase Status",
+    component: SupabaseStatus,
+    path: "/admin/supabase-status",
   },
 };
 

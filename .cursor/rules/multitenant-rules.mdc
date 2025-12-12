@@ -2,3 +2,5 @@
 description: during postgresql or any sql operations
 alwaysApply: false
 ---
+
+Always check Supabase project state using Supabase CLI commands before generating or applying database or storage changes.

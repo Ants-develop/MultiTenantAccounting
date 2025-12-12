@@ -41,6 +41,7 @@ import Calendar from "@/pages/Calendar";
 import Passwords from "@/pages/Passwords";
 import Tasks from "@/pages/Tasks";
 import Workflows from "@/pages/Workflows";
+import SupabaseStatus from "@/pages/admin/SupabaseStatus";
 
 // Data Warehouse
 import ChartOfAccounts from "@/pages/accounting/ChartOfAccounts";
@@ -56,7 +57,6 @@ import RoleManagement from "@/pages/admin/RoleManagement";
 import PermissionsManagement from "@/pages/admin/PermissionsManagement";
 
 // Additional Pages
-import JobsDashboard from "@/pages/jobs/JobsDashboard";
 // import Automations from "@/pages/Automations"; // TODO: Create this page
 // import EmailInbox from "@/pages/EmailInbox"; // TODO: Create this page
 import MSSQLImport from "@/pages/admin/MSSQLImport";
@@ -167,7 +167,6 @@ function ProtectedApp() {
           <Route path="/admin/import-clients" component={ClientImport} />
 
           {/* Additional Pages */}
-          <Route path="/jobs" component={JobsDashboard} />
           {/* <Route path="/automations" component={Automations} /> */}
           {/* <Route path="/email" component={EmailInbox} /> */}
           <Route path="/mssql-import" component={MSSQLImport} />
@@ -190,6 +189,7 @@ function ProtectedApp() {
           <Route path="/accounts-receivable" component={AccountsReceivable} />
           <Route path="/accounts-payable" component={AccountsPayable} />
           <Route path="/roles-management" component={RoleManagement} />
+          <Route path="/admin/supabase-status" component={SupabaseStatus} />
 
           {/* 404 */}
           <Route component={NotFound} />

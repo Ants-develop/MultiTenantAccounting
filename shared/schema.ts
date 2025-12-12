@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -45,98 +45,11 @@ export const clients = pgTable("clients", {
 // Keep companies as an alias for backwards compatibility during transition
 export const companies = clients;
 
-// Client Management (CRM) Tables
-export const clientDocuments = crm.table("client_documents", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  name: text("name").notNull(),
-  category: text("category").notNull(), // Tax, Payroll, Accounting, Legal, Other
-  fileData: text("file_data"), // BYTEA stored as text in Drizzle (nullable until uploaded)
-  fileType: text("file_type"),
-  fileSize: integer("file_size").default(0), // Default to 0 until file is uploaded
-  version: integer("version").default(1),
-  expirationDate: timestamp("expiration_date"),
-  uploadedBy: integer("uploaded_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// Client Management (CRM) Tables - REMOVED (Migrated to Supabase)
 
-export const clientServicePackages = crm.table("client_service_packages", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  packageName: text("package_name").notNull(),
-  services: jsonb("services").notNull(), // JSON array of services
-  startDate: timestamp("start_date").notNull(),
-  endDate: timestamp("end_date"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
 
-export const clientTeamAssignments = crm.table("client_team_assignments", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  role: text("role").notNull(), // Client Owner, Accountant, Reviewer, Assistant
-  assignedAt: timestamp("assigned_at").defaultNow(),
-  assignedBy: integer("assigned_by").references(() => users.id),
-});
+// Task System Enhancements - REMOVED (Migrated to Supabase)
 
-export const clientOnboardingForms = crm.table("client_onboarding_forms", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  formType: text("form_type").notNull(), // intake, tax_questionnaire, payroll_setup
-  formData: jsonb("form_data").notNull(), // Form field values
-  status: text("status").default("draft"), // draft, in_progress, completed, archived
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const clientOnboardingSteps = crm.table("client_onboarding_steps", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  stepName: text("step_name").notNull(),
-  stepType: text("step_type").notNull(), // document_upload, form_completion, meeting
-  isCompleted: boolean("is_completed").default(false),
-  completedAt: timestamp("completed_at"),
-  metadata: jsonb("metadata"), // Step-specific data
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Task System Enhancements
-export const taskAssignments = pgTable("task_assignments", {
-  id: serial("id").primaryKey(),
-  taskId: integer("task_id").references(() => tasks.id).notNull(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  role: text("role").notNull(), // assignee, reviewer, watcher
-  assignedAt: timestamp("assigned_at").defaultNow(),
-  assignedBy: integer("assigned_by").references(() => users.id),
-});
-
-export const checklistTemplates = pgTable("checklist_templates", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  category: text("category"),
-  items: jsonb("items").notNull(), // Array of items with conditions
-  isClientFacing: boolean("is_client_facing").default(false),
-  isActive: boolean("is_active").default(true),
-  createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const clientChecklists = crm.table("client_checklists", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
-  templateId: integer("template_id").references(() => checklistTemplates.id),
-  items: jsonb("items").notNull(), // Checklist items with completion status
-  status: text("status").default("in_progress"), // in_progress, completed, archived
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
 
 // Email Integration Tables (Gmail API)
 export const emailAccounts = pgTable("email_accounts", {
@@ -962,138 +875,8 @@ export type MainCompanySettings = typeof mainCompanySettings.$inferSelect;
 export type InsertMainCompanySettings = z.infer<typeof insertMainCompanySettingsSchema>;
 export type UpdateMainCompanySettings = z.infer<typeof updateMainCompanySettingsSchema>;
 
-// ============ TAXDOME MODULE ============
+// ============ TAXDOME MODULE - REMOVED (Migrated to Supabase) ============
 
-// Workspaces Table
-export const workspaces = pgTable("workspaces", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  code: text("code").unique(),
-  clientId: integer("client_id").references(() => clients.id, { onDelete: 'cascade' }),
-  plan: text("plan").default("standard"),
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Pipelines Table
-export const pipelines = pgTable("pipelines", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  description: text("description"),
-  stages: jsonb("stages").notNull(), // Array of stage objects
-  isActive: boolean("is_active").default(true),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Jobs Table
-export const jobs = pgTable("jobs", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  pipelineId: integer("pipeline_id").references(() => pipelines.id, { onDelete: 'set null' }),
-  clientId: integer("client_id").references(() => clients.id, { onDelete: 'set null' }),
-  title: text("title").notNull(),
-  description: text("description"),
-  status: text("status").default("active"), // active, completed, cancelled, on_hold
-  currentStage: text("current_stage"),
-  metadata: jsonb("metadata"),
-  matrixRoomId: text("matrix_room_id"),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
-  assignedTo: integer("assigned_to").references(() => users.id, { onDelete: 'set null' }),
-  dueDate: timestamp("due_date"),
-  completedAt: timestamp("completed_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Tasks Table
-export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  jobId: integer("job_id").references(() => jobs.id, { onDelete: 'cascade' }),
-  title: text("title").notNull(),
-  description: text("description"),
-  status: text("status").default("todo"), // todo, in_progress, done, cancelled, blocked
-  priority: text("priority").default("medium"), // low, medium, high, urgent
-  assigneeId: integer("assignee_id").references(() => users.id, { onDelete: 'set null' }),
-  reporterId: integer("reporter_id").references(() => users.id, { onDelete: 'set null' }),
-  dueDate: timestamp("due_date"),
-  startDate: timestamp("start_date"),
-  completedAt: timestamp("completed_at"),
-  recurrence: jsonb("recurrence"), // Recurrence pattern (legacy - use recurrencePattern)
-  recurrencePattern: jsonb("recurrence_pattern"), // JSON object for recurrence: {frequency, interval, daysOfWeek, dayOfMonth}
-  recurrenceEndDate: timestamp("recurrence_end_date"), // When recurring task generation should stop
-  slaDueDate: timestamp("sla_due_date"), // SLA-based due date
-  slaPriority: text("sla_priority"), // SLA priority level
-  dependsOnTaskId: integer("depends_on_task_id").references(() => tasks.id, { onDelete: 'set null' }), // Task dependency
-  matrixRoomId: text("matrix_room_id"),
-  metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Subtasks Table
-export const subtasks = pgTable("subtasks", {
-  id: serial("id").primaryKey(),
-  taskId: integer("task_id").references(() => tasks.id, { onDelete: 'cascade' }).notNull(),
-  title: text("title").notNull(),
-  done: boolean("done").default(false),
-  orderIndex: integer("order_index").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Events Table (Calendar)
-export const events = pgTable("events", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  title: text("title").notNull(),
-  description: text("description"),
-  start: timestamp("start").notNull(),
-  end: timestamp("end").notNull(),
-  timezone: text("timezone").default("UTC"),
-  ownerId: integer("owner_id").references(() => users.id, { onDelete: 'set null' }),
-  relatedTaskId: integer("related_task_id").references(() => tasks.id, { onDelete: 'set null' }),
-  relatedJobId: integer("related_job_id").references(() => jobs.id, { onDelete: 'set null' }),
-  matrixRoomId: text("matrix_room_id"),
-  location: text("location"),
-  isAllDay: boolean("is_all_day").default(false),
-  metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Automations Table
-export const automations = pgTable("automations", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  name: text("name").notNull(),
-  description: text("description"),
-  triggerType: text("trigger_type").notNull(), // job.stage_entered, task.completed, etc.
-  triggerConfig: jsonb("trigger_config").notNull(),
-  actions: jsonb("actions").notNull(), // Array of actions
-  isActive: boolean("is_active").default(true),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: 'set null' }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Activity Log Table (TaxDome-specific, extends existing activity_logs)
-export const taxdomeActivityLog = pgTable("activity_log", {
-  id: serial("id").primaryKey(),
-  workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: 'cascade' }),
-  userId: integer("user_id").references(() => users.id, { onDelete: 'set null' }),
-  actionType: text("action_type").notNull(), // task.created, job.stage_changed, etc.
-  targetType: text("target_type").notNull(), // task, job, pipeline, event, automation
-  targetId: integer("target_id").notNull(),
-  payload: jsonb("payload"),
-  ipAddress: text("ip_address"),
-  userAgent: text("user_agent"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
 
 // Migration History Tables
 // NOTE: These tables are managed by manual SQL migration (009_migration_tracking.sql)
@@ -1154,23 +937,8 @@ export type InsertJournalEntryEnhanced = z.infer<typeof insertJournalEntrySchema
 export type InsertJournalEntryLineEnhanced = z.infer<typeof insertJournalEntryLineSchemaEnhanced>;
 export type JournalEntryWithLines = z.infer<typeof journalEntryWithLinesSchema>;
 
-// TaxDome Types
-export type Workspace = typeof workspaces.$inferSelect;
-export type InsertWorkspace = typeof workspaces.$inferInsert;
-export type Pipeline = typeof pipelines.$inferSelect;
-export type InsertPipeline = typeof pipelines.$inferInsert;
-export type Job = typeof jobs.$inferSelect;
-export type InsertJob = typeof jobs.$inferInsert;
-export type Task = typeof tasks.$inferSelect;
-export type InsertTask = typeof tasks.$inferInsert;
-export type Subtask = typeof subtasks.$inferSelect;
-export type InsertSubtask = typeof subtasks.$inferInsert;
-export type Event = typeof events.$inferSelect;
-export type InsertEvent = typeof events.$inferInsert;
-export type Automation = typeof automations.$inferSelect;
-export type InsertAutomation = typeof automations.$inferInsert;
-export type TaxDomeActivityLog = typeof taxdomeActivityLog.$inferSelect;
-export type InsertTaxDomeActivityLog = typeof taxdomeActivityLog.$inferInsert;
+// TaxDome Types - REMOVED (Migrated to Supabase)
+
 // Notifications
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),

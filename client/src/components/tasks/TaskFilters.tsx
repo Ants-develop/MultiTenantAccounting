@@ -6,12 +6,12 @@ import { Filter, X } from "lucide-react";
 interface TaskFiltersProps {
   status?: string;
   priority?: string;
-  assigneeId?: number;
+  assigneeId?: string;
   onStatusChange: (status: string | undefined) => void;
   onPriorityChange: (priority: string | undefined) => void;
-  onAssigneeChange: (assigneeId: number | undefined) => void;
+  onAssigneeChange: (assigneeId: string | undefined) => void;
   onClear: () => void;
-  assignees?: Array<{ id: number; name: string }>;
+  assignees?: Array<{ id: string; name: string }>;
 }
 
 export const TaskFilters: React.FC<TaskFiltersProps> = ({

@@ -11,7 +11,7 @@ export interface WorkflowStage {
   id: string;
   template_id: string;
   name: string;
-  order_index: number;
+  order_position: number;
   color?: string;
   is_final_stage: boolean;
 }

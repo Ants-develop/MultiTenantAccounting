@@ -1,5 +1,5 @@
 import { apiRequest } from "./queryClient";
-import { supabase } from "./supabase";
+import { supabase, isSupabaseConfigured } from "./supabase";
 
 export interface AuthUser {
   id: number;
@@ -68,8 +68,8 @@ export function getAccessToken(): string | null {
   
   // If token exists but is expired, clear it and return null
   if (token && isTokenExpired(token)) {
-    console.log('Access token expired, attempting refresh...');
-    return token; // Return expired token so refresh mechanism can trigger
+    clearTokens();
+    return null;
   }
   
   return token;
@@ -95,27 +95,18 @@ export function clearTokens(): void {
  */
 export async function refreshAccessTokenFn(): Promise<string | null> {
   try {
-    console.log('Attempting to refresh access token via Supabase...');
-    const { data, error } = await supabase.auth.refreshSession();
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
 
-    if (error || !data.session) {
-      console.log('Supabase refresh failed, trying legacy refresh...');
-      // Fallback to legacy refresh
+    // This app primarily uses server-side sessions (/api/auth/*).
+    // Keep refresh behavior conservative to avoid noisy Supabase auth calls.
+    if (!isSupabaseConfigured) {
       return refreshLegacyToken();
     }
 
-    const accessToken = data.session.access_token;
-    const refreshToken = data.session.refresh_token;
-    
-    storeTokens(accessToken, refreshToken);
-    console.log('✅ Access token refreshed successfully via Supabase');
-    return accessToken;
+    return refreshLegacyToken();
   } catch (error) {
-    console.error('Token refresh failed:', error);
     clearTokens();
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
-    }
     return null;
   }
 }
@@ -157,36 +148,12 @@ export async function getCurrentUser(): Promise<AuthResponse> {
 }
 
 export async function login(username: string, password: string): Promise<AuthResponse> {
-  // 1. Try Supabase Login
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: username, // Assuming username is email for Supabase
-    password,
-  });
-
-  if (error) {
-    console.log('Supabase login failed, trying legacy login...', error.message);
-    // Fallback to legacy login
-    const response = await apiRequest('POST', '/api/auth/login', { username, password });
-    const legacyData = await response.json();
-    if (legacyData.tokens?.accessToken && legacyData.tokens?.refreshToken) {
-      storeTokens(legacyData.tokens.accessToken, legacyData.tokens.refreshToken);
-    }
-    return legacyData;
+  const response = await apiRequest('POST', '/api/auth/login', { username, password });
+  const legacyData = await response.json();
+  if (legacyData.tokens?.accessToken && legacyData.tokens?.refreshToken) {
+    storeTokens(legacyData.tokens.accessToken, legacyData.tokens.refreshToken);
   }
-
-  if (data.session) {
-    // Supabase Login Success
-    console.log('✅ Supabase login successful');
-    storeTokens(data.session.access_token, data.session.refresh_token);
-    
-    // Fetch user profile from backend using the Supabase token
-    const userResponse = await apiRequest('GET', '/api/auth/me');
-    const userData = await userResponse.json();
-    
-    return userData;
-  }
-
-  throw new Error('Login failed');
+  return legacyData;
 }
 
 export async function register(userData: {
@@ -210,7 +177,9 @@ export async function register(userData: {
 
 export async function logout(): Promise<void> {
   try {
-    await supabase.auth.signOut();
+    if (isSupabaseConfigured) {
+      await supabase.auth.signOut();
+    }
     await apiRequest('POST', '/api/auth/logout');
   } finally {
     clearTokens();

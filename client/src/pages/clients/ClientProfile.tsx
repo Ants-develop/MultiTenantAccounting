@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ClientTasks } from "@/components/clients/ClientTasks";
+import { ClientJobs } from "@/components/clients/ClientJobs";
+import { ClientCalendar } from "@/components/clients/ClientCalendar";
 
 const clientProfileSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -193,6 +196,9 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({ clientId, onClose 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="jobs">Jobs</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="team">Team & Services</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -360,6 +366,21 @@ export const ClientProfile: React.FC<ClientProfileProps> = ({ clientId, onClose 
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Tasks Tab */}
+        <TabsContent value="tasks">
+          <ClientTasks clientId={clientId} />
+        </TabsContent>
+
+        {/* Jobs Tab */}
+        <TabsContent value="jobs">
+          <ClientJobs clientId={clientId} />
+        </TabsContent>
+
+        {/* Calendar Tab */}
+        <TabsContent value="calendar">
+          <ClientCalendar clientId={clientId} />
         </TabsContent>
 
         {/* Team & Services Tab */}

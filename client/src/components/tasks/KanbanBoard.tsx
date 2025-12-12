@@ -12,7 +12,7 @@ import {
   SortableContext,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { Task } from "@/api/tasks";
+import { Task } from "@/hooks/useTasks";
 import { TaskCard } from "./TaskCard";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -24,7 +24,7 @@ interface KanbanColumn {
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onTaskUpdate: (taskId: number, updates: Partial<Task>) => Promise<void>;
+  onTaskUpdate: (taskId: string, updates: Partial<Task>) => Promise<void>;
   isLoading?: boolean;
   onTaskClick?: (task: Task) => void;
 }

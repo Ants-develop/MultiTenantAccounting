@@ -2,15 +2,11 @@
 import { apiRequest } from "@/lib/queryClient";
 
 export interface PipelineStage {
-  id: string;
+  id?: number;
   name: string;
   order: number;
-  taskTemplates?: Array<{
-    title: string;
-    description?: string;
-    assigneeId?: number;
-    priority?: "low" | "medium" | "high" | "urgent";
-  }>;
+  color?: string;
+  automationId?: number;
 }
 
 export interface Pipeline {
@@ -18,9 +14,8 @@ export interface Pipeline {
   workspaceId: number;
   name: string;
   description?: string;
-  stages: PipelineStage[];
   isActive: boolean;
-  createdBy?: number;
+  stages: PipelineStage[];
   createdAt: string;
   updatedAt: string;
 }
@@ -29,34 +24,47 @@ export interface CreatePipelinePayload {
   workspaceId: number;
   name: string;
   description?: string;
-  stages: PipelineStage[];
   isActive?: boolean;
+  stages?: PipelineStage[];
 }
 
 export const pipelinesApi = {
-  fetchPipelines: async (workspaceId?: number): Promise<Pipeline[]> => {
-    const query = workspaceId ? `?workspaceId=${workspaceId}` : "";
-    const response = await apiRequest("GET", `/api/pipelines${query}`);
+  /**
+   * Fetch all pipelines for a workspace
+   */
+  fetchPipelines: async (workspaceId: number): Promise<Pipeline[]> => {
+    const response = await apiRequest('GET', `/api/pipelines?workspaceId=${workspaceId}`);
     return response.json();
   },
 
+  /**
+   * Fetch a single pipeline
+   */
   fetchPipeline: async (id: number): Promise<Pipeline> => {
-    const response = await apiRequest("GET", `/api/pipelines/${id}`);
+    const response = await apiRequest('GET', `/api/pipelines/${id}`);
     return response.json();
   },
 
+  /**
+   * Create a new pipeline
+   */
   createPipeline: async (data: CreatePipelinePayload): Promise<Pipeline> => {
-    const response = await apiRequest("POST", "/api/pipelines", data);
+    const response = await apiRequest('POST', '/api/pipelines', data);
     return response.json();
   },
 
+  /**
+   * Update a pipeline
+   */
   updatePipeline: async (id: number, data: Partial<CreatePipelinePayload>): Promise<Pipeline> => {
-    const response = await apiRequest("PUT", `/api/pipelines/${id}`, data);
+    const response = await apiRequest('PUT', `/api/pipelines/${id}`, data);
     return response.json();
   },
 
+  /**
+   * Delete a pipeline
+   */
   deletePipeline: async (id: number): Promise<void> => {
-    await apiRequest("DELETE", `/api/pipelines/${id}`);
+    await apiRequest('DELETE', `/api/pipelines/${id}`);
   },
 };
-

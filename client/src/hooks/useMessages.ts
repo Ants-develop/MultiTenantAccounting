@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { getAccessToken } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface Conversation {
-  id: string;
+  id: number;
   title?: string | null;
   type: "direct" | "group";
   last_message_at?: string;
@@ -15,29 +15,34 @@ export interface Conversation {
 }
 
 export interface ConversationParticipant {
-  id: string;
-  user_id: string;
+  id: number;
+  user_id: number;
+  last_read_at?: string | null;
   user?: {
-    id: string;
-    display_name?: string;
-    avatar_url?: string;
+    id: number;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
   };
 }
 
 export interface Message {
-  id: string;
-  conversation_id: string;
+  id: number;
+  conversation_id: number;
   content: string;
-  message_type?: "text" | "file" | "voice" | "image";
+  type?: "text" | "file" | "voice" | "image";
+  metadata?: any;
   created_at: string;
-  created_by: string;
+  updated_at?: string;
+  sender_id: number;
   is_deleted?: boolean;
-  created_by_user?: {
-    id: string;
-    display_name?: string;
-    avatar_url?: string;
+  is_edited?: boolean;
+  sender?: {
+    id: number;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
   };
-  reactions?: MessageReaction[];
 }
 
 export interface MessageReaction {
@@ -90,21 +95,25 @@ export const useConversations = () => {
           participants:conversation_participants(
             id,
             user_id,
-            user:users(id, display_name, avatar_url)
+            last_read_at,
+            user:user_id(id, full_name, avatar_url)
           ),
-          messages:conversation_messages(
+          messages:messages(
             id,
             content,
-            message_type,
+            type,
+            metadata,
             created_at,
-            created_by,
+            sender_id,
             is_deleted,
-            created_by_user:users(id, display_name, avatar_url)
+            sender:sender_id(id, full_name, avatar_url)
           )
         `
         )
         .order("last_message_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("created_at", { referencedTable: "messages", ascending: false })
+        .limit(1, { foreignTable: "messages" });
 
       if (error) throw error;
       return (data || []) as Conversation[];
@@ -112,31 +121,117 @@ export const useConversations = () => {
   });
 };
 
-export const useSendMessage = () => {
+export const useCreateConversation = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
 
   return useMutation({
     mutationFn: async (payload: {
-      conversation_id: string;
-      content: string;
-      message_type?: "text" | "file" | "voice" | "image";
+      title: string | null;
+      is_group: boolean;
+      participant_ids: number[];
+      client_id?: number | null;
     }) => {
-      const token = getAccessToken();
+      if (!user?.id) throw new Error("Not authenticated");
+
+      const participantIds = Array.from(
+        new Set([user.id, ...(payload.participant_ids || [])])
+      );
+
+      if (!payload.is_group && participantIds.length !== 2) {
+        throw new Error("Direct conversations must have exactly 2 participants");
+      }
+
+      // For direct conversations, try to find an existing one first.
+      if (!payload.is_group) {
+        const otherUserId = participantIds.find((id) => id !== user.id);
+        if (!otherUserId) throw new Error("Missing other user");
+
+        const { data: existing, error: existingError } = await supabase
+          .from("conversations")
+          .select(
+            `
+            id,
+            type,
+            participants:conversation_participants(user_id)
+          `
+          )
+          .eq("type", "direct");
+
+        if (existingError) throw existingError;
+
+        const match = (existing || []).find((c: any) => {
+          const ids = (c.participants || []).map((p: any) => p.user_id);
+          return ids.length === 2 && ids.includes(user.id) && ids.includes(otherUserId);
+        });
+
+        if (match?.id) return { id: match.id } as any;
+      }
+
+      const { data: conversation, error: conversationError } = await supabase
+        .from("conversations")
+        .insert([
+          {
+            title: payload.title,
+            type: payload.is_group ? "group" : "direct",
+            client_id: payload.client_id ?? null,
+            created_by: user.id,
+          },
+        ])
+        .select("id")
+        .single();
+
+      if (conversationError) throw conversationError;
+
+      const now = new Date().toISOString();
+      const participantsRows = participantIds.map((id) => ({
+        conversation_id: conversation.id,
+        user_id: id,
+        last_read_at: id === user.id ? now : null,
+      }));
+
+      const { error: participantsError } = await supabase
+        .from("conversation_participants")
+        .insert(participantsRows);
+
+      if (participantsError) throw participantsError;
+
+      return conversation as { id: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+};
+
+export const useSendMessage = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (payload: {
+      conversation_id: number;
+      content: string;
+      type?: "text" | "file" | "voice" | "image";
+      metadata?: any;
+    }) => {
+      if (!user?.id) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
-        .from("conversation_messages")
+        .from("messages")
         .insert([
           {
             conversation_id: payload.conversation_id,
             content: payload.content,
-            message_type: payload.message_type || "text",
-            created_by: token,
+            type: payload.type || "text",
+            metadata: payload.metadata || {},
+            sender_id: user.id,
           },
         ])
         .select(
           `
           *,
-          created_by_user:users(id, display_name, avatar_url)
+          sender:sender_id(id, full_name, avatar_url)
         `
         )
         .single();
@@ -156,7 +251,7 @@ export const useDeleteMessage = () => {
   return useMutation({
     mutationFn: async (messageId: string) => {
       const { error } = await supabase
-        .from("conversation_messages")
+        .from("messages")
         .update({ is_deleted: true })
         .eq("id", messageId);
 
@@ -176,22 +271,10 @@ export const useAddMessageReaction = () => {
       message_id: string;
       emoji: string;
     }) => {
-      const token = getAccessToken();
-
-      const { data, error } = await supabase
-        .from("message_reactions")
-        .insert([
-          {
-            message_id: payload.message_id,
-            emoji: payload.emoji,
-            created_by: token,
-          },
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data as MessageReaction;
+      // NOTE: message reactions table may not exist in the current schema.
+      // This hook remains for backwards-compatibility; wire it up if/when
+      // `message_reactions` is added.
+      throw new Error("Message reactions are not implemented in this schema");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["conversations"] });

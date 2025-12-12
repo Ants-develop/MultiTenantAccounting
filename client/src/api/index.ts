@@ -18,8 +18,8 @@ export { reportingApi } from './reporting';
 // Bank Module
 export { bankApi } from './bank';
 
-// Tasks Module
-export { tasksApi } from './tasks';
+// Tasks Module - REMOVED
+// export { tasksApi } from './tasks';
 
 // Other Modules
 export { companiesApi } from './companies';

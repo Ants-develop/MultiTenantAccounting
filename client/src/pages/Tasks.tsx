@@ -31,13 +31,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useDeleteTask } from "@/hooks/useTasks";
+import { useTaskMutations } from "@/hooks/useTasks";
 import { toast } from "sonner";
+import { TaskDetailDialog } from "@/components/tasks/TaskDetailDialog";
 
 const Tasks = () => {
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [filters, setFilters] = useState<TaskFilters>({});
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
 
   // Fetch filters data
   const statuses: TaskStatus[] = ["todo", "in_progress", "review", "completed", "blocked"];
@@ -54,16 +56,19 @@ const Tasks = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("users")
-        .select("id, display_name")
-        .order("display_name");
+        .select("id, first_name, last_name, email")
+        .order("first_name");
       if (error) throw error;
-      return data;
+      return (data || []).map((u: any) => ({
+        id: u.id,
+        full_name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "User",
+      }));
     },
   });
 
   const { data: tasks, isLoading } = useTasks(filters);
   const { data: tasksByStatus } = useTasksByStatus(filters.workflow_job_id);
-  const deleteTask = useDeleteTask();
+  const { deleteTask } = useTaskMutations();
 
   const handleDeleteTask = async () => {
     if (deleteTaskId) {
@@ -192,7 +197,7 @@ const Tasks = () => {
                 <SelectItem value="all">All Assignees</SelectItem>
                 {assignees?.map((user) => (
                   <SelectItem key={user.id} value={user.id}>
-                    {user.display_name}
+                    {user.full_name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -251,6 +256,7 @@ const Tasks = () => {
                         <Card
                           key={task.id}
                           className="p-3 cursor-move hover:shadow-lg transition-shadow"
+                          onClick={() => setSelectedTaskId(parseInt(task.id))}
                         >
                           <h4 className="font-medium text-sm">{task.title}</h4>
                           {task.description && (
@@ -296,7 +302,8 @@ const Tasks = () => {
               {tasks.map((task: Task) => (
                 <Card
                   key={task.id}
-                  className={`p-4 ${getStatusColor(task.status)}`}
+                  className={`p-4 ${getStatusColor(task.status)} cursor-pointer hover:shadow-md transition-shadow`}
+                  onClick={() => setSelectedTaskId(parseInt(task.id))}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1">
@@ -363,6 +370,11 @@ const Tasks = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TaskDetailDialog
+        taskId={selectedTaskId}
+        onClose={() => setSelectedTaskId(null)}
+      />
     </div>
   );
 };

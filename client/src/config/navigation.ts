@@ -162,6 +162,12 @@ export const adminNavigation: NavigationItem[] = [
         icon: Shield,
         requiresGlobalAdmin: true,
     },
+    {
+        name: "Supabase Status",
+        href: "/admin/supabase-status",
+        icon: Database,
+        requiresGlobalAdmin: true,
+    },
 ];
 
 export const additionalPagesNavigation: NavigationItem[] = [

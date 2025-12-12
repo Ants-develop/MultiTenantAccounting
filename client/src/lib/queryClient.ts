@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAccessToken, refreshAccessTokenFn } from "./auth";
+import { getAccessToken, getRefreshToken, refreshAccessTokenFn } from "./auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -38,7 +38,8 @@ export async function apiRequest(
 
   // If unauthorized (401) and we have a refresh token, try to refresh
   if (res.status === 401) {
-    const newToken = await refreshAccessTokenFn();
+    const refreshToken = getRefreshToken();
+    const newToken = refreshToken ? await refreshAccessTokenFn() : null;
     if (newToken) {
       // Retry request with new token
       headers["Authorization"] = `Bearer ${newToken}`;
@@ -73,7 +74,8 @@ export const getQueryFn: <T>(options: {
 
     // If unauthorized (401) and we have a refresh token, try to refresh
     if (res.status === 401) {
-      const newToken = await refreshAccessTokenFn();
+      const refreshToken = getRefreshToken();
+      const newToken = refreshToken ? await refreshAccessTokenFn() : null;
       if (newToken) {
         // Retry request with new token
         headers["Authorization"] = `Bearer ${newToken}`;

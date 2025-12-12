@@ -13,7 +13,7 @@ export const useWorkflowMutations = () => {
         .from("workflow_stages")
         .select("id")
         .eq("template_id", input.template_id)
-        .order("order_index", { ascending: true })
+        .order("order_position", { ascending: true })
         .limit(1);
 
       if (stagesError) throw stagesError;
@@ -94,26 +94,13 @@ export const useWorkflowMutations = () => {
 
   const transitionWorkflowStage = useMutation({
     mutationFn: async (input: StageTransitionInput) => {
-      const { data, error } = await supabase
-        .from("workflows")
-        .update({ current_stage_id: input.new_stage_id })
-        .eq("id", input.workflow_id)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("transition_workflow_stage", {
+        _workflow_id: input.workflow_id,
+        _new_stage_id: input.new_stage_id,
+        _notes: input.notes,
+      });
 
       if (error) throw error;
-
-      // Optionally log the transition
-      if (input.notes) {
-        await supabase.from("workflow_stage_history").insert([
-          {
-            workflow_id: input.workflow_id,
-            stage_id: input.new_stage_id,
-            notes: input.notes,
-          },
-        ]);
-      }
-
       return data;
     },
     onSuccess: () => {

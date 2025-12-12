@@ -21,7 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,65 +32,45 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { CalendarEvent } from "@/hooks/useCalendarEvents";
+import { useUpdateEventStatus, useDeleteEvent } from "@/hooks/useCalendarEvents";
 import { useState } from "react";
-
-interface EventParticipant {
-  user_id: string;
-  status: 'pending' | 'accepted' | 'declined' | 'tentative';
-  is_organizer?: boolean;
-  can_edit?: boolean;
-  user?: {
-    full_name: string;
-    email?: string;
-  };
-}
-
-interface CalendarEventDetails {
-  id: string;
-  title: string;
-  description?: string | null;
-  start_time: string;
-  end_time: string;
-  location?: string | null;
-  meeting_url?: string | null;
-  participants: EventParticipant[];
-  created_by: string;
-}
+import { useAuth } from "@/hooks/useAuth";
+import { EditEventDialog } from "./EditEventDialog";
 
 interface EventDetailsDialogProps {
-  event: CalendarEventDetails;
+  event: CalendarEvent;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentUserId?: string;
-  onRSVP?: (status: 'accepted' | 'declined' | 'tentative') => void;
-  onDelete?: () => void;
-  onEdit?: () => void;
 }
 
 export const EventDetailsDialog = ({
   event,
   open,
   onOpenChange,
-  currentUserId,
-  onRSVP,
-  onDelete,
-  onEdit,
 }: EventDetailsDialogProps) => {
+  const { data: user } = useAuth();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const updateStatus = useUpdateEventStatus();
+  const deleteEvent = useDeleteEvent();
 
   const currentUserParticipant = event.participants.find(
-    (p) => p.user_id === currentUserId
+    (p) => String(p.user_id) === String(user?.user?.id)
   );
 
-  const isOrganizer = currentUserParticipant?.is_organizer || event.created_by === currentUserId;
+  const isOrganizer = currentUserParticipant?.is_organizer || false;
   const canEdit = currentUserParticipant?.can_edit || isOrganizer;
 
-  const handleRSVP = (status: 'accepted' | 'declined' | 'tentative') => {
-    onRSVP?.(status);
+  const handleRSVP = async (status: 'accepted' | 'declined' | 'tentative') => {
+    await updateStatus.mutateAsync({ eventId: event.id, status });
   };
 
-  const handleDelete = () => {
-    onDelete?.();
+  const handleDelete = async () => {
+    await deleteEvent.mutateAsync({
+      eventId: event.id,
+      eventTitle: event.title,
+    });
     setShowDeleteDialog(false);
     onOpenChange(false);
   };
@@ -125,23 +105,50 @@ export const EventDetailsDialog = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle className="text-2xl">{event.title}</DialogTitle>
+            <div className="flex items-start justify-between pr-8">
+              <DialogTitle className="text-xl font-semibold flex items-center gap-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: event.color }}
+                />
+                {event.title}
+              </DialogTitle>
+              {canEdit && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowEditDialog(true)}
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:text-destructive"
+                    onClick={() => setShowDeleteDialog(true)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
 
           <div className="space-y-6">
-            {/* Date & Time */}
+            {/* Time & Date */}
             <div className="flex items-start gap-3">
               <CalendarIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>
-                <div className="font-medium">
+                <p className="font-medium">
                   {format(new Date(event.start_time), "EEEE, MMMM d, yyyy")}
-                </div>
-                <div className="text-sm text-muted-foreground">
+                </p>
+                <p className="text-sm text-muted-foreground">
                   {format(new Date(event.start_time), "h:mm a")} -{" "}
                   {format(new Date(event.end_time), "h:mm a")}
-                </div>
+                </p>
               </div>
             </div>
 
@@ -149,144 +156,113 @@ export const EventDetailsDialog = ({
             {event.location && (
               <div className="flex items-start gap-3">
                 <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div className="text-sm">{event.location}</div>
+                <div>
+                  <p className="text-sm">{event.location}</p>
+                </div>
               </div>
             )}
 
-            {/* Meeting URL */}
-            {event.meeting_url && (
+            {/* Meeting Link */}
+            {event.meeting_link && (
               <div className="flex items-start gap-3">
                 <LinkIcon className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <a
-                  href={event.meeting_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-primary hover:underline"
-                >
-                  {event.meeting_url}
-                </a>
+                <div>
+                  <a
+                    href={event.meeting_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-primary hover:underline break-all"
+                  >
+                    {event.meeting_link}
+                  </a>
+                </div>
               </div>
             )}
 
             {/* Description */}
             {event.description && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className="font-medium mb-2">Description</h4>
-                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {event.description}
-                  </p>
-                </div>
-              </>
+              <div className="text-sm text-muted-foreground bg-muted/30 p-3 rounded-md">
+                {event.description}
+              </div>
             )}
+
+            <Separator />
 
             {/* Participants */}
-            {event.participants.length > 0 && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Participants ({event.participants.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {event.participants.map((participant) => (
-                      <div
-                        key={participant.user_id}
-                        className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback>
-                              {getInitials(participant.user?.full_name || "U")}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="text-sm font-medium">
-                              {participant.user?.full_name || "Unknown User"}
-                              {participant.is_organizer && (
-                                <Badge variant="secondary" className="ml-2 text-xs">
-                                  Organizer
-                                </Badge>
-                              )}
-                            </div>
-                            {participant.user?.email && (
-                              <div className="text-xs text-muted-foreground">
-                                {participant.user.email}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        {getStatusBadge(participant.status)}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <h4 className="text-sm font-medium">Participants</h4>
+              </div>
+              <div className="space-y-3">
+                {event.participants.map((participant) => (
+                  <div
+                    key={participant.id}
+                    className="flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={participant.profiles?.avatar_url || undefined} />
+                        <AvatarFallback>
+                          {getInitials(participant.profiles?.full_name || "Unknown")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-sm font-medium">
+                          {participant.profiles?.full_name}
+                          {participant.is_organizer && (
+                            <span className="text-xs text-muted-foreground ml-2">
+                              (Organizer)
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {participant.profiles?.email}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+                    {getStatusBadge(participant.status)}
                   </div>
-                </div>
-              </>
-            )}
+                ))}
+              </div>
+            </div>
 
             {/* RSVP Actions */}
-            {currentUserParticipant && currentUserParticipant.status === 'pending' && onRSVP && (
-              <>
-                <Separator />
-                <div>
-                  <h4 className="font-medium mb-3">RSVP</h4>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => handleRSVP('accepted')}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                      Accept
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => handleRSVP('tentative')}
-                    >
-                      <HelpCircle className="h-4 w-4 mr-2 text-yellow-500" />
-                      Maybe
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => handleRSVP('declined')}
-                    >
-                      <XCircle className="h-4 w-4 mr-2 text-red-500" />
-                      Decline
-                    </Button>
-                  </div>
-                </div>
-              </>
+            {!isOrganizer && currentUserParticipant && (
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant={currentUserParticipant.status === "accepted" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleRSVP("accepted")}
+                  className="gap-2"
+                >
+                  <CheckCircle className="h-4 w-4" />
+                  Accept
+                </Button>
+                <Button
+                  variant={currentUserParticipant.status === "tentative" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => handleRSVP("tentative")}
+                  className="gap-2"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                  Maybe
+                </Button>
+                <Button
+                  variant={currentUserParticipant.status === "declined" ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => handleRSVP("declined")}
+                  className="gap-2"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Decline
+                </Button>
+              </div>
             )}
           </div>
-
-          <DialogFooter className="gap-2">
-            {canEdit && onDelete && (
-              <Button
-                variant="destructive"
-                onClick={() => setShowDeleteDialog(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </Button>
-            )}
-            {canEdit && onEdit && (
-              <Button variant="outline" onClick={onEdit}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -297,10 +273,23 @@ export const EventDetailsDialog = ({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {showEditDialog && (
+        <EditEventDialog
+          event={event}
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+        />
+      )}
     </>
   );
 };

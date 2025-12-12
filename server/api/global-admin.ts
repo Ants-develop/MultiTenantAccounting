@@ -214,45 +214,46 @@ router.get("/clients", async (req, res) => {
     }
 
     // Now get the stats for each filtered company
-    const companiesWithStats = await Promise.all(
-      allFilteredCompanies.map(async (company: any) => {
-        const stats = await db
-          .select({
-            userCount: sql<number>`count(${userCompanies.userId})::int`,
-            activeUserCount: sql<number>`count(case when ${userCompanies.isActive} then 1 end)::int`
-          })
-          .from(userCompanies)
-          .where(eq(userCompanies.clientId, company.id));
+    // NOTE: Run sequentially to avoid exhausting pooled connections (Supabase pooler limits)
+    const companiesWithStats: any[] = [];
+    for (const company of allFilteredCompanies) {
+      const stats = await db
+        .select({
+          userCount: sql<number>`count(${userCompanies.userId})::int`,
+          activeUserCount: sql<number>`count(case when ${userCompanies.isActive} then 1 end)::int`,
+        })
+        .from(userCompanies)
+        .where(eq(userCompanies.clientId, company.id));
 
-        return {
-          ...company,
-          userCount: stats[0]?.userCount || 0,
-          activeUserCount: stats[0]?.activeUserCount || 0
-        };
-      })
-    ).then(results => results.sort((a: any, b: any) => a.name.localeCompare(b.name)));
+      companiesWithStats.push({
+        ...company,
+        userCount: stats[0]?.userCount || 0,
+        activeUserCount: stats[0]?.activeUserCount || 0,
+      });
+    }
 
-    // Get user details for each company
-    const companiesWithUsers = await Promise.all(
-      companiesWithStats.map(async (company) => {
-        const companyUsers = await db
-          .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            username: users.username,
-          })
-          .from(userCompanies)
-          .innerJoin(users, eq(userCompanies.userId, users.id))
-          .where(eq(userCompanies.clientId, company.id))
-          .limit(5); // Only get first 5 for display
+    companiesWithStats.sort((a: any, b: any) => a.name.localeCompare(b.name));
 
-        return {
-          ...company,
-          users: companyUsers
-        };
-      })
-    );
+    // Get user details for each company (sequential to prevent connection spikes)
+    const companiesWithUsers: any[] = [];
+    for (const company of companiesWithStats) {
+      const companyUsers = await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          username: users.username,
+        })
+        .from(userCompanies)
+        .innerJoin(users, eq(userCompanies.userId, users.id))
+        .where(eq(userCompanies.clientId, company.id))
+        .limit(5); // Only get first 5 for display
+
+      companiesWithUsers.push({
+        ...company,
+        users: companyUsers,
+      });
+    }
 
     // Apply verification filter (client-side for now, since we don't have that data in DB)
     let filteredCompanies = companiesWithUsers;

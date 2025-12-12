@@ -43,11 +43,13 @@ const Workflows = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("users")
-        .select("id, full_name")
-        .eq("status", "active")
-        .order("full_name");
+        .select("id, first_name, last_name, email")
+        .order("first_name");
       if (error) throw error;
-      return data || [];
+      return (data || []).map((u: any) => ({
+        id: u.id,
+        full_name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "User",
+      }));
     },
   });
 

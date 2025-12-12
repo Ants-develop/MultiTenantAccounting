@@ -8,6 +8,13 @@
       "when": 1764073228777,
       "tag": "0000_dark_norrin_radd",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1765492166153,
+      "tag": "0001_mysterious_fallen_one",
+      "breakpoints": true
     }
   ]
 }

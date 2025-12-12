@@ -1186,6 +1186,18 @@ If you encounter issues not covered here:
 | `SUPABASE_URL` | Supabase project URL | No |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | No |
 
+### Frontend: Supabase (Practice Management)
+
+The React app uses `supabase-js` directly for Practice Management data.
+
+- Vite loads env files from the Vite `root`, which is the `client/` folder in this repo.
+- Create `client/.env` based on `client/.env.example`.
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `VITE_SUPABASE_URL` | Supabase project URL | Yes (for Practice Management) |
+| `VITE_SUPABASE_ANON_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase anon/publishable key | Yes (for Practice Management) |
+
 ### Example .env File
 
 ```env

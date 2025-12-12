@@ -30,21 +30,15 @@ import mssqlImportRouter from "./api/mssql-import";
 import rsAdminRouter from "./api/rs-admin";
 import rsSyncRouter from "./api/rs-sync";
 import permissionsRouter from "./api/permissions";
-import pipelinesRouter from "./api/pipelines";
-import jobsRouter from "./api/jobs";
-import tasksRouter from "./api/tasks";
-import calendarRouter from "./api/calendar";
-import matrixRouter from "./api/matrix";
-import clientManagementRouter from "./api/client-management";
+// import matrixRouter from "./api/matrix"; // REMOVED
 import emailRouter from "./api/email";
-import automationsRouter from "./api/automations";
-import clientPortalRouter from "./api/client-portal";
 import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
 import feedRouter from "./routes/feed";
+import messagesRouter from "./api/messages";
 
 declare module "express-session" {
   interface SessionData {
@@ -317,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ipAddress: req.ip,
         userAgent: req.get('user-agent') || undefined,
       }, {
-        action: ACTIVITY_ACTIONS.USER_UPDATE,
+        action: ACTIVITY_ACTIONS.PROFILE_UPDATE,
         resource: RESOURCE_TYPES.USER,
         resourceId: userId,
       });
@@ -590,21 +584,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Bank Module
   app.use('/api/bank', bankRouter);
 
-  // TaxDome Module
-  app.use('/api/pipelines', pipelinesRouter);
-  app.use('/api/jobs', jobsRouter);
-  app.use('/api/tasks', tasksRouter);
-  app.use('/api/calendar', calendarRouter);
-  app.use('/api/matrix', matrixRouter);
+  // TaxDome Module - REMOVED (Migrated to Supabase)
+  // app.use('/api/pipelines', pipelinesRouter);
+  // app.use('/api/jobs', jobsRouter);
+  // app.use('/api/tasks', tasksRouter);
+  // app.use('/api/calendar', calendarRouter);
+  // app.use('/api/matrix', matrixRouter); // REMOVED
 
   // Communication Hub
   app.use('/api/email', emailRouter);
 
-  // Automation Engine
-  app.use('/api/automations', automationsRouter);
+  // Automation Engine - REMOVED (Migrated to Supabase)
+  // app.use('/api/automations', automationsRouter);
 
-  // Client Portal
-  app.use('/api/client-portal', clientPortalRouter);
+  // Client Portal - REMOVED (Migrated to Supabase)
+  // app.use('/api/client-portal', clientPortalRouter);
   app.use('/api/backup-restore', requireAuth, requireGlobalAdmin, backupRestoreRouter);
 
   // Storage Module
@@ -617,7 +611,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Client companies management
   app.use('/api/clients', clientsRouter);
-  app.use('/api/clients', clientManagementRouter); // Client Management (CRM) endpoints
+  // app.use('/api/clients', clientManagementRouter); // Client Management (CRM) endpoints - REMOVED
 
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/home', homeRouter);
@@ -630,6 +624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/activity-logs', requireAuth, activityLogsRouter);
   app.use('/api/notifications', requireAuth, notificationsRouter);
   app.use('/api/feed', requireAuth, feedRouter);
+  app.use('/api/messages', messagesRouter);
 
   // Start server
   const server = createServer(app);
