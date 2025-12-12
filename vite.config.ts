@@ -9,6 +9,7 @@ export default defineConfig(async ({ mode }) => {
   const backendPort = process.env.PORT ? parseInt(process.env.PORT) : 5000;
   
   return {
+    envDir: path.resolve(import.meta.dirname),
     server: {
       host: "::",
       port: 81,

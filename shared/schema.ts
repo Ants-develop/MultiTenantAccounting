@@ -21,6 +21,18 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Profiles table (Supabase Auth)
+export const profiles = pgTable("profiles", {
+  id: uuid("id").primaryKey(), // References auth.users
+  fullName: text("full_name").notNull(),
+  avatarUrl: text("avatar_url"),
+  phone: text("phone"),
+  jobTitle: text("job_title"),
+  clientId: integer("client_id").references(() => clients.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Clients table (renamed from companies - now represents client companies)
 export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
@@ -51,79 +63,11 @@ export const companies = clients;
 // Task System Enhancements - REMOVED (Migrated to Supabase)
 
 
-// Email Integration Tables (Gmail API)
-export const emailAccounts = pgTable("email_accounts", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  clientId: integer("client_id").references(() => clients.id),
-  emailAddress: text("email_address").notNull(),
-  provider: text("provider").default("gmail"), // 'gmail' (Google OAuth)
-  accessToken: text("access_token"), // Encrypted OAuth access token
-  refreshToken: text("refresh_token"), // Encrypted OAuth refresh token
-  tokenExpiry: timestamp("token_expiry"), // When the access token expires
-  // Legacy fields (kept for compatibility)
-  imapHost: text("imap_host"),
-  imapPort: integer("imap_port").default(993),
-  imapUsername: text("imap_username"),
-  imapPassword: text("imap_password"), // Can store encrypted token as fallback
-  smtpHost: text("smtp_host"),
-  smtpPort: integer("smtp_port").default(587),
-  smtpUsername: text("smtp_username"),
-  smtpPassword: text("smtp_password"), // Can store encrypted refresh token as fallback
-  isActive: boolean("is_active").default(true),
-  lastSyncAt: timestamp("last_sync_at"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const emailMessages = pgTable("email_messages", {
-  id: serial("id").primaryKey(),
-  emailAccountId: integer("email_account_id").references(() => emailAccounts.id).notNull(),
-  clientId: integer("client_id").references(() => clients.id),
-  messageId: text("message_id").notNull(),
-  threadId: text("thread_id"),
-  subject: text("subject"),
-  fromAddress: text("from_address").notNull(),
-  toAddresses: jsonb("to_addresses"), // Array of strings
-  ccAddresses: jsonb("cc_addresses"),
-  bccAddresses: jsonb("bcc_addresses"),
-  bodyText: text("body_text"),
-  bodyHtml: text("body_html"),
-  attachments: jsonb("attachments"), // Array of attachment metadata
-  isRead: boolean("is_read").default(false),
-  isArchived: boolean("is_archived").default(false),
-  labels: jsonb("labels"), // Array of strings
-  receivedAt: timestamp("received_at").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const emailTemplates = pgTable("email_templates", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  subject: text("subject").notNull(),
-  bodyHtml: text("body_html"),
-  bodyText: text("body_text"),
-  variables: jsonb("variables"), // Available template variables
-  category: text("category"),
-  isActive: boolean("is_active").default(true),
-  createdBy: integer("created_by").references(() => users.id),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const emailRoutingRules = pgTable("email_routing_rules", {
-  id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id),
-  ruleType: text("rule_type").notNull(),
-  condition: jsonb("condition").notNull(),
-  action: text("action").notNull(),
-  actionConfig: jsonb("action_config"),
-  isActive: boolean("is_active").default(true),
-  priority: integer("priority").default(0),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// Email Integration Tables (Gmail API) - REMOVED
+// export const emailAccounts = pgTable("email_accounts", { ... });
+// export const emailMessages = pgTable("email_messages", { ... });
+// export const emailTemplates = pgTable("email_templates", { ... });
+// export const emailRoutingRules = pgTable("email_routing_rules", { ... });
 
 export const rsUsers = rs.table("users", {
   id: serial("id").primaryKey(),

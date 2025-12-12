@@ -42,13 +42,13 @@ const Workflows = () => {
     queryKey: ["users-for-assignment"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("users")
-        .select("id, first_name, last_name, email")
-        .order("first_name");
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name");
       if (error) throw error;
       return (data || []).map((u: any) => ({
         id: u.id,
-        full_name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.email || "User",
+        full_name: u.full_name || "User",
       }));
     },
   });

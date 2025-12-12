@@ -31,7 +31,7 @@ import rsAdminRouter from "./api/rs-admin";
 import rsSyncRouter from "./api/rs-sync";
 import permissionsRouter from "./api/permissions";
 // import matrixRouter from "./api/matrix"; // REMOVED
-import emailRouter from "./api/email";
+// import emailRouter from "./api/email"; // REMOVED
 import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
@@ -592,7 +592,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // app.use('/api/matrix', matrixRouter); // REMOVED
 
   // Communication Hub
-  app.use('/api/email', emailRouter);
+  // app.use('/api/email', emailRouter); // REMOVED
 
   // Automation Engine - REMOVED (Migrated to Supabase)
   // app.use('/api/automations', automationsRouter);

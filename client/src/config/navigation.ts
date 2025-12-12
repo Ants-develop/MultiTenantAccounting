@@ -183,12 +183,12 @@ export const additionalPagesNavigation: NavigationItem[] = [
         icon: Zap,
         permission: "TASKS_VIEW",
     },
-    {
-        name: "Email Inbox",
-        href: "/email",
-        icon: Mail,
-        permission: "SYSTEM_VIEW_ALL_COMPANIES",
-    },
+    // {
+    //     name: "Email Inbox",
+    //     href: "/email",
+    //     icon: Mail,
+    //     permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    // },
     {
         name: "MSSQL Import",
         href: "/mssql-import",
