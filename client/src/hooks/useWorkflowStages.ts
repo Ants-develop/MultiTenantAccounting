@@ -12,7 +12,7 @@ export const useWorkflowStages = (templateId?: string) => {
         .from("workflow_stages")
         .select("*")
         .eq("template_id", templateId)
-        .order("order_position", { ascending: true });
+        .order("order", { ascending: true });
 
       if (error) throw error;
       return (data || []) as WorkflowStage[];

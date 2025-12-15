@@ -3,7 +3,6 @@ import express from "express";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
@@ -13,11 +12,11 @@ router.use(requireAuth);
 // Trial Balance route
 router.get('/trial-balance', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.query.clientId as string;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
-    const clientId = DEFAULT_CLIENT_ID;
     const { date } = req.query;
     
     let dateFilter = '';
@@ -83,11 +82,11 @@ router.get('/trial-balance', async (req, res) => {
 // Financial statements route
 router.get('/financial-statements', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.query.clientId as string;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
-    const clientId = DEFAULT_CLIENT_ID;
     const { type, startDate, endDate } = req.query;
     
     if (type === 'profit-loss') {

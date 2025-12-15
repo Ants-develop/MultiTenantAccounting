@@ -1,14 +1,27 @@
 import { defineConfig } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+// Build connection string from Supabase credentials
+const supabaseUrl = process.env.SUPABASE_URL;
+const password = process.env.SUPABASE_DB_PASSWORD;
+
+if (!supabaseUrl) {
+  throw new Error("SUPABASE_URL must be set for migrations");
 }
 
+if (!password) {
+  throw new Error("SUPABASE_DB_PASSWORD must be set for migrations");
+}
+
+// Extract project reference and build connection string
+const projectRef = supabaseUrl.replace('https://', '').split('.')[0];
+const region = 'eu-north-1';
+const connectionString = `postgresql://postgres.${projectRef}:${password}@aws-1-${region}.pooler.supabase.com:5432/postgres`;
+
 export default defineConfig({
-  out: "./migrations",
+  out: "./supabase/migrations",
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: connectionString,
   },
 });

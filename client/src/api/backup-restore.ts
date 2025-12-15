@@ -1,6 +1,5 @@
 // Backup Restore API Client with Supabase Storage Integration
 import { apiRequest } from "@/lib/queryClient";
-import { getAccessToken } from "@/lib/auth";
 
 export interface DriveFile {
   id: string;
@@ -148,10 +147,12 @@ export const backupRestoreApi = {
     const formData = new FormData();
     formData.append("file", file);
 
-    const token = getAccessToken();
+    // Import supabase locally to avoid circular dependency
+    const { supabase } = await import("@/lib/supabase");
+    const { data: { session } } = await supabase.auth.getSession();
     const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
+    if (session?.access_token) {
+      headers["Authorization"] = `Bearer ${session.access_token}`;
     }
 
     const response = await fetch("/api/backup-restore/upload-to-storage", {

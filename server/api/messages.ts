@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db";
-import { messages, conversations, conversationParticipants, users } from "@shared/schema";
+import { messages, conversations, conversationParticipants, profiles } from "@shared/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { createNotification } from "../services/notification";
 
@@ -8,7 +8,7 @@ const router = Router();
 
 // Auth middleware
 const requireAuth = (req: any, res: any, next: any) => {
-  if (!req.session.userId) {
+  if (!req.user?.id) {
     return res.status(401).json({ message: 'Authentication required' });
   }
   next();
@@ -20,7 +20,7 @@ router.use(requireAuth);
 router.post("/", async (req, res) => {
   try {
     const { conversationId, content } = req.body;
-    const senderId = req.session.userId as number;
+    const senderId = req.user?.id as number;
 
     if (!conversationId || !content) {
       return res.status(400).json({ message: "Conversation ID and content are required" });
@@ -54,8 +54,8 @@ router.post("/", async (req, res) => {
 
     // Get sender details for notification
     const [sender] = await db.select()
-      .from(users)
-      .where(eq(users.id, senderId))
+      .from(profiles)
+      .where(eq(profiles.id, senderId))
       .limit(1);
 
     // Notify other participants

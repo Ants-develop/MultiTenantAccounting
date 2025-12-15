@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { supabaseAdmin } from '../services/supabase';
 import { db } from '../db';
-import { users as usersTable } from '@shared/schema';
+import { profiles } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 const router = Router();
@@ -86,7 +86,7 @@ router.get('/posts', async (req, res) => {
       .from('feed_posts')
       .select(`
         *,
-        author:feed_profiles!feed_posts_author_id_fkey(*)
+        author:profiles!feed_posts_author_id_profiles_id_fk(id, full_name, avatar_url, job_title)
       `)
       .order('created_at', { ascending: false })
       .range(fromNum, toNum);
@@ -109,7 +109,7 @@ router.get('/posts', async (req, res) => {
 // POST /api/feed/posts - Create a new post
 router.post('/posts', async (req, res) => {
   try {
-    const userId = req.session?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -120,21 +120,7 @@ router.post('/posts', async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
 
-    // Sync user profile first to ensure it exists
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-    if (user) {
-      const { error: profileError } = await supabaseAdmin.from('feed_profiles').upsert({
-        id: user.id,
-        full_name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
-        job_title: user.globalRole || 'User',
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'id' });
-      
-      if (profileError) {
-        console.error('[Feed API] Error syncing profile before post creation:', profileError);
-        // Continue anyway - the post can be created without the profile
-      }
-    }
+    // Profile already exists in main profiles table - no need to sync
 
     // Insert post first without the join to avoid RLS issues
     const { data: insertedPost, error: insertError } = await supabaseAdmin
@@ -166,7 +152,7 @@ router.post('/posts', async (req, res) => {
       .from('feed_posts')
       .select(`
         *,
-        author:feed_profiles!feed_posts_author_id_fkey(*)
+        author:profiles!feed_posts_author_id_profiles_id_fk(id, full_name, avatar_url, job_title)
       `)
       .eq('id', insertedPost.id)
       .single();
@@ -184,37 +170,16 @@ router.post('/posts', async (req, res) => {
   }
 });
 
-// POST /api/feed/profile-sync - Sync current user profile
+// POST /api/feed/profile-sync - No-op since we use main profiles table
 router.post('/profile-sync', async (req, res) => {
   try {
-    const userId = req.session?.userId;
+    const userId = (req as any).user?.id;
 
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    // Get user from database
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
-
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const { error } = await supabaseAdmin.from('feed_profiles').upsert({
-      id: user.id,
-      full_name: `${user.firstName} ${user.lastName}`.trim() || 'Unknown',
-      job_title: user.globalRole || 'User',
-      updated_at: new Date().toISOString(),
-    });
-
-    if (error) {
-      console.error('[Feed API] Error syncing profile:', error);
-      if (error.code === '42501') {
-        console.error('[Feed API] Permission denied - Check RLS policies or set SUPABASE_SERVICE_ROLE_KEY');
-      }
-      return res.status(500).json({ error: error.message, code: error.code });
-    }
-
+    // Profile already exists in main profiles table - no sync needed
     res.json({ success: true });
   } catch (err: any) {
     console.error('[Feed API] Error:', err);
@@ -225,7 +190,7 @@ router.post('/profile-sync', async (req, res) => {
 // POST /api/feed/posts/:postId/like - Toggle like on a post
 router.post('/posts/:postId/like', async (req, res) => {
   try {
-    const userId = req.session?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -277,7 +242,7 @@ router.post('/posts/:postId/like', async (req, res) => {
 router.get('/posts/:postId/likes', async (req, res) => {
   try {
     const { postId } = req.params;
-    const userId = req.session?.userId;
+    const userId = (req as any).user?.id;
 
     // Get total likes count
     const { count, error: countError } = await supabaseAdmin
@@ -319,7 +284,7 @@ router.get('/posts/:postId/comments', async (req, res) => {
       .from('feed_comments')
       .select(`
         *,
-        author:feed_profiles!feed_comments_author_id_fkey(*)
+        author:profiles!feed_comments_author_id_profiles_id_fk(id, full_name, avatar_url, job_title)
       `)
       .eq('post_id', postId)
       .order('created_at', { ascending: true });
@@ -339,7 +304,7 @@ router.get('/posts/:postId/comments', async (req, res) => {
 // POST /api/feed/posts/:postId/comments - Create a comment on a post
 router.post('/posts/:postId/comments', async (req, res) => {
   try {
-    const userId = req.session?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ error: 'Authentication required' });
     }
@@ -360,7 +325,7 @@ router.post('/posts/:postId/comments', async (req, res) => {
       })
       .select(`
         *,
-        author:feed_profiles!feed_comments_author_id_fkey(*)
+        author:profiles!feed_comments_author_id_profiles_id_fk(id, full_name, avatar_url, job_title)
       `)
       .single();
 

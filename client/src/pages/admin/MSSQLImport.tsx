@@ -624,13 +624,10 @@ export default function MSSQLImport() {
   // Start audit table migration mutation
   const startAuditTableMigrationMutation = useMutation<AuditMigrationResult, Error, { tableName: string; batchSize: number }>({
     mutationFn: async (data) => {
-      if (!selectedClientId) {
-        throw new Error("No client selected. Please select a valid client.");
-      }
-
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         type: 'audit-table',
         tableName: data.tableName,
+        ...(selectedClientId ? { clientId: selectedClientId } : {}),
         batchSize: data.batchSize,
       });
       return response.json();
@@ -665,12 +662,9 @@ export default function MSSQLImport() {
   // Start full audit export mutation
   const startFullAuditExportMutation = useMutation<AuditMigrationResult, Error, { batchSize: number }>({
     mutationFn: async (data) => {
-      if (!selectedClientId) {
-        throw new Error("No client selected. Please select a valid client.");
-      }
-
       const response = await apiRequest('POST', '/api/mssql/start-migration', {
         type: 'full-audit-export',
+        ...(selectedClientId ? { clientId: selectedClientId } : {}),
         batchSize: data.batchSize,
       });
       return response.json();

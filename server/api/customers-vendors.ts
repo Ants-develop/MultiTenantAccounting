@@ -1,23 +1,58 @@
 // Customers, Vendors, Invoices, Bills API Routes
 import express from "express";
 import { storage } from "../storage";
+import { db } from "../db";
+import { inArray, desc } from "drizzle-orm";
+import { customers, vendors, invoices, bills } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
-import { DEFAULT_CLIENT_ID } from "../constants";
+import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
 
 // Apply authentication middleware to all routes
 router.use(requireAuth);
 
+// Helper to get target client IDs
+async function getTargetClientIds(req: any, res: any): Promise<number[] | null> {
+  const userId = req.user?.id;
+  const clientIdParam = req.query.clientId as string;
+  
+  const userClients = await getUserClientsByModule(userId, 'accounting'); // Assuming accounting module
+  const allowedClientIds = userClients.map(c => c.clientId);
+  
+  if (clientIdParam) {
+    const requestedId = parseInt(clientIdParam);
+    if (isNaN(requestedId)) {
+      res.status(400).json({ message: 'Invalid Client ID' });
+      return null;
+    }
+    if (!allowedClientIds.includes(requestedId)) {
+      res.status(403).json({ message: 'Access denied to this client' });
+      return null;
+    }
+    return [requestedId];
+  }
+  
+  return allowedClientIds;
+}
+
 // Customer routes
 router.get('/customers', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const targetIds = await getTargetClientIds(req, res);
+    if (!targetIds) return;
+    
+    if (targetIds.length === 0) {
+      return res.json([]);
     }
     
-    const customers = await storage.getCustomersByCompany(DEFAULT_CLIENT_ID);
-    res.json(customers);
+    const result = await db
+      .select()
+      .from(customers)
+      .where(inArray(customers.clientId, targetIds))
+      .orderBy(desc(customers.createdAt));
+      
+    res.json(result);
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -26,13 +61,14 @@ router.get('/customers', async (req, res) => {
 
 router.post('/customers', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.body.clientId;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
     const customerData = {
       ...req.body,
-      clientId: DEFAULT_CLIENT_ID,
+      clientId: clientId,
     };
     
     const customer = await storage.createCustomer(customerData);
@@ -46,12 +82,20 @@ router.post('/customers', async (req, res) => {
 // Vendor routes
 router.get('/vendors', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const targetIds = await getTargetClientIds(req, res);
+    if (!targetIds) return;
+    
+    if (targetIds.length === 0) {
+      return res.json([]);
     }
     
-    const vendors = await storage.getVendorsByCompany(DEFAULT_CLIENT_ID);
-    res.json(vendors);
+    const result = await db
+      .select()
+      .from(vendors)
+      .where(inArray(vendors.clientId, targetIds))
+      .orderBy(desc(vendors.createdAt));
+      
+    res.json(result);
   } catch (error) {
     console.error('Get vendors error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -60,13 +104,14 @@ router.get('/vendors', async (req, res) => {
 
 router.post('/vendors', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.body.clientId;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
     const vendorData = {
       ...req.body,
-      clientId: DEFAULT_CLIENT_ID,
+      clientId: clientId,
     };
     
     const vendor = await storage.createVendor(vendorData);
@@ -80,12 +125,20 @@ router.post('/vendors', async (req, res) => {
 // Invoice routes
 router.get('/invoices', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const targetIds = await getTargetClientIds(req, res);
+    if (!targetIds) return;
+    
+    if (targetIds.length === 0) {
+      return res.json([]);
     }
     
-    const invoices = await storage.getInvoicesByCompany(DEFAULT_CLIENT_ID);
-    res.json(invoices);
+    const result = await db
+      .select()
+      .from(invoices)
+      .where(inArray(invoices.clientId, targetIds))
+      .orderBy(desc(invoices.createdAt));
+      
+    res.json(result);
   } catch (error) {
     console.error('Get invoices error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -94,13 +147,14 @@ router.get('/invoices', async (req, res) => {
 
 router.post('/invoices', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.body.clientId;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
     const invoiceData = {
       ...req.body,
-      clientId: DEFAULT_CLIENT_ID,
+      clientId: clientId,
     };
     
     const invoice = await storage.createInvoice(invoiceData);
@@ -114,12 +168,20 @@ router.post('/invoices', async (req, res) => {
 // Bills routes
 router.get('/bills', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const targetIds = await getTargetClientIds(req, res);
+    if (!targetIds) return;
+    
+    if (targetIds.length === 0) {
+      return res.json([]);
     }
     
-    const bills = await storage.getBillsByCompany(DEFAULT_CLIENT_ID);
-    res.json(bills);
+    const result = await db
+      .select()
+      .from(bills)
+      .where(inArray(bills.clientId, targetIds))
+      .orderBy(desc(bills.createdAt));
+      
+    res.json(result);
   } catch (error) {
     console.error('Get bills error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -128,13 +190,14 @@ router.get('/bills', async (req, res) => {
 
 router.post('/bills', async (req, res) => {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: 'No company selected' });
+    const clientId = req.body.clientId;
+    if (!clientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
     const billData = {
       ...req.body,
-      clientId: DEFAULT_CLIENT_ID,
+      clientId: clientId,
     };
     
     const bill = await storage.createBill(billData);

@@ -56,12 +56,12 @@ const Tasks = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name")
-        .order("full_name");
+        .select("id, first_name, last_name")
+        .order("first_name");
       if (error) throw error;
       return (data || []).map((u: any) => ({
         id: u.id,
-        full_name: u.full_name || "User",
+        full_name: `${u.first_name || ''} ${u.last_name || ''}`.trim() || "User",
       }));
     },
   });

@@ -1,7 +1,7 @@
 import { 
-  users, companies, userCompanies, accounts, journalEntries, journalEntryLines,
+  profiles, companies, userCompanies, accounts, journalEntries, journalEntryLines,
   customers, vendors, invoices, bills, activityLogs, companySettings,
-  type User, type InsertUser, type Company, type InsertCompany,
+  type Profile, type InsertProfile, type Company, type InsertCompany,
   type UserCompany, type InsertUserCompany, type Account, type InsertAccount,
   type JournalEntry, type InsertJournalEntry, type JournalEntryLine, type InsertJournalEntryLine,
   type Customer, type InsertCustomer, type Vendor, type InsertVendor,
@@ -11,11 +11,11 @@ import {
 
 // Global admin types
 interface GlobalUser {
-  id: number;
-  username: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+  id: string;
+  username: string | null;
+  email: string | null;
+  firstName: string | null;
+  lastName: string | null;
   globalRole: string | null;
   isActive: boolean | null;
   createdAt: Date | null;
@@ -27,34 +27,34 @@ import { eq, and, or, desc, asc, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User methods
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  getUserByEmail(email: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  updateUser(id: number, user: Partial<InsertUser>): Promise<User | undefined>;
+  getUser(id: string): Promise<Profile | undefined>;
+  getUserByUsername(username: string): Promise<Profile | undefined>;
+  getUserByEmail(email: string): Promise<Profile | undefined>;
+  createProfile(profile: InsertProfile): Promise<Profile>;
+  updateProfile(id: string, profile: Partial<InsertProfile>): Promise<Profile | undefined>;
 
   // Company methods
-  getCompany(id: number): Promise<Company | undefined>;
-  getCompaniesByUser(userId: number): Promise<Company[]>;
+  getCompany(id: string): Promise<Company | undefined>;
+  getCompaniesByUser(userId: string): Promise<Company[]>;
   getAllCompanies(): Promise<Company[]>;
   createCompany(company: InsertCompany): Promise<Company>;
-  updateCompany(id: number, company: Partial<InsertCompany>): Promise<Company | undefined>;
+  updateCompany(id: string, company: Partial<InsertCompany>): Promise<Company | undefined>;
 
   // User-Company methods
-  getUserCompany(userId: number, companyId: number): Promise<UserCompany | undefined>;
-  getUserCompanies(userId: number): Promise<UserCompany[]>;
+  getUserCompany(userId: string, companyId: string): Promise<UserCompany | undefined>;
+  getUserCompanies(userId: string): Promise<UserCompany[]>;
   createUserCompany(userCompany: InsertUserCompany): Promise<UserCompany>;
   updateUserCompany(id: number, userCompany: Partial<InsertUserCompany>): Promise<UserCompany | undefined>;
 
   // Account methods
   getAccount(id: number): Promise<Account | undefined>;
-  getAccountsByCompany(companyId: number): Promise<Account[]>;
+  getAccountsByCompany(companyId: string): Promise<Account[]>;
   createAccount(account: InsertAccount): Promise<Account>;
   updateAccount(id: number, account: Partial<InsertAccount>): Promise<Account | undefined>;
 
   // Journal Entry methods
   getJournalEntry(id: number): Promise<JournalEntry | undefined>;
-  getJournalEntriesByCompany(companyId: number): Promise<any[]>;
+  getJournalEntriesByCompany(companyId: string): Promise<any[]>;
   createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry>;
   updateJournalEntry(id: number, entry: Partial<InsertJournalEntry>): Promise<JournalEntry | undefined>;
 
@@ -64,84 +64,84 @@ export interface IStorage {
 
   // Customer methods
   getCustomer(id: number): Promise<Customer | undefined>;
-  getCustomersByCompany(companyId: number): Promise<Customer[]>;
+  getCustomersByCompany(companyId: string): Promise<Customer[]>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   updateCustomer(id: number, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
 
   // Vendor methods
   getVendor(id: number): Promise<Vendor | undefined>;
-  getVendorsByCompany(companyId: number): Promise<Vendor[]>;
+  getVendorsByCompany(companyId: string): Promise<Vendor[]>;
   createVendor(vendor: InsertVendor): Promise<Vendor>;
   updateVendor(id: number, vendor: Partial<InsertVendor>): Promise<Vendor | undefined>;
 
   // Invoice methods
   getInvoice(id: number): Promise<Invoice | undefined>;
-  getInvoicesByCompany(companyId: number): Promise<Invoice[]>;
+  getInvoicesByCompany(companyId: string): Promise<Invoice[]>;
   createInvoice(invoice: InsertInvoice): Promise<Invoice>;
   updateInvoice(id: number, invoice: Partial<InsertInvoice>): Promise<Invoice | undefined>;
 
   // Bill methods
   getBill(id: number): Promise<Bill | undefined>;
-  getBillsByCompany(companyId: number): Promise<Bill[]>;
+  getBillsByCompany(companyId: string): Promise<Bill[]>;
   createBill(bill: InsertBill): Promise<Bill>;
   updateBill(id: number, bill: Partial<InsertBill>): Promise<Bill | undefined>;
 
   // Global admin methods
   getAllCompanies(): Promise<Company[]>;
   getAllCompaniesWithStats(): Promise<Company[]>;
-  getAllUsers(): Promise<User[]>;
+  getAllUsers(): Promise<Profile[]>;
   getAllUsersWithStats(): Promise<GlobalUser[]>;
   getTransactionCount(): Promise<number>;
-  companyHasData(companyId: number): Promise<boolean>;
+  companyHasData(companyId: string): Promise<boolean>;
   getActivityLogs(limit: number): Promise<ActivityLog[]>;
-  logActivity(userId: number, action: string, resource: string, details?: string, ipAddress?: string, companyId?: number): Promise<void>;
+  logActivity(userId: string, action: string, resource: string, details?: string, ipAddress?: string, companyId?: string): Promise<void>;
 
   // Company Settings methods
-  getCompanySettings(companyId: number): Promise<CompanySettings | undefined>;
+  getCompanySettings(companyId: string): Promise<CompanySettings | undefined>;
   createCompanySettings(settings: InsertCompanySettings): Promise<CompanySettings>;
-  updateCompanySettings(companyId: number, settings: Partial<InsertCompanySettings>): Promise<CompanySettings | undefined>;
+  updateCompanySettings(companyId: string, settings: Partial<InsertCompanySettings>): Promise<CompanySettings | undefined>;
 
   // Delete user with proper cascade handling
-  deleteUser(userId: number): Promise<boolean>;
+  deleteUser(userId: string): Promise<boolean>;
 
   // Delete company with proper cascade handling
-  deleteCompany(companyId: number): Promise<boolean>;
+  deleteCompany(companyId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
   // User methods
-  async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
+  async getUser(id: string): Promise<Profile | undefined> {
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, id));
+    return profile || undefined;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
+  async getUserByUsername(username: string): Promise<Profile | undefined> {
+    const [profile] = await db.select().from(profiles).where(eq(profiles.username, username));
+    return profile || undefined;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || undefined;
+  async getUserByEmail(email: string): Promise<Profile | undefined> {
+    const [profile] = await db.select().from(profiles).where(eq(profiles.email, email));
+    return profile || undefined;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+  async createProfile(insertProfile: InsertProfile): Promise<Profile> {
+    const [profile] = await db.insert(profiles).values(insertProfile).returning();
+    return profile;
   }
 
-  async updateUser(id: number, updateUser: Partial<InsertUser>): Promise<User | undefined> {
-    const [user] = await db.update(users).set(updateUser).where(eq(users.id, id)).returning();
-    return user || undefined;
+  async updateProfile(id: string, updateProfile: Partial<InsertProfile>): Promise<Profile | undefined> {
+    const [profile] = await db.update(profiles).set(updateProfile).where(eq(profiles.id, id)).returning();
+    return profile || undefined;
   }
 
   // Company methods
-  async getCompany(id: number): Promise<Company | undefined> {
+  async getCompany(id: string): Promise<Company | undefined> {
     const [company] = await db.select().from(companies).where(eq(companies.id, id));
     return company || undefined;
   }
 
-  async getCompaniesByUser(userId: number): Promise<Company[]> {
+  async getCompaniesByUser(userId: string): Promise<Company[]> {
     // First check if user is a global administrator
     const user = await this.getUser(userId);
     if (user?.globalRole === 'global_administrator') {
@@ -153,7 +153,7 @@ export class DatabaseStorage implements IStorage {
     const userCompaniesData = await db
       .select({ company: companies })
       .from(userCompanies)
-      .innerJoin(companies, eq(userCompanies.companyId, companies.id))
+      .innerJoin(companies, eq(userCompanies.clientId, companies.id))
       .where(and(eq(userCompanies.userId, userId), eq(userCompanies.isActive, true)));
     
     return userCompaniesData.map(uc => uc.company);
@@ -172,7 +172,7 @@ export class DatabaseStorage implements IStorage {
     return company;
   }
 
-  async updateCompany(id: number, updateCompany: Partial<InsertCompany>): Promise<Company | undefined> {
+  async updateCompany(id: string, updateCompany: Partial<InsertCompany>): Promise<Company | undefined> {
     const [company] = await db.update(companies).set(updateCompany).where(eq(companies.id, id)).returning();
     return company || undefined;
   }
@@ -180,7 +180,7 @@ export class DatabaseStorage implements IStorage {
 
 
   // User-Company methods
-  async getUserCompany(userId: number, companyId: number): Promise<UserCompany | undefined> {
+  async getUserCompany(userId: string, companyId: string): Promise<UserCompany | undefined> {
     // First check if user is a global administrator
     const user = await this.getUser(userId);
     if (user?.globalRole === 'global_administrator') {
@@ -189,7 +189,7 @@ export class DatabaseStorage implements IStorage {
       return {
         id: 0, // Special ID for global admin access
         userId: userId,
-        companyId: companyId,
+        clientId: companyId,
         role: 'global_administrator',
         isActive: true,
         createdAt: new Date()
@@ -202,13 +202,13 @@ export class DatabaseStorage implements IStorage {
       .from(userCompanies)
       .where(and(
         eq(userCompanies.userId, userId), 
-        eq(userCompanies.companyId, companyId),
+        eq(userCompanies.clientId, companyId),
         eq(userCompanies.isActive, true) // Only active relationships
       ));
     return userCompany || undefined;
   }
 
-  async getUserCompanies(userId: number): Promise<UserCompany[]> {
+  async getUserCompanies(userId: string): Promise<UserCompany[]> {
     // First check if user is a global administrator
     const user = await this.getUser(userId);
     if (user?.globalRole === 'global_administrator') {
@@ -217,7 +217,7 @@ export class DatabaseStorage implements IStorage {
       return allCompanies.map(company => ({
         id: 0, // Special ID for global admin access
         userId: userId,
-        companyId: company.id,
+        clientId: company.id,
         role: 'global_administrator',
         isActive: true,
         createdAt: new Date()
@@ -247,7 +247,7 @@ export class DatabaseStorage implements IStorage {
     return account || undefined;
   }
 
-  async getAccountsByCompany(companyId: number): Promise<Account[]> {
+  async getAccountsByCompany(companyId: string): Promise<Account[]> {
     return await db
       .select()
       .from(accounts)
@@ -271,7 +271,7 @@ export class DatabaseStorage implements IStorage {
     return entry || undefined;
   }
 
-  async getJournalEntriesByCompany(companyId: number): Promise<any[]> {
+  async getJournalEntriesByCompany(companyId: string): Promise<any[]> {
     // First get the company to check its tenantCode
     const [company] = await db.select().from(companies).where(eq(companies.id, companyId));
     
@@ -347,7 +347,7 @@ export class DatabaseStorage implements IStorage {
     return customer || undefined;
   }
 
-  async getCustomersByCompany(companyId: number): Promise<Customer[]> {
+  async getCustomersByCompany(companyId: string): Promise<Customer[]> {
     return await db
       .select()
       .from(customers)
@@ -371,7 +371,7 @@ export class DatabaseStorage implements IStorage {
     return vendor;
   }
 
-  async getVendorsByCompany(companyId: number): Promise<Vendor[]> {
+  async getVendorsByCompany(companyId: string): Promise<Vendor[]> {
     return await db.select().from(vendors).where(eq(vendors.clientId, companyId));
   }
 
@@ -394,7 +394,7 @@ export class DatabaseStorage implements IStorage {
     return invoice || undefined;
   }
 
-  async getInvoicesByCompany(companyId: number): Promise<Invoice[]> {
+  async getInvoicesByCompany(companyId: string): Promise<Invoice[]> {
     return await db
       .select()
       .from(invoices)
@@ -418,7 +418,7 @@ export class DatabaseStorage implements IStorage {
     return bill;
   }
 
-  async getBillsByCompany(companyId: number): Promise<Bill[]> {
+  async getBillsByCompany(companyId: string): Promise<Bill[]> {
     return await db.select().from(bills).where(eq(bills.clientId, companyId));
   }
 
@@ -436,27 +436,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Global admin methods
-  async getAllUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(asc(users.username));
+  async getAllUsers(): Promise<Profile[]> {
+    return await db.select().from(profiles).orderBy(asc(profiles.username));
   }
 
   async getAllUsersWithStats(): Promise<GlobalUser[]> {
     const usersWithStats = await db
       .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        globalRole: users.globalRole,
-        isActive: users.isActive,
-        createdAt: users.createdAt,
-        companiesCount: sql<number>`COUNT(DISTINCT ${userCompanies.companyId})`,
+        id: profiles.id,
+        username: profiles.username,
+        email: profiles.email,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        globalRole: profiles.globalRole,
+        isActive: profiles.isActive,
+        createdAt: profiles.createdAt,
+        companiesCount: sql<number>`COUNT(DISTINCT ${userCompanies.clientId})`,
       })
-      .from(users)
-      .leftJoin(userCompanies, eq(users.id, userCompanies.userId))
-      .groupBy(users.id)
-      .orderBy(asc(users.username));
+      .from(profiles)
+      .leftJoin(userCompanies, eq(profiles.id, userCompanies.userId))
+      .groupBy(profiles.id)
+      .orderBy(asc(profiles.username));
 
     return usersWithStats.map(user => ({
       ...user,
@@ -470,7 +470,7 @@ export class DatabaseStorage implements IStorage {
     return result?.count || 0;
   }
 
-  async companyHasData(companyId: number): Promise<boolean> {
+  async companyHasData(companyId: string): Promise<boolean> {
     // Check if company has any accounts, transactions, etc.
     const [accountResults, journalEntryResults] = await Promise.all([
       db.select().from(accounts).where(eq(accounts.clientId, companyId)).limit(1),
@@ -492,12 +492,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async logActivity(
-    userId: number,
+    userId: string,
     action: string,
     resource: string,
     details?: string,
     ipAddress?: string,
-    companyId?: number
+    companyId?: string
   ): Promise<void> {
     try {
       await db.insert(activityLogs).values({
@@ -517,7 +517,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Company Settings methods
-  async getCompanySettings(companyId: number): Promise<CompanySettings | undefined> {
+  async getCompanySettings(companyId: string): Promise<CompanySettings | undefined> {
     const [settings] = await db.select().from(companySettings).where(eq(companySettings.clientId, companyId));
     return settings || undefined;
   }
@@ -527,20 +527,20 @@ export class DatabaseStorage implements IStorage {
     return newSettings;
   }
 
-  async updateCompanySettings(companyId: number, settings: Partial<InsertCompanySettings>): Promise<CompanySettings | undefined> {
+  async updateCompanySettings(companyId: string, settings: Partial<InsertCompanySettings>): Promise<CompanySettings | undefined> {
     const [updatedSettings] = await db.update(companySettings).set(settings).where(eq(companySettings.clientId, companyId)).returning();
     return updatedSettings || undefined;
   }
 
   // Delete user with proper cascade handling
-  async deleteUser(userId: number): Promise<boolean> {
+  async deleteUser(userId: string): Promise<boolean> {
     try {
       await db.transaction(async (tx) => {
         // Check if user exists
         const userResult = await tx
           .select()
-          .from(users)
-          .where(eq(users.id, userId))
+          .from(profiles)
+          .where(eq(profiles.id, userId))
           .limit(1);
         
         if (userResult.length === 0) {
@@ -577,8 +577,8 @@ export class DatabaseStorage implements IStorage {
 
         // Finally delete the user
         await tx
-          .delete(users)
-          .where(eq(users.id, userId));
+          .delete(profiles)
+          .where(eq(profiles.id, userId));
       });
 
       return true;
@@ -589,7 +589,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Delete company with proper cascade handling
-  async deleteCompany(companyId: number): Promise<boolean> {
+  async deleteCompany(companyId: string): Promise<boolean> {
     try {
       await db.transaction(async (tx) => {
         // Check if company exists

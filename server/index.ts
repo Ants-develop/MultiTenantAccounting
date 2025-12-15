@@ -43,14 +43,18 @@ if (!envLoaded) {
   console.warn('   Tried:', envPaths.join(', '));
   console.warn('   Current working directory:', process.cwd());
 } else {
-  // Verify DATABASE_URL was loaded
-  if (process.env.DATABASE_URL) {
-    const urlParts = process.env.DATABASE_URL.split('@');
-    const dbInfo = urlParts.length > 1 ? `@${urlParts[1]}` : 'database';
-    console.log(`✓ DATABASE_URL is set: ${dbInfo}`);
+  // Verify Supabase credentials were loaded
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_DB_PASSWORD) {
+    const projectRef = process.env.SUPABASE_URL.replace('https://', '').split('.')[0];
+    console.log(`✓ Supabase credentials set (${projectRef})`);
   } else {
-    console.error('❌ .env file loaded but DATABASE_URL is not set!');
-    console.error('   Please check your .env file contains DATABASE_URL');
+    if (!process.env.SUPABASE_URL) {
+      console.error('❌ SUPABASE_URL is not set!');
+    }
+    if (!process.env.SUPABASE_DB_PASSWORD) {
+      console.error('❌ SUPABASE_DB_PASSWORD is not set!');
+    }
+    console.error('   Please check your .env file contains both SUPABASE_URL and SUPABASE_DB_PASSWORD');
   }
 }
 
@@ -100,8 +104,11 @@ app.use((req, res, next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
+    // Never crash the process for a single request error.
+    // The previous behavior (throwing here) can take down the dev server,
+    // leading to frontend `ERR_CONNECTION_REFUSED`.
+    console.error("[Express Error]", err);
     res.status(status).json({ message });
-    throw err;
   });
 
   // importantly only setup vite in development and after

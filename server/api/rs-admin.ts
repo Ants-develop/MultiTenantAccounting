@@ -6,7 +6,6 @@ import { db } from "../db";
 import { rsUsers, companies, type RsUser } from "@shared/schema";
 import { and, eq } from "drizzle-orm";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
-import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
@@ -297,7 +296,7 @@ const handleError = async (
     ACTIVITY_ACTIONS.SETTINGS_UPDATE_SECURITY,
     RESOURCE_TYPES.SETTINGS,
     {
-      userId: req.session?.userId ?? null,
+      userId: (req as any).user?.id ?? null,
       clientId: undefined,
       ipAddress: req.ip,
       userAgent: req.get("User-Agent") || undefined,
@@ -349,8 +348,10 @@ router.get("/credentials", async (req: Request, res: Response) => {
     let records: CredentialRow[];
 
     if (scopeCompany) {
-      // Legacy behavior: filter by DEFAULT_CLIENT_ID if explicitly requested
-      const clientId = DEFAULT_CLIENT_ID as number;
+      const clientId = req.query.clientId;
+      if (!clientId) {
+        return res.status(400).json({ message: "Client ID is required for company scope" });
+      }
       console.log(`[RS Admin] Filtering by clientId: ${clientId}`);
       records = await db
         .select({
@@ -407,7 +408,7 @@ router.get("/credentials", async (req: Request, res: Response) => {
 router.post("/credentials", async (req: Request, res: Response) => {
   try {
     const payload = createCredentialsSchema.parse(req.body);
-    const userId = req.session.userId as number;
+    const userId = req.user?.id as number;
 
     const trimmedTin = payload.companyTin.trim();
     const trimmedCompanyName = payload.companyName.trim();
@@ -518,7 +519,7 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
 
   try {
     const payload = updateCredentialsSchema.parse(req.body);
-    const userId = req.session.userId as number;
+    const userId = req.user?.id as number;
 
     // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
@@ -624,7 +625,7 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = req.session.userId as number;
+    const userId = req.user?.id as number;
 
     // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
@@ -669,7 +670,7 @@ router.post("/credentials/validate/:id", async (req: Request, res: Response) => 
   }
 
   try {
-    const userId = req.session.userId as number;
+    const userId = req.user?.id as number;
 
     // Get credential from database
     const [credential] = await db
@@ -735,7 +736,7 @@ router.post("/credentials/validate/:id", async (req: Request, res: Response) => 
 // Validate all stored credentials
 router.post("/credentials/validate-all", async (req: Request, res: Response) => {
   try {
-    const userId = req.session.userId as number;
+    const userId = req.user?.id as number;
 
     // Get all credentials
     const allCredentials = await db

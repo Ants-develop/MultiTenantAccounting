@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { useInfiniteQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { FeedPost } from '@/types/feed';
-import { getAccessToken } from '@/lib/auth';
 
 export function useFeedPostsSupabase() {
   const queryClient = useQueryClient();
@@ -86,7 +85,9 @@ export function useCreateFeedPostSupabase() {
       type?: string;
       meta?: Record<string, any>;
     }) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       const { data, error } = await supabase
         .from('feed_items')
         .insert([
@@ -94,7 +95,7 @@ export function useCreateFeedPostSupabase() {
             content: post.content,
             item_type: post.type || 'post',
             metadata: post.meta || {},
-            created_by: token, // This should be user ID from JWT
+            created_by: user.id,
           },
         ])
         .select(
@@ -124,14 +125,16 @@ export function useAddFeedComment(postId: string) {
 
   return useMutation({
     mutationFn: async (content: string) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       const { data, error } = await supabase
         .from('feed_comments')
         .insert([
           {
             feed_item_id: postId,
             content,
-            created_by: token,
+            created_by: user.id,
           },
         ])
         .select(
@@ -156,14 +159,16 @@ export function useAddFeedReaction(postId: string, emoji: string) {
 
   return useMutation({
     mutationFn: async () => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       const { data, error } = await supabase
         .from('feed_reactions')
         .insert([
           {
             feed_item_id: postId,
             emoji,
-            created_by: token,
+            created_by: user.id,
           },
         ])
         .select(

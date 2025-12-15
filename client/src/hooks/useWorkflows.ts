@@ -15,7 +15,7 @@ export const useWorkflows = (filters?: WorkflowFilters) => {
           *,
           clients:client_id(id, name),
           workflow_stages:current_stage_id(id, name, color),
-          assigned_to_user:assigned_to(full_name, avatar_url)
+          assigned_to_user:profiles!workflows_assigned_to_profiles_id_fk(full_name, avatar_url)
         `)
         .order("created_at", { ascending: false });
 
@@ -85,7 +85,7 @@ export const useWorkflow = (workflowId?: string) => {
           *,
           clients:client_id(id, name),
           workflow_stages:current_stage_id(id, name, color),
-          assigned_to_user:assigned_to(full_name, avatar_url)
+          assigned_to_user:profiles!workflows_assigned_to_profiles_id_fk(full_name, avatar_url)
         `)
         .eq("id", workflowId)
         .single();

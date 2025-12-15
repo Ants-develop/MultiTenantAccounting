@@ -44,7 +44,10 @@ import {
 import {
   topLevelNavigation,
   practiceManagementNavigation,
+  aiBookkeepingNavigation,
   dataWarehouseNavigation,
+  reportingNavigation,
+  auditNavigation,
   bottomNavigation,
   adminNavigation,
   additionalPagesNavigation,
@@ -70,8 +73,20 @@ export default function Sidebar() {
     const stored = localStorage.getItem('sidebar_practiceManagementOpen');
     return stored !== null ? JSON.parse(stored) : true;
   });
+  const [aiBookkeepingOpen, setAiBookkeepingOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_aiBookkeepingOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
   const [dataWarehouseOpen, setDataWarehouseOpen] = useState(() => {
     const stored = localStorage.getItem('sidebar_dataWarehouseOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+  const [reportingOpen, setReportingOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_reportingOpen');
+    return stored !== null ? JSON.parse(stored) : true;
+  });
+  const [auditOpen, setAuditOpen] = useState(() => {
+    const stored = localStorage.getItem('sidebar_auditOpen');
     return stored !== null ? JSON.parse(stored) : true;
   });
   const [additionalPagesOpen, setAdditionalPagesOpen] = useState(() => {
@@ -85,8 +100,20 @@ export default function Sidebar() {
   }, [practiceManagementOpen]);
 
   useEffect(() => {
+    localStorage.setItem('sidebar_aiBookkeepingOpen', JSON.stringify(aiBookkeepingOpen));
+  }, [aiBookkeepingOpen]);
+
+  useEffect(() => {
     localStorage.setItem('sidebar_dataWarehouseOpen', JSON.stringify(dataWarehouseOpen));
   }, [dataWarehouseOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_reportingOpen', JSON.stringify(reportingOpen));
+  }, [reportingOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar_auditOpen', JSON.stringify(auditOpen));
+  }, [auditOpen]);
 
   useEffect(() => {
     localStorage.setItem('sidebar_additionalPagesOpen', JSON.stringify(additionalPagesOpen));
@@ -151,7 +178,10 @@ export default function Sidebar() {
 
   const visibleTopLevel = filterItems(topLevelNavigation);
   const visiblePractice = filterItems(practiceManagementNavigation);
+  const visibleAiBookkeeping = filterItems(aiBookkeepingNavigation);
   const visibleDataWarehouse = filterItems(dataWarehouseNavigation);
+  const visibleReporting = filterItems(reportingNavigation);
+  const visibleAudit = filterItems(auditNavigation);
   const visibleBottom = filterItems(bottomNavigation);
   const visibleAdmin = filterItems(adminNavigation);
   const visibleAdditionalPages = filterItems(additionalPagesNavigation);
@@ -238,6 +268,49 @@ export default function Sidebar() {
           </Collapsible>
         )}
 
+        {/* AI Bookkeeping Collapsible Group */}
+        {visibleAiBookkeeping.length > 0 && (
+          <Collapsible
+            open={aiBookkeepingOpen}
+            onOpenChange={setAiBookkeepingOpen}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="w-full flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">
+                  <FolderKanban className="h-4 w-4" />
+                  <span className="flex-1 text-left">AI Bookkeeping</span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenuSub>
+                    {visibleAiBookkeeping.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href);
+                      return (
+                        <SidebarMenuSubItem key={item.name}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={active}
+                            onClick={(e) => handleNavigation(e, item.href, item.name)}
+                          >
+                            <a href={item.href} className="cursor-pointer">
+                              <Icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
         {/* Data Warehouse Collapsible Group */}
         {visibleDataWarehouse.length > 0 && (
           <Collapsible
@@ -257,6 +330,92 @@ export default function Sidebar() {
                 <SidebarGroupContent>
                   <SidebarMenuSub>
                     {visibleDataWarehouse.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href);
+                      return (
+                        <SidebarMenuSubItem key={item.name}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={active}
+                            onClick={(e) => handleNavigation(e, item.href, item.name)}
+                          >
+                            <a href={item.href} className="cursor-pointer">
+                              <Icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
+        {/* Reporting Collapsible Group */}
+        {visibleReporting.length > 0 && (
+          <Collapsible
+            open={reportingOpen}
+            onOpenChange={setReportingOpen}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="w-full flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">
+                  <FolderKanban className="h-4 w-4" />
+                  <span className="flex-1 text-left">Reporting</span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenuSub>
+                    {visibleReporting.map((item) => {
+                      const Icon = item.icon;
+                      const active = isActive(item.href);
+                      return (
+                        <SidebarMenuSubItem key={item.name}>
+                          <SidebarMenuSubButton
+                            asChild
+                            isActive={active}
+                            onClick={(e) => handleNavigation(e, item.href, item.name)}
+                          >
+                            <a href={item.href} className="cursor-pointer">
+                              <Icon className="h-4 w-4" />
+                              <span>{item.name}</span>
+                            </a>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                  </SidebarMenuSub>
+                </SidebarGroupContent>
+              </CollapsibleContent>
+            </SidebarGroup>
+          </Collapsible>
+        )}
+
+        {/* Audit Collapsible Group */}
+        {visibleAudit.length > 0 && (
+          <Collapsible
+            open={auditOpen}
+            onOpenChange={setAuditOpen}
+            className="group/collapsible"
+          >
+            <SidebarGroup>
+              <SidebarGroupLabel asChild>
+                <CollapsibleTrigger className="w-full flex items-center gap-2 hover:bg-sidebar-accent rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-foreground/70 hover:text-sidebar-foreground">
+                  <FolderKanban className="h-4 w-4" />
+                  <span className="flex-1 text-left">Audit</span>
+                  <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                </CollapsibleTrigger>
+              </SidebarGroupLabel>
+              <CollapsibleContent>
+                <SidebarGroupContent>
+                  <SidebarMenuSub>
+                    {visibleAudit.map((item) => {
                       const Icon = item.icon;
                       const active = isActive(item.href);
                       return (

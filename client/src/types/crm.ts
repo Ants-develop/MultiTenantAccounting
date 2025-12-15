@@ -3,7 +3,7 @@ export interface DealStage {
     name: string;
     description: string | null;
     color: string;
-    order_position: number;
+    order: number;
     is_closed: boolean;
     is_won: boolean;
     probability: number;

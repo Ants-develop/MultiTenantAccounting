@@ -5,9 +5,8 @@ import {
   connectMSSQL,
   getTenantCodes,
   migrateGeneralLedger,
-  exportToAudit,
+  importGLFromAuditDB,
   migrateRSTables,
-  migrateAuditTables,
   migrateAuditSchemaTable,
   updateJournalEntries,
   getProgressEmitter,
@@ -16,7 +15,6 @@ import {
   validateClientExists,
 } from "../services/mssql-migration";
 import { db } from "../db";
-import { DEFAULT_CLIENT_ID } from "../constants";
 import { migrationHistory, migrationLogs, migrationErrors, clients } from "@shared/schema";
 import { sql as drizzleSql, desc, and, eq } from "drizzle-orm";
 
@@ -135,7 +133,7 @@ async function initMSSQLPool() {
 router.get("/tenant-codes", async (req, res) => {
   console.log("\n" + "=".repeat(60));
   console.log("📍 GET /api/mssql/tenant-codes - Request received");
-  console.log("   Session User ID:", req.session?.userId);
+  console.log("   Session User ID:", (req as unknown as { user?: { id?: string } }).user?.id);
   console.log("=".repeat(60));
 
   try {
@@ -196,7 +194,7 @@ router.get("/tenant-codes", async (req, res) => {
 router.get("/audit-tables", async (req, res) => {
   console.log("\n" + "=".repeat(60));
   console.log("📍 GET /api/mssql/audit-tables - Request received");
-  console.log("   Session User ID:", req.session?.userId);
+  console.log("   Session User ID:", (req as unknown as { user?: { id?: string } }).user?.id);
   console.log("=".repeat(60));
 
   try {
@@ -240,10 +238,6 @@ router.get("/audit-tables", async (req, res) => {
 // Shared handler function for unified migration endpoint
 async function handleStartMigration(req: express.Request, res: express.Response, defaultType?: string) {
   try {
-    if (!DEFAULT_CLIENT_ID) {
-      return res.status(400).json({ message: "No company selected" });
-    }
-
     const {
       type = defaultType,
       tenantCode,
@@ -278,10 +272,10 @@ async function handleStartMigration(req: express.Request, res: express.Response,
     }
 
     if (type === 'audit-table' && !tableName) {
-      return res.status(400).json({ message: "Missing required parameter: tableName" });
+      return res.status(400).json({ message: "Missing required parameters: tableName" });
     }
 
-    // Validate clientId exists in database for migration types that require it
+    // Validate clientId exists in database only for migration types that truly require it
     if (clientId && (type === 'general-ledger' || type === 'audit' || type === 'update' || type === 'rs')) {
       try {
         await validateClientExists(clientId);
@@ -297,29 +291,13 @@ async function handleStartMigration(req: express.Request, res: express.Response,
       }
     }
 
-    // For audit-table and full-audit-export, validate DEFAULT_CLIENT_ID if used
-    if ((type === 'audit-table' || type === 'full-audit-export') && DEFAULT_CLIENT_ID) {
-      try {
-        await validateClientExists(DEFAULT_CLIENT_ID);
-        console.log(`✅ Default client ${DEFAULT_CLIENT_ID} validated successfully`);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error(`❌ Default client validation failed for clientId ${DEFAULT_CLIENT_ID}:`, errorMessage);
-        return res.status(400).json({
-          message: `Invalid default client ID: ${errorMessage}`,
-          clientId: DEFAULT_CLIENT_ID,
-          error: 'DEFAULT_CLIENT_NOT_FOUND'
-        });
-      }
-    }
-
     const pool = await initMSSQLPool();
     const migrationId = `${type}_${Date.now()}`;
 
     // Create initial progress object and set activeMigration IMMEDIATELY
     const initialProgress: MigrationProgress = {
       migrationId,
-      type: type as 'general-ledger' | 'audit' | 'rs',
+      type: type as MigrationProgress['type'],
       tenantCode: type === 'rs' || type === 'audit-table' || type === 'full-audit-export' ? null : (tenantCode || null),
       tableName: (type === 'rs' || type === 'audit-table' || type === 'full-audit-export') ? tableName : undefined,
       status: 'running',
@@ -377,7 +355,7 @@ async function handleStartMigration(req: express.Request, res: express.Response,
             break;
 
           case 'audit':
-            await exportToAudit(
+            await importGLFromAuditDB(
               pool,
               tenantCode!,
               clientId!,
@@ -410,12 +388,11 @@ async function handleStartMigration(req: express.Request, res: express.Response,
             await migrateAuditSchemaTable(
               pool,
               tableName!,
-              DEFAULT_CLIENT_ID!,
               batchSize || 1000
             );
             break;
 
-          case 'full-audit-export':
+          case 'full-audit-export': {
             // Get all audit tables and process them sequentially
             const tables = await getAuditTableNames(pool);
             const totalTables = tables.length;
@@ -435,26 +412,25 @@ async function handleStartMigration(req: express.Request, res: express.Response,
               await migrateAuditSchemaTable(
                 pool,
                 table.tableName,
-                DEFAULT_CLIENT_ID!,
                 batchSize || 1000
               );
             }
             break;
-
-          default:
-            throw new Error(`Unknown migration type: ${type}`);
+          }
         }
 
-        console.log(
-          `✅ Migration ${migrationId} completed: ${activeMigration?.successCount} success, ${activeMigration?.errorCount} errors`
-        );
+        if (activeMigration && activeMigration.migrationId === migrationId) {
+          activeMigration.status = 'completed';
+          activeMigration.progress = 100;
+          activeMigration.endTime = new Date();
 
-        // Keep status for 5 minutes
-        setTimeout(() => {
-          if (activeMigration?.migrationId === migrationId) {
-            activeMigration = null;
-          }
-        }, 300000);
+          // Clear after 5 minutes
+          setTimeout(() => {
+            if (activeMigration && activeMigration.migrationId === migrationId) {
+              activeMigration = null;
+            }
+          }, 300000);
+        }
       } catch (error) {
         console.error("❌ Background migration error:", error);
         if (activeMigration) {
@@ -646,7 +622,7 @@ router.post("/stop-migration", async (req, res) => {
 router.post("/restore-from-drive", async (req, res) => {
   console.log("\n" + "=".repeat(60));
   console.log("📍 POST /api/mssql/restore-from-drive - Request received");
-  console.log("   Session User ID:", req.session?.userId);
+  console.log("   Session User ID:", (req as unknown as { user?: { id?: string } }).user?.id);
   console.log("=".repeat(60));
 
   try {
@@ -703,7 +679,7 @@ router.post("/restore-from-drive", async (req, res) => {
       migrationId,
       type: 'audit' as any,  // Will be restore type
       tenantCode: tenantCode || null,
-      tableName: null,
+      tableName: undefined,
       status: 'running',
       totalRecords: 0,
       processedRecords: 0,

@@ -1,21 +1,21 @@
 import { Request, Response, NextFunction } from "express";
 import { db } from "../db";
-import { userClientModules, userClientFeatures, users, clients } from "@shared/schema";
+import { userClientModules, userClientFeatures, profiles, clients } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 
 // Helper function to check if user is global admin
 function isGlobalAdmin(req: Request): boolean {
-  return (req.session as any)?.globalRole === "global_administrator";
+  return (req as any).profile?.globalRole === "global_administrator";
 }
 
 // Check if user is global admin from database
-async function isUserGlobalAdmin(userId: number): Promise<boolean> {
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+async function isUserGlobalAdmin(userId: string): Promise<boolean> {
+  const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   return user?.globalRole === 'global_administrator';
 }
 
 // Get all clients for a user in a specific module (with read permission)
-export async function getUserClientsByModule(userId: number, module: string) {
+export async function getUserClientsByModule(userId: string, module: string) {
   // Global admins have access to all clients
   if (await isUserGlobalAdmin(userId)) {
     const allClients = await db
@@ -40,8 +40,8 @@ export async function getUserClientsByModule(userId: number, module: string) {
 
 // Check module-level permission
 export async function checkModulePermission(
-  userId: number,
-  clientId: number,
+  userId: string,
+  clientId: string,
   module: string,
   action: "view" | "create" | "edit" | "delete"
 ): Promise<boolean> {
@@ -83,8 +83,8 @@ export async function checkModulePermission(
 
 // Check feature-level permission
 export async function checkFeaturePermission(
-  userId: number,
-  clientId: number,
+  userId: string,
+  clientId: string,
   feature: string,
   action: "view" | "create" | "edit" | "delete"
 ): Promise<boolean> {
@@ -132,8 +132,8 @@ export function requireModuleAccess(
   action: "view" | "create" | "edit" | "delete" = "view"
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.session as any)?.userId;
-    const clientId = parseInt(req.query.clientId as string) || 
+    const userId = (req as any).user?.id;
+    const clientId = (req.query.clientId as string) || 
                      (req as any).params?.clientId ||
                      (req.body?.clientId);
 
@@ -161,8 +161,8 @@ export function requireFeatureAccess(
   action: "view" | "create" | "edit" | "delete" = "view"
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.session as any)?.userId;
-    const clientId = parseInt(req.query.clientId as string) ||
+    const userId = (req as any).user?.id;
+    const clientId = (req.query.clientId as string) ||
                      (req as any).params?.clientId ||
                      (req.body?.clientId);
 
@@ -187,7 +187,7 @@ export function requireFeatureAccess(
 // Middleware: Main company access (always allowed for authenticated users)
 export function requireMainCompanyAccess() {
   return (req: Request, res: Response, next: NextFunction) => {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
 
     if (!userId) {
       return res.status(401).json({ message: "Authentication required" });

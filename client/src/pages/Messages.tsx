@@ -75,7 +75,7 @@ const Messages = () => {
             id,
             user_id,
             last_read_at,
-            user:users!conversation_participants_user_id_fkey(id, first_name, last_name, email)
+            user:profiles!conversation_participants_user_id_fkey(id, full_name, email, avatar_url)
           ),
           messages(
             id,
@@ -87,7 +87,7 @@ const Messages = () => {
             is_edited,
             is_deleted,
             sender_id,
-            sender:users!messages_sender_id_fkey(id, first_name, last_name, email)
+            sender:profiles!messages_sender_id_fkey(id, full_name, email, avatar_url)
           )
         `)
         .eq("id", selectedConversationId)

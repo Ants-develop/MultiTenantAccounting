@@ -1,16 +1,163 @@
 // Global Administration API Routes
 import express from "express";
 import { db } from "../db";
+import { supabaseAdmin } from "../supabase";
 import { sql, eq, desc, and, or } from "drizzle-orm";
 import {
-  users, companies, userCompanies, accounts, activityLogs, companySettings,
+  profiles, companies, userCompanies, accounts, activityLogs, companySettings,
   customers, vendors, invoices, bills, userClientModules,
-  type User, type Company, type UserCompany
+  type Profile, type Company, type UserCompany
 } from "../../shared/schema";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
 import { z } from "zod";
 
 const router = express.Router();
+
+type SupabaseStatusRow = {
+  table: string;
+  category: string;
+  status: "ok" | "error";
+  message?: string;
+  count?: number | null;
+};
+
+const SUPABASE_STATUS_TABLES: Array<{ name: string; category: string; schema?: string }> = [
+  // Core System
+  { name: "profiles", category: "Core" },
+  { name: "user_roles", category: "Core" },
+  { name: "user_invitations", category: "Core" },
+  { name: "audit_logs", category: "Core" },
+
+  // Client Management
+  { name: "clients", category: "Clients" },
+  { name: "client_contacts", category: "Clients" },
+  { name: "client_team_assignments", category: "Clients" },
+  { name: "client_services", category: "Clients" },
+
+  // Practice Management - Workflows
+  { name: "workflow_templates", category: "Workflows" },
+  { name: "workflow_stages", category: "Workflows" },
+  { name: "workflows", category: "Workflows" },
+  { name: "workflow_stage_history", category: "Workflows" },
+
+  // Practice Management - Tasks
+  { name: "tasks", category: "Tasks" },
+  { name: "task_templates", category: "Tasks" },
+  { name: "task_comments", category: "Tasks" },
+  { name: "checklists", category: "Tasks" },
+
+  // CRM & Deals
+  { name: "deals", category: "CRM" },
+  { name: "deal_stages", category: "CRM" },
+  { name: "deal_activities", category: "CRM" },
+  { name: "deal_contacts", category: "CRM" },
+
+  // Client Pipelines
+  { name: "client_pipelines", category: "Pipelines" },
+  { name: "client_pipeline_stages", category: "Pipelines" },
+  { name: "client_task_templates", category: "Pipelines" },
+
+  // Communications
+  { name: "conversations", category: "Messaging" },
+  { name: "conversation_participants", category: "Messaging" },
+  { name: "messages", category: "Messaging" },
+  { name: "notifications", category: "Messaging" },
+  { name: "email_templates", category: "Messaging" },
+
+  // Feed/Social
+  { name: "feed_profiles", category: "Feed" },
+  { name: "feed_posts", category: "Feed" },
+  { name: "feed_likes", category: "Feed" },
+  { name: "feed_comments", category: "Feed" },
+
+  // Calendar
+  { name: "calendar_events", category: "Calendar" },
+  { name: "calendar_event_participants", category: "Calendar" },
+
+  // Documents
+  { name: "documents", category: "Documents" },
+  { name: "document_categories", category: "Documents" },
+  { name: "document_access_log", category: "Documents" },
+
+  // Passwords
+  { name: "passwords", category: "Passwords" },
+  { name: "password_folders", category: "Passwords" },
+  { name: "password_access_log", category: "Passwords" },
+
+  // Banking
+  { name: "bank_accounts", category: "Banking" },
+  { name: "bank_transactions", category: "Banking" },
+];
+
+router.get("/supabase-status", async (req, res) => {
+  try {
+    const statuses: SupabaseStatusRow[] = [];
+
+    for (const { name, category, schema } of SUPABASE_STATUS_TABLES) {
+      const tableSchema = schema ?? "public";
+
+      try {
+        const existsResult: any = await db.execute(
+          sql`
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = ${tableSchema}
+              AND table_name = ${name}
+            LIMIT 1
+          `
+        );
+
+        const existsRows = Array.isArray(existsResult)
+          ? existsResult
+          : (existsResult?.rows ?? []);
+
+        const exists = existsRows.length > 0;
+
+        if (!exists) {
+          statuses.push({
+            table: name,
+            category,
+            status: "error",
+            message: `Table not found (${tableSchema}.${name})`,
+            count: null,
+          });
+          continue;
+        }
+
+        // NOTE: Table names are hard-coded above (not user input), so using sql.raw is safe here.
+        const countQuery = `SELECT COUNT(*)::int AS count FROM "${tableSchema}"."${name}"`;
+        const countResult: any = await db.execute(sql.raw(countQuery));
+        const countRows = Array.isArray(countResult)
+          ? countResult
+          : (countResult?.rows ?? []);
+
+        const count = typeof (countRows?.[0] as any)?.count === "number"
+          ? (countRows?.[0] as any).count
+          : parseInt((countRows?.[0] as any)?.count || "0", 10);
+
+        statuses.push({
+          table: name,
+          category,
+          status: "ok",
+          count: Number.isFinite(count) ? count : 0,
+        });
+      } catch (innerError: any) {
+        statuses.push({
+          table: name,
+          category,
+          status: "error",
+          message: innerError?.message || "Unknown error",
+          count: null,
+        });
+      }
+    }
+
+    res.json(statuses);
+  } catch (error: any) {
+    console.error("Error checking Supabase table status:", error);
+    res.status(500).json({ error: "Failed to check table status" });
+  }
+});
 
 const createGlobalUserSchema = z.object({
   username: z.string().trim().min(3),
@@ -27,18 +174,18 @@ router.get("/users", async (req, res) => {
   try {
     const allUsers = await db
       .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        globalRole: users.globalRole,
-        isActive: users.isActive,
-        createdAt: users.createdAt,
+        id: profiles.id,
+        username: profiles.username,
+        email: profiles.email,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        globalRole: profiles.globalRole,
+        isActive: profiles.isActive,
+        createdAt: profiles.createdAt,
         // lastLogin field doesn't exist in schema yet
       })
-      .from(users)
-      .orderBy(desc(users.createdAt));
+      .from(profiles)
+      .orderBy(desc(profiles.createdAt));
 
     // Get company assignments for each user
     const usersWithCompanies = await Promise.all(
@@ -86,38 +233,57 @@ router.post("/users", async (req, res) => {
 
     const { username, email, firstName, lastName, password, globalRole, isActive } = parsedResult.data;
 
-    const existingUser = await db
-      .select({ id: users.id })
-      .from(users)
+    // Check if user exists in profiles first (quick check)
+    const existingProfile = await db
+      .select({ id: profiles.id })
+      .from(profiles)
       .where(
         or(
-          eq(users.username, username),
-          eq(users.email, email)
+          eq(profiles.username, username),
+          eq(profiles.email, email)
         )
       )
       .limit(1);
 
-    if (existingUser.length > 0) {
+    if (existingProfile.length > 0) {
       return res.status(400).json({ error: "Username or email already exists" });
     }
 
-    const bcrypt = await import("bcrypt");
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        username,
+        first_name: firstName,
+        last_name: lastName
+      }
+    });
 
-    const [createdUser] = await db
-      .insert(users)
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
+    }
+
+    if (!authData.user) {
+      return res.status(500).json({ error: "Failed to create user in Supabase" });
+    }
+
+    // Create profile
+    const [createdProfile] = await db
+      .insert(profiles)
       .values({
+        id: authData.user.id,
         username,
         email,
         firstName,
         lastName,
-        password: passwordHash,
         globalRole,
         isActive: isActive ?? true,
       })
       .returning();
 
-    const actingUserId = (req as any).session?.userId || createdUser.id;
+    const actingUserId = (req as any).user?.id || createdProfile.id;
 
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.USER_CREATE,
@@ -127,7 +293,7 @@ router.post("/users", async (req, res) => {
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
-      createdUser.id,
+      createdProfile.id,
       undefined,
       {
         username,
@@ -135,19 +301,19 @@ router.post("/users", async (req, res) => {
         firstName,
         lastName,
         globalRole,
-        isActive: createdUser.isActive,
+        isActive: createdProfile.isActive,
       }
     );
 
     res.status(201).json({
-      id: createdUser.id,
-      username: createdUser.username,
-      email: createdUser.email,
-      firstName: createdUser.firstName,
-      lastName: createdUser.lastName,
-      globalRole: createdUser.globalRole,
-      isActive: createdUser.isActive,
-      createdAt: createdUser.createdAt,
+      id: createdProfile.id,
+      username: createdProfile.username,
+      email: createdProfile.email,
+      firstName: createdProfile.firstName,
+      lastName: createdProfile.lastName,
+      globalRole: createdProfile.globalRole,
+      isActive: createdProfile.isActive,
+      createdAt: createdProfile.createdAt,
       companiesCount: 0,
       lastLogin: null,
     });
@@ -202,10 +368,10 @@ router.get("/clients", async (req, res) => {
     const allFilteredCompanies = await baseQuery;
     
     // Debug: Log the actual query result with database info
-    const dbUrl = process.env.DATABASE_URL || 'not set';
-    const dbInfo = dbUrl.includes('@') ? dbUrl.split('@')[1] : 'unknown';
+    const supabaseUrl = process.env.SUPABASE_URL || 'not set';
+    const projectRef = supabaseUrl.includes('https://') ? supabaseUrl.replace('https://', '').split('.')[0] : 'unknown';
     console.log(`[Global Admin API] /clients - Found ${allFilteredCompanies.length} companies in database`);
-    console.log(`[Global Admin API] Database: ${dbInfo}`);
+    console.log(`[Global Admin API] Database: Supabase (${projectRef})`);
     if (allFilteredCompanies.length > 0) {
       console.log(`[Global Admin API] Company IDs: ${allFilteredCompanies.map((c: any) => c.id).join(', ')}`);
       console.log(`[Global Admin API] Company Names: ${allFilteredCompanies.map((c: any) => c.name).join(', ')}`);
@@ -239,13 +405,13 @@ router.get("/clients", async (req, res) => {
     for (const company of companiesWithStats) {
       const companyUsers = await db
         .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          username: users.username,
+          id: profiles.id,
+          firstName: profiles.firstName,
+          lastName: profiles.lastName,
+          username: profiles.username,
         })
         .from(userCompanies)
-        .innerJoin(users, eq(userCompanies.userId, users.id))
+        .innerJoin(profiles, eq(userCompanies.userId, profiles.id))
         .where(eq(userCompanies.clientId, company.id))
         .limit(5); // Only get first 5 for display
 
@@ -278,10 +444,10 @@ router.get("/user-assignments", async (req, res) => {
     const assignments = await db
       .select({
         id: userCompanies.id,
-        userId: users.id,
-        username: users.username,
-        userEmail: users.email,
-        userFullName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+        userId: profiles.id,
+        username: profiles.username,
+        userEmail: profiles.email,
+        userFullName: sql<string>`${profiles.firstName} || ' ' || ${profiles.lastName}`,
         companyId: companies.id,
         companyName: companies.name,
         companyCode: companies.code,
@@ -291,9 +457,9 @@ router.get("/user-assignments", async (req, res) => {
         // updatedAt field doesn't exist in user_companies schema
       })
       .from(userCompanies)
-      .innerJoin(users, eq(userCompanies.userId, users.id))
+      .innerJoin(profiles, eq(userCompanies.userId, profiles.id))
       .innerJoin(companies, eq(userCompanies.clientId, companies.id))
-      .orderBy(companies.name, users.username);
+      .orderBy(companies.name, profiles.username);
 
     res.json(assignments);
   } catch (error) {
@@ -305,9 +471,9 @@ router.get("/user-assignments", async (req, res) => {
 // Get users for a specific client company
 router.get("/clients/:companyId/users", async (req, res) => {
   try {
-    const companyId = parseInt(req.params.companyId);
+    const companyId = req.params.companyId;
     
-    if (isNaN(companyId)) {
+    if (!companyId) {
       return res.status(400).json({ error: "Invalid company ID" });
     }
 
@@ -325,21 +491,21 @@ router.get("/clients/:companyId/users", async (req, res) => {
     // Get all users assigned to this company
     const companyUsers = await db
       .select({
-        id: users.id,
-        username: users.username,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
+        id: profiles.id,
+        username: profiles.username,
+        email: profiles.email,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
         role: userCompanies.role,
         isActive: userCompanies.isActive,
-        lastLogin: sql<string>`NULL`, // TODO: Add lastLogin field to users table
+        lastLogin: sql<string>`NULL`, // TODO: Add lastLogin field to profiles table
         joinedAt: userCompanies.createdAt,
         assignmentId: userCompanies.id, // Include assignment ID for editing/deleting
       })
       .from(userCompanies)
-      .innerJoin(users, eq(userCompanies.userId, users.id))
+      .innerJoin(profiles, eq(userCompanies.userId, profiles.id))
       .where(eq(userCompanies.clientId, companyId))
-      .orderBy(users.firstName, users.lastName);
+      .orderBy(profiles.firstName, profiles.lastName);
 
     res.json(companyUsers);
   } catch (error) {
@@ -697,9 +863,9 @@ router.post("/assign-user", async (req, res) => {
     const currentUserId = null; // Placeholder until auth is implemented
     if (currentUserId) {
       const userDetails = await db
-        .select({ username: users.username })
-        .from(users)
-        .where(eq(users.id, userId))
+        .select({ username: profiles.username })
+        .from(profiles)
+        .where(eq(profiles.id, userId))
         .limit(1);
       
       const companyDetails = await db
@@ -732,10 +898,10 @@ router.get("/stats", async (req, res) => {
     // Get basic stats (these tables should always exist)
     const basicStats = await Promise.all([
       // Total users
-      db.select({ count: sql<number>`count(*)::int` }).from(users),
+      db.select({ count: sql<number>`count(*)::int` }).from(profiles),
       
       // Active users
-      db.select({ count: sql<number>`count(*)::int` }).from(users).where(eq(users.isActive, true)),
+      db.select({ count: sql<number>`count(*)::int` }).from(profiles).where(eq(profiles.isActive, true)),
       
       // Total companies
       db.select({ count: sql<number>`count(*)::int` }).from(companies),
@@ -799,10 +965,10 @@ router.get("/activity", async (req, res) => {
           timestamp: activityLogs.timestamp,
           ipAddress: activityLogs.ipAddress,
           userId: activityLogs.userId,
-          userName: sql<string>`COALESCE(${users.username}, 'Unknown User')`,
+          userName: sql<string>`COALESCE(${profiles.username}, 'Unknown User')`,
         })
         .from(activityLogs)
-        .leftJoin(users, eq(activityLogs.userId, users.id))
+        .leftJoin(profiles, eq(activityLogs.userId, profiles.id))
         .orderBy(desc(activityLogs.timestamp))
         .limit(limit)
         .offset(offset);
@@ -823,86 +989,13 @@ router.get("/activity", async (req, res) => {
   }
 });
 
-// Update client company
-router.put("/clients/:id", async (req, res) => {
-  try {
-    const companyId = parseInt(req.params.id);
-    const { name, code, description, tenantCode } = req.body;
 
-    console.log('[Company Update] Received data:', { companyId, name, code, description, tenantCode });
-
-    if (!name || !code) {
-      return res.status(400).json({ error: "Name and code are required" });
-    }
-
-    // Check if code already exists (excluding current company)
-    const existingCompany = await db
-      .select()
-      .from(companies)
-      .where(and(
-        eq(companies.code, code.toUpperCase()),
-        sql`id != ${companyId}`
-      ))
-      .limit(1);
-
-    if (existingCompany.length > 0) {
-      return res.status(400).json({ error: "Company code already exists" });
-    }
-
-    const updateData: any = {
-      name,
-      code: code.toUpperCase(),
-    };
-
-    // Update address if description is provided (description is mapped to address in the form)
-    if (description !== undefined) {
-      updateData.address = description || null;
-    }
-
-    // Update tenantCode if provided - convert to integer
-    if (tenantCode !== undefined) {
-      let parsedTenantCode: number | null = null;
-      
-      if (typeof tenantCode === 'number') {
-        parsedTenantCode = Math.floor(tenantCode); // Remove any decimals
-      } else if (typeof tenantCode === 'string' && tenantCode.trim()) {
-        const parsed = parseInt(tenantCode.trim(), 10);
-        parsedTenantCode = isNaN(parsed) ? null : parsed;
-      }
-      
-      updateData.tenantCode = parsedTenantCode;
-      console.log('[Company Update] tenantCode original:', tenantCode, typeof tenantCode);
-      console.log('[Company Update] tenantCode parsed:', parsedTenantCode);
-    }
-
-    console.log('[Company Update] Full update data:', JSON.stringify(updateData, null, 2));
-
-    const updatedCompany = await db
-      .update(companies)
-      .set(updateData)
-      .where(eq(companies.id, companyId))
-      .returning();
-
-    console.log('[Company Update] Updated company:', updatedCompany[0]);
-
-    if (updatedCompany.length === 0) {
-      return res.status(404).json({ error: "Company not found" });
-    }
-
-    res.json(updatedCompany[0]);
-  } catch (error) {
-    console.error("Error updating company:", error);
-    res.status(500).json({ error: "Failed to update company" });
-  }
-});
-
-// Delete client company
 // PUT /api/global-admin/clients/:id - Update a client company
 router.put("/clients/:id", async (req, res) => {
-  const clientId = parseInt(req.params.id);
+  const clientId = req.params.id;
 
   try {
-    if (isNaN(clientId)) {
+    if (!clientId) {
       return res.status(400).json({ error: "Invalid client company ID" });
     }
 
@@ -1030,12 +1123,12 @@ router.put("/clients/:id", async (req, res) => {
 });
 
 router.delete("/clients/:id", async (req, res) => {
-  const companyId = parseInt(req.params.id);
+  const companyId = req.params.id;
   
   try {
     console.log("Delete company request received for ID:", req.params.id);
 
-    if (isNaN(companyId)) {
+    if (!companyId) {
       console.log("Invalid company ID:", req.params.id);
       return res.status(400).json({ error: "Invalid company ID" });
     }
@@ -1158,7 +1251,7 @@ router.delete("/clients/:id", async (req, res) => {
 // Update user
 router.put("/users/:id", async (req, res) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = req.params.id;
     const { username, email, firstName, lastName, globalRole, password } = req.body;
 
     if (!username || !email || !firstName || !lastName || !globalRole) {
@@ -1168,11 +1261,11 @@ router.put("/users/:id", async (req, res) => {
     // Check if username/email already exists (excluding current user)
     const existingUser = await db
       .select()
-      .from(users)
+      .from(profiles)
       .where(and(
         or(
-          eq(users.username, username),
-          eq(users.email, email)
+          eq(profiles.username, username),
+          eq(profiles.email, email)
         ),
         sql`id != ${userId}`
       ))
@@ -1192,23 +1285,27 @@ router.put("/users/:id", async (req, res) => {
 
     // Only update password if provided
     if (password && password.trim() !== '') {
-      const bcrypt = await import('bcrypt');
-      updateData.password = await bcrypt.hash(password, 10);
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(
+        userId,
+        { password }
+      );
+      
+      if (authError) {
+        return res.status(400).json({ error: authError.message });
+      }
     }
 
-    const updatedUser = await db
-      .update(users)
+    const updatedProfile = await db
+      .update(profiles)
       .set(updateData)
-      .where(eq(users.id, userId))
+      .where(eq(profiles.id, userId))
       .returning();
 
-    if (updatedUser.length === 0) {
+    if (updatedProfile.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Remove password from response
-    const { password: _, ...userResponse } = updatedUser[0];
-    res.json(userResponse);
+    res.json(updatedProfile[0]);
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Failed to update user" });
@@ -1218,7 +1315,14 @@ router.put("/users/:id", async (req, res) => {
 // Delete user
 router.delete("/users/:id", async (req, res) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = req.params.id;
+
+    // Check if user exists first
+    const userExists = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
+    if (userExists.length === 0) {
+      // If not in profiles, check if in Auth (edge case), but generally return 404
+      return res.status(404).json({ error: "User not found" });
+    }
 
     // Check if user has company assignments
     const assignments = await db
@@ -1233,15 +1337,21 @@ router.delete("/users/:id", async (req, res) => {
       });
     }
 
-    const deletedUser = await db
-      .delete(users)
-      .where(eq(users.id, userId))
-      .returning();
-
-    if (deletedUser.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+    // Delete from Supabase Auth
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    
+    if (authError) {
+      console.error("Error deleting user from Supabase:", authError);
+      return res.status(500).json({ error: "Failed to delete user from authentication system" });
     }
 
+    // Delete profile (if not cascaded)
+    await db
+      .delete(profiles)
+      .where(eq(profiles.id, userId));
+
+    // We consider it a success if we reached here, regardless of whether db.delete returned rows
+    // (because ON DELETE CASCADE might have already removed the profile)
     res.json({ message: "User deleted successfully" });
   } catch (error) {
     console.error("Error deleting user:", error);
@@ -1252,26 +1362,24 @@ router.delete("/users/:id", async (req, res) => {
 // Update user status
 router.put("/users/:id/status", async (req, res) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = req.params.id;
     const { isActive } = req.body;
 
     if (typeof isActive !== 'boolean') {
       return res.status(400).json({ error: "isActive must be a boolean" });
     }
 
-    const updatedUser = await db
-      .update(users)
+    const updatedProfile = await db
+      .update(profiles)
       .set({ isActive })
-      .where(eq(users.id, userId))
+      .where(eq(profiles.id, userId))
       .returning();
 
-    if (updatedUser.length === 0) {
+    if (updatedProfile.length === 0) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    // Remove password from response
-    const { password: _, ...userResponse } = updatedUser[0];
-    res.json(userResponse);
+    res.json(updatedProfile[0]);
   } catch (error) {
     console.error("Error updating user status:", error);
     res.status(500).json({ error: "Failed to update user status" });
@@ -1281,8 +1389,12 @@ router.put("/users/:id/status", async (req, res) => {
 // Update client company status
 router.put("/clients/:id/status", async (req, res) => {
   try {
-    const companyId = parseInt(req.params.id);
+    const companyId = req.params.id;
     const { isActive } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({ error: "Invalid company ID" });
+    }
 
     if (typeof isActive !== 'boolean') {
       return res.status(400).json({ error: "isActive must be a boolean" });
@@ -1316,8 +1428,8 @@ router.post("/assign-user", async (req, res) => {
 
     // Verify user exists
     const user = await db.select()
-      .from(users)
-      .where(eq(users.id, userId))
+      .from(profiles)
+      .where(eq(profiles.id, userId))
       .limit(1);
 
     if (user.length === 0) {
@@ -1440,11 +1552,11 @@ router.delete("/user-assignments/:assignmentId", async (req, res) => {
       companyId: userCompanies.clientId,
       role: userCompanies.role,
       companyName: companies.name,
-      userName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`
+      userName: sql<string>`${profiles.firstName} || ' ' || ${profiles.lastName}`
     })
       .from(userCompanies)
       .innerJoin(companies, eq(userCompanies.clientId, companies.id))
-      .innerJoin(users, eq(userCompanies.userId, users.id))
+      .innerJoin(profiles, eq(userCompanies.userId, profiles.id))
       .where(eq(userCompanies.id, assignmentId))
       .limit(1);
 

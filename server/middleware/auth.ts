@@ -1,44 +1,71 @@
 // Authentication and authorization middleware
-import { storage } from "../storage";
+import { supabaseAdmin } from "../supabase";
+import { db } from "../db";
+import { profiles } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
-// Auth middleware - requires user to be logged in
-export const requireAuth = (req: any, res: any, next: any) => {
-  // Debug session info (enabled for production debugging)
-  console.log('Session check:', {
-    path: req.path,
-    hasSession: !!req.session,
-    userId: req.session?.userId,
-    sessionId: req.sessionID,
-    cookies: req.headers.cookie
-  });
+// Auth middleware - requires user to be logged in via Supabase Auth
+export const requireAuth = async (req: any, res: any, next: any) => {
+  const authHeader = req.headers.authorization;
 
-  if (!req.session.userId) {
-    console.log('Authentication failed - no userId in session');
+  if (!authHeader) {
     return res.status(401).json({ message: 'Authentication required' });
   }
 
-  // Set req.user for compatibility with APIs that expect it
-  req.user = { id: req.session.userId };
+  const token = authHeader.split(' ')[1];
+  if (!token) {
+    return res.status(401).json({ message: 'Invalid authentication token' });
+  }
 
-  next();
+  try {
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+
+    if (error || !user) {
+      console.error('Supabase auth error:', error);
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+
+    // Attach user to request
+    req.user = user;
+    
+    // Also attach the profile for convenience (and legacy compatibility if we map fields)
+    // We can fetch the profile from the database
+    try {
+      const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
+      if (profile) {
+        req.profile = profile;
+        // For legacy compatibility, some routes might expect req.user.id to be the profile id
+        // Since both are UUIDs now, it's fine.
+      }
+    } catch (dbError) {
+      console.error('Error fetching profile:', dbError);
+    }
+
+    next();
+  } catch (err) {
+    console.error('Auth middleware error:', err);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
 };
 
 
 // Global Administrator middleware - requires global admin role
-export const requireGlobalAdmin = (req: any, res: any, next: any) => {
-  if (!req.session.userId) {
+export const requireGlobalAdmin = async (req: any, res: any, next: any) => {
+  if (!req.user) {
     return res.status(401).json({ message: 'Authentication required' });
   }
 
-  // Check if user is global administrator
-  storage.getUser(req.session.userId).then(user => {
-    if (!user || user.globalRole !== 'global_administrator') {
+  try {
+    // Check profile for global role
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, req.user.id)).limit(1);
+    
+    if (!profile || profile.globalRole !== 'global_administrator') {
       return res.status(403).json({ message: 'Global administrator access required' });
     }
     next();
-  }).catch(error => {
+  } catch (error) {
     console.error('Global admin check error:', error);
     res.status(500).json({ message: 'Internal server error' });
-  });
+  }
 };
 

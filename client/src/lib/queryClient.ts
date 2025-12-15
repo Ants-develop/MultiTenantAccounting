@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { getAccessToken, getRefreshToken, refreshAccessTokenFn } from "./auth";
+import { getAccessTokenAsync, refreshAccessTokenFn } from "./auth";
+import { supabase } from "./supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -19,7 +20,7 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const token = getAccessToken();
+  const token = await getAccessTokenAsync();
   
   const headers: Record<string, string> = data
     ? { "Content-Type": "application/json" }
@@ -36,18 +37,21 @@ export async function apiRequest(
     body: data ? JSON.stringify(data) : undefined,
   });
 
-  // If unauthorized (401) and we have a refresh token, try to refresh
+  // If unauthorized (401), try to refresh the session
   if (res.status === 401) {
-    const refreshToken = getRefreshToken();
-    const newToken = refreshToken ? await refreshAccessTokenFn() : null;
-    if (newToken) {
-      // Retry request with new token
-      headers["Authorization"] = `Bearer ${newToken}`;
-      res = await fetch(url, {
-        method,
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      });
+    try {
+      const newToken = await refreshAccessTokenFn();
+      if (newToken) {
+        // Retry request with new token
+        headers["Authorization"] = `Bearer ${newToken}`;
+        res = await fetch(url, {
+          method,
+          headers,
+          body: data ? JSON.stringify(data) : undefined,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to refresh token:", error);
     }
   }
 
@@ -61,7 +65,7 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const token = getAccessToken();
+    const token = await getAccessTokenAsync();
     const headers: Record<string, string> = {};
     
     if (token) {
@@ -72,16 +76,19 @@ export const getQueryFn: <T>(options: {
       headers,
     });
 
-    // If unauthorized (401) and we have a refresh token, try to refresh
+    // If unauthorized (401), try to refresh the session
     if (res.status === 401) {
-      const refreshToken = getRefreshToken();
-      const newToken = refreshToken ? await refreshAccessTokenFn() : null;
-      if (newToken) {
-        // Retry request with new token
-        headers["Authorization"] = `Bearer ${newToken}`;
-        res = await fetch(queryKey[0] as string, {
-          headers,
-        });
+      try {
+        const newToken = await refreshAccessTokenFn();
+        if (newToken) {
+          // Retry request with new token
+          headers["Authorization"] = `Bearer ${newToken}`;
+          res = await fetch(queryKey[0] as string, {
+            headers,
+          });
+        }
+      } catch (error) {
+        console.error("Failed to refresh token:", error);
       }
     }
 

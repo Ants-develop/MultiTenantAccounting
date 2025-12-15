@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { getAccessToken } from "@/lib/auth";
 
 export interface Password {
   id: string;
@@ -135,7 +134,9 @@ export const useCreatePassword = () => {
       notes?: string;
       tags?: string[];
     }) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       const encrypted = encryptPassword(input.password);
       const strength = calculatePasswordStrength(input.password);
 
@@ -149,7 +150,7 @@ export const useCreatePassword = () => {
           notes: input.notes || null,
           tags: input.tags || [],
           strength_score: strength,
-          created_by: token,
+          created_by: user.id,
         },
       ]);
 
@@ -176,9 +177,11 @@ export const useUpdatePassword = () => {
       tags?: string[];
       expires_at?: string;
     }) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+      
       const updates: any = {
-        updated_by: token,
+        updated_by: user.id,
         updated_at: new Date().toISOString(),
       };
 
@@ -215,13 +218,14 @@ export const useDeletePassword = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { error } = await supabase
         .from("passwords")
         .update({
           is_archived: true,
-          updated_by: token,
+          updated_by: user.id,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -244,7 +248,8 @@ export const useCreatePasswordFolder = () => {
       description?: string;
       parent_folder_id?: string;
     }) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
         .from("password_folders")
@@ -254,7 +259,7 @@ export const useCreatePasswordFolder = () => {
             name: input.name,
             description: input.description || null,
             parent_folder_id: input.parent_folder_id || null,
-            created_by: token,
+            created_by: user.id,
           },
         ])
         .select();
@@ -273,13 +278,14 @@ export const useDeletePasswordFolder = () => {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       const { error } = await supabase
         .from("password_folders")
         .update({
           is_archived: true,
-          updated_by: token,
+          updated_by: user.id,
           updated_at: new Date().toISOString(),
         })
         .eq("id", id);
@@ -295,13 +301,14 @@ export const useDeletePasswordFolder = () => {
 export const useRevealPassword = () => {
   return useMutation({
     mutationFn: async (id: string) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       // Log the access
       await supabase.from("password_access_logs").insert([
         {
           password_id: id,
-          user_id: token,
+          user_id: user.id,
           action: "viewed",
           ip_address: null, // Would need server-side to get real IP
           user_agent: navigator.userAgent,
@@ -323,13 +330,14 @@ export const useRevealPassword = () => {
 export const useCopyPassword = () => {
   return useMutation({
     mutationFn: async (id: string) => {
-      const token = getAccessToken();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
       // Log the access
       await supabase.from("password_access_logs").insert([
         {
           password_id: id,
-          user_id: token,
+          user_id: user.id,
           action: "copied",
           ip_address: null,
           user_agent: navigator.userAgent,

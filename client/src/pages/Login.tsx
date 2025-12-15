@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 const loginSchema = z.object({
-  username: z.string().min(1, "Username is required"),
+  username: z.string().email("Valid email address is required"),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -87,11 +87,12 @@ export default function Login() {
             <TabsContent value="login">
               <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">{t('auth.usernameOrEmail')}</Label>
+                  <Label htmlFor="username">Email Address</Label>
                   <Input
                     id="username"
+                    type="email"
                     {...loginForm.register("username")}
-                    placeholder={t('auth.enterUsername')}
+                    placeholder="Enter your email"
                   />
                   {loginForm.formState.errors.username && (
                     <p className="text-sm text-destructive">

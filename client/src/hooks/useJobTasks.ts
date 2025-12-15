@@ -9,7 +9,7 @@ interface JobTask {
   status: string;
   assigned_to?: string;
   due_date?: string;
-  order_position: number;
+  order: number;
   is_required: boolean;
   created_at: string;
   completed_at?: string;
@@ -29,10 +29,10 @@ export const useJobTasks = (workflowId?: string) => {
         .from("tasks")
         .select(`
           *,
-          assigned_to_user:assigned_to(full_name, avatar_url)
+          assigned_to_user:profiles!tasks_assigned_to_profiles_id_fk(full_name, avatar_url)
         `)
         .eq("workflow_id", workflowId)
-        .order("order_position", { ascending: true });
+        .order("order", { ascending: true });
 
       if (error) throw error;
       return (data || []) as unknown as JobTask[];

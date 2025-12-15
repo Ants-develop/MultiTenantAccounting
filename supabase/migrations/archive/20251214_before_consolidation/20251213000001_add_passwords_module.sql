@@ -1,7 +1,7 @@
 -- Create password_folders table
 CREATE TABLE IF NOT EXISTS public.password_folders (
     id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-    client_id uuid REFERENCES public.clients(id) ON DELETE CASCADE,
+    client_id integer REFERENCES public.clients(id) ON DELETE CASCADE,
     name text NOT NULL,
     description text,
     parent_folder_id uuid REFERENCES public.password_folders(id) ON DELETE CASCADE,

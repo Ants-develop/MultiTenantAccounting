@@ -21,8 +21,8 @@ export interface ErrorDetail {
 
 export interface MigrationProgress {
   migrationId: string;
-  type: 'general-ledger' | 'audit' | 'rs';
-  tenantCode: number | null;
+  type: 'general-ledger' | 'audit' | 'update' | 'rs' | 'audit-table' | 'full-audit-export';
+  tenantCode: string | number | null;
   tableName?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'stopped';
   totalRecords: number;
@@ -55,6 +55,10 @@ interface MSSQLConfig {
 }
 
 const migrationEmitter = new EventEmitter();
+
+// Keep migration progress in-memory only to avoid extra DB writes and
+// eliminate driver issues caused by frequent log/history persistence.
+const PERSIST_MIGRATION_DB = false;
 
 /**
  * Build MSSQL connection config
@@ -322,6 +326,13 @@ function convertDecimal(value: any): number | null {
   return isNaN(num) ? null : num;
 }
 
+function toISOStringOrNull(value: any): string | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return value.toISOString();
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 /**
  * Emit progress update
  */
@@ -348,9 +359,11 @@ function addLog(progress: MigrationProgress, level: 'info' | 'warn' | 'error', m
   }
 
   // Persist log to database (non-blocking, fire-and-forget)
-  persistLogToDatabase(progress.migrationId, logEntry).catch(err => {
-    console.error('Failed to persist log to database:', err);
-  });
+  if (PERSIST_MIGRATION_DB) {
+    persistLogToDatabase(progress.migrationId, logEntry).catch(err => {
+      console.error('Failed to persist log to database:', err);
+    });
+  }
 
   emitProgress(progress);
 }
@@ -376,9 +389,11 @@ function addError(progress: MigrationProgress, error: Error | string, recordId?:
   }
 
   // Persist error to database (non-blocking, fire-and-forget)
-  persistErrorToDatabase(progress.migrationId, errorDetail).catch(err => {
-    console.error('Failed to persist error to database:', err);
-  });
+  if (PERSIST_MIGRATION_DB) {
+    persistErrorToDatabase(progress.migrationId, errorDetail).catch(err => {
+      console.error('Failed to persist error to database:', err);
+    });
+  }
 
   // Also add as error log
   addLog(progress, 'error', errorMessage, { recordId, recordData });
@@ -447,6 +462,9 @@ async function persistErrorToDatabase(migrationId: string, errorDetail: ErrorDet
  * Save or update migration history in database
  */
 export async function saveMigrationHistory(progress: MigrationProgress): Promise<void> {
+  if (!PERSIST_MIGRATION_DB) {
+    return;
+  }
   try {
     const historyData = {
       migrationId: progress.migrationId,
@@ -466,17 +484,13 @@ export async function saveMigrationHistory(progress: MigrationProgress): Promise
       updatedAt: new Date(),
     };
 
-    // Try to update existing record, or insert if it doesn't exist
-    await db.execute(drizzleSql`
+    // Use pool.query directly to avoid Drizzle/Postgres.js Date issues
+    // Explicitly convert Dates to ISO strings to prevent "Received an instance of Date" errors
+    await pool.query(`
       INSERT INTO migration_history (
         migration_id, type, tenant_code, table_name, status, total_records, processed_records,
         success_count, error_count, progress, batch_size, error_message, start_time, end_time, updated_at
-      ) VALUES (
-        ${historyData.migrationId}, ${historyData.type}, ${historyData.tenantCode}, ${historyData.tableName},
-        ${historyData.status}, ${historyData.totalRecords}, ${historyData.processedRecords},
-        ${historyData.successCount}, ${historyData.errorCount}, ${historyData.progress}::numeric,
-        ${historyData.batchSize}, ${historyData.errorMessage}, ${historyData.startTime}, ${historyData.endTime}, ${historyData.updatedAt}
-      )
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ON CONFLICT (migration_id) DO UPDATE SET
         status = EXCLUDED.status,
         processed_records = EXCLUDED.processed_records,
@@ -486,7 +500,23 @@ export async function saveMigrationHistory(progress: MigrationProgress): Promise
         error_message = EXCLUDED.error_message,
         end_time = EXCLUDED.end_time,
         updated_at = EXCLUDED.updated_at
-    `);
+    `, [
+      historyData.migrationId,
+      historyData.type,
+      historyData.tenantCode,
+      historyData.tableName,
+      historyData.status,
+      historyData.totalRecords,
+      historyData.processedRecords,
+      historyData.successCount,
+      historyData.errorCount,
+      historyData.progress,
+      historyData.batchSize,
+      historyData.errorMessage,
+      historyData.startTime ? historyData.startTime.toISOString() : null,
+      historyData.endTime ? historyData.endTime.toISOString() : null,
+      historyData.updatedAt.toISOString()
+    ]);
   } catch (error) {
     // Silently fail if table doesn't exist yet (migration not run)
     if (error instanceof Error && error.message.includes('does not exist')) {
@@ -628,7 +658,7 @@ export async function migrateGeneralLedger(
           const values = batch.map((r, idx) => [
             clientId,
             `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
-            r.PostingsPeriod || new Date(),
+            toISOStringOrNull(r.PostingsPeriod) || new Date().toISOString(),
             r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
             null,
             convertDecimal(r.Amount) || 0,
@@ -637,7 +667,7 @@ export async function migrateGeneralLedger(
             r.TenantCode,
             r.TenantName,
             r.Abonent,
-            r.PostingsPeriod,
+            toISOStringOrNull(r.PostingsPeriod),
             convertBinaryToHex(r.Register),
             r.Branch,
             r.Content,
@@ -672,15 +702,15 @@ export async function migrateGeneralLedger(
             convertDecimal(r.Rate),
             convertDecimal(r.DocumentRate),
             r.TAXInvoiceNumber,
-            r.TAXInvoiceDate,
+            toISOStringOrNull(r.TAXInvoiceDate),
             r.TAXInvoiceSeries,
             r.WaybillNumber,
             convertDecimal(r.AttachedFiles),
             r.DocType,
-            r.DocDate,
+            toISOStringOrNull(r.DocDate),
             r.DocNumber,
-            r.DocumentCreationDate,
-            r.DocumentModifyDate,
+            toISOStringOrNull(r.DocumentCreationDate),
+            toISOStringOrNull(r.DocumentModifyDate),
             r.DocumentComments,
             r.PostingNumber,
           ]);
@@ -818,7 +848,7 @@ export async function migrateGeneralLedger(
         const values = batch.map((r, idx) => [
           clientId,
           `GL-${tenantCode}-${String(progress.processedRecords + idx + 1).padStart(6, '0')}`,
-          r.PostingsPeriod || new Date(),
+          toISOStringOrNull(r.PostingsPeriod) || new Date().toISOString(),
           r.Content || `General Ledger Entry ${progress.processedRecords + idx + 1}`,
           null,
           convertDecimal(r.Amount) || 0,
@@ -827,7 +857,7 @@ export async function migrateGeneralLedger(
           r.TenantCode,
           r.TenantName,
           r.Abonent,
-          r.PostingsPeriod,
+          toISOStringOrNull(r.PostingsPeriod),
           convertBinaryToHex(r.Register),
           r.Branch,
           r.Content,
@@ -862,15 +892,15 @@ export async function migrateGeneralLedger(
           convertDecimal(r.Rate),
           convertDecimal(r.DocumentRate),
           r.TAXInvoiceNumber,
-          r.TAXInvoiceDate,
+          toISOStringOrNull(r.TAXInvoiceDate),
           r.TAXInvoiceSeries,
           r.WaybillNumber,
           convertDecimal(r.AttachedFiles),
           r.DocType,
-          r.DocDate,
+          toISOStringOrNull(r.DocDate),
           r.DocNumber,
-          r.DocumentCreationDate,
-          r.DocumentModifyDate,
+          toISOStringOrNull(r.DocumentCreationDate),
+          toISOStringOrNull(r.DocumentModifyDate),
           r.DocumentComments,
           r.PostingNumber,
         ]);
@@ -991,18 +1021,19 @@ export async function migrateGeneralLedger(
 }
 
 /**
- * Export to journal_entries table from audit.GeneralLedger
+ * Import General Ledger from Audit Database (legacy name: exportToAudit)
+ * Exports from audit.GeneralLedger to accounting.journal_entries
  */
-export async function exportToAudit(
+export async function importGLFromAuditDB(
   mssqlPool: sql.ConnectionPool,
   tenantCode: number,
   clientId: number,
   batchSize: number = 1000
 ): Promise<MigrationProgress> {
-  const migrationId = `audit_${Date.now()}`;
+  const migrationId = `gl_audit_${Date.now()}`;
   const progress: MigrationProgress = {
     migrationId,
-    type: 'audit',
+    type: 'general-ledger', // This is actually a GL migration
     tenantCode,
     status: 'running',
     totalRecords: 0,
@@ -1541,148 +1572,7 @@ export async function migrateRSTables(
   }
 }
 
-/**
- * Migrate audit schema tables from MSSQL
- */
-export async function migrateAuditTables(
-  mssqlPool: sql.ConnectionPool,
-  tableName: string,
-  batchSize: number = 1000
-): Promise<MigrationProgress> {
-  const migrationId = `audit_${Date.now()}`;
-  const progress: MigrationProgress = {
-    migrationId,
-    type: 'audit',
-    tenantCode: null,
-    status: 'running',
-    totalRecords: 0,
-    processedRecords: 0,
-    successCount: 0,
-    errorCount: 0,
-    progress: 0,
-    startTime: new Date(),
-    batchSize,
-    logs: [],
-    errors: [],
-  };
 
-  try {
-    const countRequest = mssqlPool.request();
-    const countResult = await countRequest.query(
-      `SELECT COUNT(*) as count FROM audit.${tableName}`
-    );
-    progress.totalRecords = countResult.recordset[0].count;
-
-    if (progress.totalRecords === 0) {
-      progress.status = 'completed';
-      progress.endTime = new Date();
-      emitProgress(progress);
-      return progress;
-    }
-
-    console.log(`📊 Total audit records to migrate: ${progress.totalRecords} from table: ${tableName}`);
-
-    const request = mssqlPool.request();
-    let batch: any[] = [];
-
-    request.stream = true;
-
-    request.on('row', async (row: any) => {
-      batch.push(row);
-
-      if (batch.length >= batchSize) {
-        request.pause();
-        try {
-          // Dynamic column mapping for audit tables
-          const columns = Object.keys(row).map(col => col.toLowerCase());
-          const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(', ');
-
-          const values = batch.map((r) => {
-            const vals: any[] = [];
-            for (const col of columns) {
-              let value = r[col];
-              if (value && (typeof value === 'object' && Buffer.isBuffer(value))) {
-                value = convertBinaryToHex(value);
-              } else if (typeof value === 'number') {
-                value = convertDecimal(value);
-              }
-              vals.push(value);
-            }
-            return vals;
-          });
-
-          const colNames = columns.join(', ');
-          const insertQuery = `INSERT INTO audit."${tableName}" (${colNames}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`;
-
-          for (const val of values) {
-            try {
-              // Use raw query execution via database pool
-              await db.execute(insertQuery);
-              progress.successCount++;
-            } catch (error) {
-              console.error('❌ Audit insert error:', error);
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              addLog(progress, 'error', `Audit insert failed: ${errorMessage}`, { recordIndex: values.indexOf(val), tableName });
-              addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, {
-                recordIndex: values.indexOf(val),
-                tableName
-              });
-              // Stop migration immediately on any insert failure
-              progress.status = 'failed';
-              progress.errorMessage = `Insert failed: ${errorMessage}`;
-              progress.endTime = new Date();
-              emitProgress(progress);
-              saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-              throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
-            }
-          }
-
-          progress.processedRecords += batch.length;
-          progress.progress = (progress.processedRecords / progress.totalRecords) * 100;
-          emitProgress(progress);
-
-          batch = [];
-          request.resume();
-        } catch (error) {
-          console.error('❌ Audit batch error:', error);
-          progress.errorCount += batch.length;
-          batch = [];
-          request.resume();
-        }
-      }
-    });
-
-    request.on('done', async () => {
-      if (batch.length > 0) {
-        progress.processedRecords += batch.length;
-        progress.progress = 100;
-      }
-
-      progress.status = 'completed';
-      progress.endTime = new Date();
-      emitProgress(progress);
-    });
-
-    request.on('error', (error: any) => {
-      console.error('❌ Audit stream error:', error);
-      progress.status = 'failed';
-      progress.errorMessage = error.message;
-      progress.endTime = new Date();
-      emitProgress(progress);
-    });
-
-    await request.query(`SELECT * FROM audit.${tableName}`);
-
-    return progress;
-  } catch (error: any) {
-    console.error('❌ Audit migration error:', error);
-    progress.status = 'failed';
-    progress.errorMessage = error.message;
-    progress.endTime = new Date();
-    emitProgress(progress);
-    throw error;
-  }
-}
 
 /**
  * Update existing journal entries (incremental sync)
@@ -2096,29 +1986,15 @@ function wrapMSSQLTableName(tableName: string): string {
 }
 
 /**
- * Migrate single audit schema table from MSSQL to PostgreSQL
- * 
- * @param mssqlPool - MSSQL connection pool
- * @param tableName - MSSQL table name (PascalCase, e.g., "AccountsSummary")
- * @param currentCompanyId - PostgreSQL company ID to associate records with (becomes company_code column)
- * @param batchSize - Number of records to process per batch
- * 
- * @description
- * This function handles the complete migration of an audit table including:
- * 1. Table name conversion: MSSQL PascalCase → PostgreSQL snake_case
- * 2. Column name conversion: TenantCode → tenant_code, CompanyID → company_id
- * 3. Special handling for numeric table names (e.g., 1690Stock → [1690Stock] in MSSQL)
- * 4. Data type conversions (decimal, date, etc.)
- * 
- * @note Column naming:
- * - company_code (INTEGER) = Our PostgreSQL foreign key to clients table (provided as currentCompanyId)
- * - company_id (VARCHAR) = Original MSSQL CompanyID string value from the audit data
+ * Migrate single audit schema table from MSSQL to PostgreSQL.
+ *
+ * Simpler approach: copy rows 1:1 (column names mapped to snake_case) with minimal
+ * type normalization required for inserts (null/undefined, Buffer, Date).
  */
 export async function migrateAuditSchemaTable(
   mssqlPool: sql.ConnectionPool,
   tableName: string,
-  currentCompanyId: number,
-  batchSize: number = 5000  // 🚀 Increased from 1000 for better performance
+  batchSize: number = 5000
 ): Promise<MigrationProgress> {
   const migrationId = `audit_${tableName}_${Date.now()}`;
   const pgTableName = convertTableNameToSnakeCase(tableName);
@@ -2127,7 +2003,7 @@ export async function migrateAuditSchemaTable(
     migrationId,
     type: 'audit',
     tenantCode: null,
-    tableName: tableName,
+    tableName,
     status: 'running',
     totalRecords: 0,
     processedRecords: 0,
@@ -2140,280 +2016,161 @@ export async function migrateAuditSchemaTable(
     errors: [],
   };
 
-  // Save initial migration history FIRST (before any logs) to ensure foreign key exists
-  await saveMigrationHistory(progress);
   addLog(progress, 'info', `Starting migration of audit.${tableName} → audit.${pgTableName}`, { batchSize });
 
   try {
-    // Get total count
-    console.log(`\n📊 Starting migration of audit.${tableName} → audit.${pgTableName}`);
-
     const mssqlTableName = wrapMSSQLTableName(tableName);
-    const countRequest = mssqlPool.request();
-    const countResult = await countRequest.query(
+
+    const countResult = await mssqlPool.request().query(
       `SELECT COUNT(*) as count FROM audit.${mssqlTableName}`
     );
     progress.totalRecords = countResult.recordset[0]?.count || 0;
-
-    console.log(`   Total records: ${progress.totalRecords}`);
     addLog(progress, 'info', `Found ${progress.totalRecords} records to migrate`);
 
     if (progress.totalRecords === 0) {
-      addLog(progress, 'warn', 'No records found to migrate');
       progress.status = 'completed';
       progress.endTime = new Date();
       emitProgress(progress);
       return progress;
     }
 
-    // Get column information for dynamic insertion
-    const columnsRequest = mssqlPool.request();
-    const columnsResult = await columnsRequest.query(`
-      SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE
+    // MSSQL column info
+    const columnsResult = await mssqlPool.request().query(`
+      SELECT COLUMN_NAME, DATA_TYPE
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = 'audit' AND TABLE_NAME = '${tableName}'
       ORDER BY ORDINAL_POSITION
     `);
 
-    const columns = columnsResult.recordset.map((col: any) => ({
+    const mssqlColumns: Array<{ name: string; type: string; pgName: string }> = columnsResult.recordset.map((col: any) => ({
       name: col.COLUMN_NAME,
       type: col.DATA_TYPE,
-      maxLength: col.CHARACTER_MAXIMUM_LENGTH,
-      precision: col.NUMERIC_PRECISION,
-      scale: col.NUMERIC_SCALE,
+      pgName: convertColumnNameToSnakeCase(col.COLUMN_NAME),
     }));
 
-    console.log(`   MSSQL Columns (${columns.length}): ${columns.map((c: any) => c.name).join(', ')}`);
-    console.log(`   PostgreSQL Columns: company_code (FK), ${columns.map((c: any) => convertColumnNameToSnakeCase(c.name)).join(', ')}`);
+    // PostgreSQL column info (used to avoid inserting into mismatched columns like UUID company_code)
+    const pgColsResult = await pool.query(
+      `SELECT column_name, data_type FROM information_schema.columns WHERE table_schema='audit' AND table_name=$1`,
+      [pgTableName]
+    );
+    const pgTypesByName = new Map<string, string>();
+    for (const row of pgColsResult.rows as any[]) {
+      pgTypesByName.set(row.column_name, row.data_type);
+    }
 
-    // Query all data - wrap column names in brackets to handle spaces and special characters
-    const columnNames = columns.map((c: any) => `[${c.name}]`).join(', ');
-    const query = `SELECT ${columnNames} FROM audit.${mssqlTableName} ORDER BY TenantCode`;
+    const insertColumns = mssqlColumns.filter((c) => {
+      const pgType = pgTypesByName.get(c.pgName);
+      if (!pgType) return false;
+      // Prevent known mismatch: audit.company_code is UUID in current schema, but MSSQL CompanyCode is not.
+      if (c.pgName === 'company_code' && pgType === 'uuid') return false;
+      return true;
+    });
+
+    if (insertColumns.length === 0) {
+      throw new Error(`No compatible columns found for audit.${pgTableName}`);
+    }
+
+    const selectList = insertColumns.map((c) => `[${c.name}]`).join(', ');
+    const insertColumnList = insertColumns.map((c) => quotePostgreSQLColumn(c.pgName)).join(', ');
+    const query = `SELECT ${selectList} FROM audit.${mssqlTableName}`;
 
     const request = mssqlPool.request();
+    request.stream = true;
     let batch: any[] = [];
 
-    request.stream = true;
+    const flushBatch = async (rows: any[]) => {
+      if (rows.length === 0) return;
 
-    request.on('row', async (row: any) => {
-      batch.push(row);
+      const valueGroups: string[] = [];
+      const flatValues: any[] = [];
+      let paramCounter = 1;
 
-      if (batch.length >= batchSize) {
-        request.pause();
-        try {
-          const values = batch.map((r) => {
-            // First value is always our company_code (PostgreSQL foreign key)
-            const vals: any[] = [currentCompanyId];
+      for (const r of rows) {
+        const rowValues: any[] = [];
+        for (const col of insertColumns) {
+          let value = r[col.name];
 
-            // Then add all MSSQL columns (including their CompanyID which becomes company_id)
-            for (const col of columns) {
-              let value = r[col.name];
-
-              // Type conversions
-              if (value === null || value === undefined) {
-                vals.push(null);
-              } else if (col.type === 'decimal' || col.type === 'numeric') {
-                vals.push(convertDecimal(value));
-              } else if (col.type === 'int') {
-                vals.push(Number.isInteger(value) ? value : null);
-              } else if (col.type === 'date' || col.type === 'datetime2') {
-                vals.push(value instanceof Date ? value : null);
-              } else if (col.type === 'nvarchar' || col.type === 'varchar' || col.type === 'char') {
-                vals.push(String(value));
-              } else if (col.type === 'binary') {
-                vals.push(convertBinaryToHex(value));
-              } else {
-                vals.push(value);
-              }
-            }
-            return vals;
-          });
-
-          // Build dynamic column list for insertion (convert to snake_case and quote if needed)
-          const columnList = `company_code, ${columns.map((c: any) => quotePostgreSQLColumn(convertColumnNameToSnakeCase(c.name))).join(', ')}`;
-
-          // 🚀 BATCH INSERT: Build multi-row VALUES clause
-          const numColumns = columns.length + 1; // +1 for company_code
-          const valueGroups: string[] = [];
-          const flatValues: any[] = [];
-          let paramCounter = 1;
-
-          for (const val of values) {
-            const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
-            valueGroups.push(`(${placeholders})`);
-            flatValues.push(...val);
+          if (value === undefined || value === null) {
+            rowValues.push(null);
+            continue;
           }
 
-          const insertQuery = `
-            INSERT INTO audit."${pgTableName}" (${columnList})
-            VALUES ${valueGroups.join(', ')}
-            ON CONFLICT DO NOTHING
-          `;
-
-          try {
-            await pool.query(insertQuery, flatValues);
-            progress.successCount += values.length;
-          } catch (error) {
-            console.error(`❌ Batch insert error for ${pgTableName}:`, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            addLog(progress, 'error', `Batch insert failed for ${pgTableName}: ${errorMessage}`, {
-              tableName: pgTableName,
-              batchSize: values.length
-            });
-            addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, {
-              tableName: pgTableName,
-              batchSize: values.length
-            });
-            // Stop migration immediately on any insert failure
-            progress.status = 'failed';
-            progress.errorMessage = `Insert failed for ${pgTableName}: ${errorMessage}`;
-            progress.endTime = new Date();
-            emitProgress(progress);
-            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
+          if (value instanceof Date) {
+            rowValues.push(value.toISOString());
+            continue;
           }
 
-          progress.processedRecords += batch.length;
-          progress.progress = (progress.processedRecords / progress.totalRecords) * 100;
-          emitProgress(progress);
+          if (Buffer.isBuffer(value)) {
+            rowValues.push(convertBinaryToHex(value));
+            continue;
+          }
 
-          batch = [];
-          request.resume();
-        } catch (error) {
-          console.error(`❌ Batch error for ${tableName}:`, error);
-          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, {
-            tableName,
-            batchSize: batch.length,
-            processedRecords: progress.processedRecords
-          });
-          progress.errorCount += batch.length;
-          batch = [];
-          request.resume();
+          if (col.type === 'decimal' || col.type === 'numeric') {
+            rowValues.push(convertDecimal(value));
+            continue;
+          }
+
+          rowValues.push(value);
         }
-      }
-    });
 
-    request.on('done', async () => {
-      // Process remaining batch
-      if (batch.length > 0) {
-        try {
-          const values = batch.map((r) => {
-            // First value is always our company_code (PostgreSQL foreign key)
-            const vals: any[] = [currentCompanyId];
-
-            // Then add all MSSQL columns (including their CompanyID which becomes company_id)
-            for (const col of columns) {
-              let value = r[col.name];
-
-              if (value === null || value === undefined) {
-                vals.push(null);
-              } else if (col.type === 'decimal' || col.type === 'numeric') {
-                vals.push(convertDecimal(value));
-              } else if (col.type === 'int') {
-                vals.push(Number.isInteger(value) ? value : null);
-              } else if (col.type === 'date' || col.type === 'datetime2') {
-                vals.push(value instanceof Date ? value : null);
-              } else if (col.type === 'nvarchar' || col.type === 'varchar' || col.type === 'char') {
-                vals.push(String(value));
-              } else if (col.type === 'binary') {
-                vals.push(convertBinaryToHex(value));
-              } else {
-                vals.push(value);
-              }
-            }
-            return vals;
-          });
-
-          const columnList = `company_code, ${columns.map((c: any) => quotePostgreSQLColumn(convertColumnNameToSnakeCase(c.name))).join(', ')}`;
-
-          // 🚀 BATCH INSERT: Build multi-row VALUES clause
-          const valueGroups: string[] = [];
-          const flatValues: any[] = [];
-          let paramCounter = 1;
-
-          for (const val of values) {
-            const placeholders = val.map(() => `$${paramCounter++}`).join(', ');
-            valueGroups.push(`(${placeholders})`);
-            flatValues.push(...val);
-          }
-
-          const insertQuery = `
-            INSERT INTO audit."${pgTableName}" (${columnList})
-            VALUES ${valueGroups.join(', ')}
-            ON CONFLICT DO NOTHING
-          `;
-
-          try {
-            await pool.query(insertQuery, flatValues);
-            progress.successCount += values.length;
-          } catch (error) {
-            console.error(`❌ Final batch insert error for ${pgTableName}:`, error);
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            addLog(progress, 'error', `Final batch insert failed for ${pgTableName}: ${errorMessage}`, {
-              tableName: pgTableName,
-              batchSize: values.length,
-              isFinalBatch: true
-            });
-            addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, {
-              tableName: pgTableName,
-              batchSize: values.length,
-              isFinalBatch: true
-            });
-            // Stop migration immediately on any insert failure
-            progress.status = 'failed';
-            progress.errorMessage = `Insert failed for ${pgTableName}: ${errorMessage}`;
-            progress.endTime = new Date();
-            emitProgress(progress);
-            saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-            throw new Error(`Migration stopped due to insert failure: ${errorMessage}`);
-          }
-
-          progress.processedRecords += batch.length;
-          progress.progress = 100;
-        } catch (error) {
-          console.error(`❌ Final batch error for ${pgTableName}:`, error);
-          addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, {
-            tableName: pgTableName,
-            batchSize: batch.length,
-            isFinalBatch: true
-          });
-          progress.errorCount += batch.length;
-        }
+        const placeholders = rowValues.map(() => `$${paramCounter++}`).join(', ');
+        valueGroups.push(`(${placeholders})`);
+        flatValues.push(...rowValues);
       }
 
-      progress.status = 'completed';
-      progress.endTime = new Date();
-      addLog(progress, 'info', `Migration completed: ${progress.successCount} successful, ${progress.errorCount} errors`);
-      emitProgress(progress);
-      // Save final migration history
-      saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
+      const insertQuery = `
+        INSERT INTO audit."${pgTableName}" (${insertColumnList})
+        VALUES ${valueGroups.join(', ')}
+        ON CONFLICT DO NOTHING
+      `;
 
-      console.log(`✅ Migration of ${tableName} → ${pgTableName} completed: ${progress.successCount} success, ${progress.errorCount} errors`);
+      await pool.query(insertQuery, flatValues);
+      progress.successCount += rows.length;
+      progress.processedRecords += rows.length;
+      progress.progress = (progress.processedRecords / progress.totalRecords) * 100;
+      emitProgress(progress);
+    };
+
+    await new Promise<void>((resolve, reject) => {
+      request.on('row', async (row: any) => {
+        batch.push(row);
+        if (batch.length >= batchSize) {
+          request.pause();
+          try {
+            await flushBatch(batch);
+            batch = [];
+            request.resume();
+          } catch (e) {
+            reject(e);
+          }
+        }
+      });
+
+      request.on('error', (error: any) => reject(error));
+
+      request.on('done', async () => {
+        try {
+          await flushBatch(batch);
+          resolve();
+        } catch (e) {
+          reject(e);
+        }
+      });
     });
 
-    request.on('error', (error: any) => {
-      console.error(`❌ Stream error for ${tableName}:`, error);
-      addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { tableName });
-      progress.status = 'failed';
-      progress.errorMessage = error.message;
-      progress.endTime = new Date();
-      emitProgress(progress);
-      // Save failed migration history
-      saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
-    });
-
-    await request.query(query);
-
+    progress.status = 'completed';
+    progress.endTime = new Date();
+    progress.progress = 100;
+    addLog(progress, 'info', `Migration completed: ${progress.successCount} successful, ${progress.errorCount} errors`);
+    emitProgress(progress);
     return progress;
   } catch (error: any) {
-    console.error(`❌ Migration error for ${tableName}:`, error);
-    addError(progress, error instanceof Error ? error : new Error(String(error)), undefined, { tableName });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    addError(progress, error instanceof Error ? error : new Error(errorMessage), undefined, { tableName, pgTableName });
     progress.status = 'failed';
-    progress.errorMessage = error.message;
+    progress.errorMessage = errorMessage;
     progress.endTime = new Date();
     emitProgress(progress);
-    // Save failed migration history
-    saveMigrationHistory(progress).catch(err => console.error('Failed to save migration history:', err));
     return progress;
   }
 }
@@ -2423,5 +2180,197 @@ export async function migrateAuditSchemaTable(
  */
 export function getProgressEmitter(): EventEmitter {
   return migrationEmitter;
+}
+
+const auditTableMapping: Record<string, string> = {
+  "1690Stock": "1690_stock",
+  "AccountsSummary": "accounts_summary",
+  "AccruedInterest": "accrued_interest",
+  "Analytics": "analytics",
+  "AnalyticsBalanceSummary": "analytics_balance_summary",
+  "CapitalAccounts": "capital_accounts",
+  "CapitalAccountsSummary": "capital_accounts_summary",
+  "CreditorsAvans": "creditors_avans",
+  "DebitorsAvans": "debitors_avans",
+  "DublicateCreditors": "dublicate_creditors",
+  "DublicateDebitors": "dublicate_debitors",
+  "HighAmountPerQuantitySummary": "high_amount_per_quantity_summary",
+  "NegativCreditor": "negativ_creditor",
+  "NegativDebitor": "negativ_debitor",
+  "NegativeBalance141Summary": "negative_balance_141_summary",
+  "NegativeBalance311Summary": "negative_balance_311_summary",
+  "NegativeBalanceSummary": "negative_balance_summary",
+  "NegativeLoans": "negative_loans",
+  "NegativeStock": "negative_stock",
+  "NegativInterest": "negativ_interest",
+  "NegativSalary": "negativ_salary",
+  "PositiveBalanceSummary": "positive_balance_summary",
+  "RevaluationStatusSummary": "revaluation_status_summary",
+  "SalaryExpense": "salary_expense",
+  "WriteoffStock": "writeoff_stock"
+};
+
+function toSnakeCase(str: string): string {
+  return str
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .toLowerCase();
+}
+
+export async function migrateAuditTables(
+  mssqlPool: sql.ConnectionPool,
+  tenantCode: number,
+  clientId: number,
+  batchSize: number = 1000
+): Promise<MigrationProgress> {
+  const migrationId = `audit_full_${Date.now()}`;
+  const progress: MigrationProgress = {
+    migrationId,
+    type: 'audit',
+    tenantCode,
+    status: 'running',
+    totalRecords: 0,
+    processedRecords: 0,
+    successCount: 0,
+    errorCount: 0,
+    progress: 0,
+    startTime: new Date(),
+    batchSize,
+    logs: [],
+    errors: [],
+  };
+
+  try {
+    await validateClientExists(clientId);
+    await saveMigrationHistory(progress);
+    addLog(progress, 'info', `Starting full audit tables migration for tenant ${tenantCode}`, { clientId });
+
+    for (const [mssqlTable, postgresTable] of Object.entries(auditTableMapping)) {
+      addLog(progress, 'info', `Migrating table ${mssqlTable} -> ${postgresTable}`);
+      
+      try {
+        // Check if source table exists
+        const checkTable = await mssqlPool.request().query(`
+          SELECT COUNT(*) as count FROM information_schema.tables 
+          WHERE table_name = '${mssqlTable}' AND table_schema = 'audit'
+        `);
+        
+        if (checkTable.recordset[0].count === 0) {
+           addLog(progress, 'warn', `Source table audit.${mssqlTable} not found, skipping`);
+           continue;
+        }
+
+        // Get total count
+        const countResult = await mssqlPool.request().query(`
+          SELECT COUNT(*) as count FROM audit.${mssqlTable} WHERE TenantCode = ${tenantCode}
+        `);
+        const tableTotal = countResult.recordset[0].count;
+        progress.totalRecords += tableTotal;
+        
+        if (tableTotal === 0) {
+           addLog(progress, 'info', `Table audit.${mssqlTable} is empty for tenant ${tenantCode}, skipping`);
+           continue;
+        }
+
+        // Stream data
+        const request = mssqlPool.request();
+        request.stream = true;
+        request.query(`SELECT * FROM audit.${mssqlTable} WHERE TenantCode = ${tenantCode}`);
+
+        let batch: any[] = [];
+        
+        // Helper to process batch
+        const processBatch = async (currentBatch: any[], pgTable: string) => {
+           if (currentBatch.length === 0) return;
+           
+           try {
+             const firstRow = currentBatch[0];
+             const columns = Object.keys(firstRow).filter(c => c !== 'CompanyCode'); // Exclude MSSQL CompanyCode
+             
+             const pgColumns = columns.map(c => toSnakeCase(c));
+             
+             // Add company_code
+             const targetColumns = [...pgColumns, 'company_code'];
+             
+             const valueGroups: string[] = [];
+             const flatValues: any[] = [];
+             let paramCounter = 1;
+             
+             for (const row of currentBatch) {
+               const rowValues: any[] = [];
+               for (const col of columns) {
+                 let val = row[col];
+                 if (typeof val === 'string') val = val.trim();
+                 rowValues.push(val);
+               }
+               rowValues.push(clientId); // Inject clientId
+               
+               const placeholders = rowValues.map(() => `$${paramCounter++}`).join(', ');
+               valueGroups.push(`(${placeholders})`);
+               flatValues.push(...rowValues);
+             }
+             
+             const insertQuery = `
+               INSERT INTO audit."${pgTable}" (${targetColumns.map(c => `"${c}"`).join(', ')})
+               VALUES ${valueGroups.join(', ')}
+               ON CONFLICT DO NOTHING
+             `;
+             
+             await pool.query(insertQuery, flatValues);
+             progress.successCount += currentBatch.length;
+             progress.processedRecords += currentBatch.length;
+             emitProgress(progress);
+           } catch (err) {
+             addLog(progress, 'error', `Batch insert failed for ${pgTable}`, { error: err });
+             progress.errorCount += currentBatch.length;
+           }
+        };
+
+        await new Promise<void>((resolve, reject) => {
+            request.on('row', async (row: any) => {
+              batch.push(row);
+              if (batch.length >= batchSize) {
+                request.pause();
+                await processBatch(batch, postgresTable);
+                batch = [];
+                request.resume();
+              }
+            });
+
+            request.on('error', (err: any) => {
+               addLog(progress, 'error', `Stream error for ${mssqlTable}`, { error: err });
+               progress.errorCount++;
+               reject(err);
+            });
+
+            request.on('done', async () => {
+               if (batch.length > 0) {
+                 await processBatch(batch, postgresTable);
+               }
+               resolve();
+            });
+        });
+
+      } catch (err) {
+         addLog(progress, 'error', `Failed to migrate table ${mssqlTable}`, { error: err });
+         progress.errorCount++;
+      }
+    }
+    
+    progress.status = 'completed';
+    progress.endTime = new Date();
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    
+    return progress;
+  } catch (error: any) {
+    console.error(`❌ Audit Migration error:`, error);
+    progress.status = 'failed';
+    progress.errorMessage = error.message;
+    progress.endTime = new Date();
+    emitProgress(progress);
+    await saveMigrationHistory(progress);
+    throw error;
+  }
 }
 

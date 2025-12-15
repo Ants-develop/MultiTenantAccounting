@@ -8,7 +8,7 @@ const router = Router();
 
 // Get all notifications for the current user
 router.get("/", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -29,7 +29,7 @@ router.get("/", async (req, res) => {
 
 // Create a notification (Internal use or via API)
 router.post("/", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -53,7 +53,7 @@ router.post("/", async (req, res) => {
 
 // Mark a notification as read
 router.patch("/:id/read", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -88,7 +88,7 @@ router.patch("/:id/read", async (req, res) => {
 
 // Mark all notifications as read
 router.patch("/read-all", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -108,7 +108,7 @@ router.patch("/read-all", async (req, res) => {
 
 // Delete a notification
 router.delete("/:id", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }
@@ -142,7 +142,7 @@ router.delete("/:id", async (req, res) => {
 
 // Delete all read notifications
 router.delete("/read", async (req, res) => {
-    const userId = (req.session as any)?.userId;
+    const userId = req.user?.id;
     if (!userId) {
         return res.status(401).json({ message: "Unauthorized" });
     }

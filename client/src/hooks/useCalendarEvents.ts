@@ -75,12 +75,12 @@ export const useCalendarEvents = (startDate?: Date, endDate?: Date) => {
           participants:calendar_event_participants(
             id,
             user_id,
-            status,
+            response_status,
             is_organizer,
             can_edit,
             response_at,
             reminder_minutes,
-            user:user_id(full_name, avatar_url)
+            user:profiles!calendar_event_participants_user_id_fkey(full_name, avatar_url)
           )
         `)
         .order("start_time", { ascending: true });

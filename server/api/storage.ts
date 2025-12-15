@@ -5,7 +5,7 @@ import { requireAuth } from "../middleware/auth";
 import { supabaseAdmin } from "../services/supabase";
 import { storage } from "../storage";
 import { db } from "../db";
-import { users } from "@shared/schema";
+import { profiles } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { hasEffectivePermission, isGlobalAdmin, type GlobalRole, type Role } from "@shared/permissions";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
@@ -28,10 +28,10 @@ async function checkStoragePermission(
   req: any,
   permission: 'STORAGE_VIEW' | 'STORAGE_CREATE' | 'STORAGE_EDIT' | 'STORAGE_DELETE'
 ): Promise<boolean> {
-  const userId = req.session.userId;
+  const userId = req.user?.id;
   if (!userId) return false;
 
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   if (!user) return false;
 
   const globalRole: GlobalRole = (user.globalRole as GlobalRole) || 'user';
@@ -169,7 +169,7 @@ router.post("/buckets", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -230,7 +230,7 @@ router.delete("/buckets/:name", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -385,7 +385,7 @@ router.post("/buckets/:bucket/upload", upload.array('files', 10), async (req: an
     if (successful.length > 0) {
       await activityLogger.logActivity(
         {
-          userId: req.session.userId,
+          userId: req.user?.id,
           companyId: undefined,
           ipAddress: req.ip,
           userAgent: req.get("user-agent"),
@@ -487,7 +487,7 @@ router.delete("/buckets/:bucket/files/*", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -559,7 +559,7 @@ router.post("/buckets/:bucket/files/*/move", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -613,7 +613,7 @@ router.post("/buckets/:bucket/folders", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),

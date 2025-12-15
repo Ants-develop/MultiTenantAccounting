@@ -13,7 +13,6 @@ import {
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
-import { DEFAULT_CLIENT_ID } from "../constants";
 import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
@@ -22,10 +21,10 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Get all journal entries with pagination and tenant filtering
-// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
+// Query params: ?clientIds=1,2,3 (required)
 router.get('/', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
@@ -33,24 +32,25 @@ router.get('/', async (req, res) => {
     
     // Parse clientIds from query parameter (comma-separated)
     const clientIdsParam = req.query.clientIds as string;
-    let clientIds: number[] = [];
+    let clientIds: string[] = [];
     
     if (clientIdsParam) {
-      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+      clientIds = clientIdsParam.split(',').filter(id => id.trim().length > 0);
     }
 
-    // If no clientIds specified, use DEFAULT_CLIENT_ID
-    if (clientIds.length === 0) {
-      clientIds = [DEFAULT_CLIENT_ID];
-    }
-
-    // Validate user has permission for all requested clients
+    // If no clientIds specified, use all accessible clients
     const userClients = await getUserClientsByModule(userId, 'accounting');
     const allowedClientIds = userClients.map(c => c.clientId);
-    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
 
-    if (invalidIds.length > 0) {
-      return res.status(403).json({ message: 'Access denied to some clients' });
+    if (clientIds.length === 0) {
+      clientIds = allowedClientIds;
+    } else {
+      // Validate user has permission for all requested clients
+      const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        return res.status(403).json({ message: 'Access denied to some clients' });
+      }
     }
     
     // Parse pagination parameters
@@ -247,7 +247,7 @@ router.get('/:id/lines', async (req, res) => {
       return res.status(400).json({ message: 'Invalid entry ID' });
     }
     
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }
@@ -276,20 +276,19 @@ router.get('/:id/lines', async (req, res) => {
 // Create new journal entry
 router.post('/', async (req, res) => {
   const raw = req.body || {} as any;
-  const userId = (req.session as any)?.userId;
+  const userId = (req as any).user?.id;
   
   try {
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }
-
     // Coerce date from string/number to Date to satisfy schema and DB timestamp column
     const lines = raw.lines || [];
     
-    // Get clientId from request body or use DEFAULT_CLIENT_ID
-    const requestedClientId = raw.clientId ? parseInt(raw.clientId) : DEFAULT_CLIENT_ID;
-    if (!requestedClientId || isNaN(requestedClientId)) {
-      return res.status(400).json({ message: 'Invalid or missing client ID' });
+    // Get clientId from request body
+    const requestedClientId = raw.clientId;
+    if (!requestedClientId) {
+      return res.status(400).json({ message: 'Client ID is required' });
     }
     
     // Validate user has permission for this client
@@ -344,7 +343,7 @@ router.post('/', async (req, res) => {
         RESOURCE_TYPES.JOURNAL_ENTRY,
         {
           userId: userId,
-          companyId: raw.clientId || DEFAULT_CLIENT_ID,
+          companyId: raw.clientId,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent")
         },
@@ -361,7 +360,7 @@ router.post('/', async (req, res) => {
 // Update journal entry
 router.put('/:id', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }
@@ -427,7 +426,7 @@ router.put('/:id', async (req, res) => {
 // Delete journal entry
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }

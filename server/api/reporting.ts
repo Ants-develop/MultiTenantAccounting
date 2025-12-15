@@ -3,7 +3,6 @@ import express from "express";
 import { db } from "../db";
 import { sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
@@ -13,11 +12,18 @@ router.use(requireAuth);
 // Trial Balance route
 router.get('/trial-balance', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = parseInt(req.query.clientId as string);
+    if (isNaN(clientId)) {
+      return res.status(400).json({ message: 'Valid Client ID is required' });
+    }
     const { date } = req.query;
     
     let dateFilter = '';
     if (date) {
+      // Basic SQL injection prevention for date
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date as string)) {
+         return res.status(400).json({ message: 'Invalid date format' });
+      }
       dateFilter = `AND je.date <= '${date}'`;
     }
 
@@ -79,9 +85,20 @@ router.get('/trial-balance', async (req, res) => {
 // Profit & Loss Statement route
 router.get('/profit-loss', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = parseInt(req.query.clientId as string);
+    if (isNaN(clientId)) {
+      return res.status(400).json({ message: 'Valid Client ID is required' });
+    }
     const { startDate, endDate } = req.query;
     
+    // Validate dates
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate as string)) {
+      return res.status(400).json({ message: 'Invalid start date format' });
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate as string)) {
+      return res.status(400).json({ message: 'Invalid end date format' });
+    }
+
     const plResult = await db.execute(sql.raw(`
       SELECT 
         a.type,
@@ -138,9 +155,16 @@ router.get('/profit-loss', async (req, res) => {
 // Balance Sheet route
 router.get('/balance-sheet', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = parseInt(req.query.clientId as string);
+    if (isNaN(clientId)) {
+      return res.status(400).json({ message: 'Valid Client ID is required' });
+    }
     const { date } = req.query;
     
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date as string)) {
+      return res.status(400).json({ message: 'Invalid date format' });
+    }
+
     const bsResult = await db.execute(sql.raw(`
       SELECT 
         a.type,
@@ -198,9 +222,19 @@ router.get('/balance-sheet', async (req, res) => {
 // Cash Flow Statement route
 router.get('/cash-flow', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = parseInt(req.query.clientId as string);
+    if (isNaN(clientId)) {
+      return res.status(400).json({ message: 'Valid Client ID is required' });
+    }
     const { startDate, endDate } = req.query;
     
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate as string)) {
+      return res.status(400).json({ message: 'Invalid start date format' });
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate as string)) {
+      return res.status(400).json({ message: 'Invalid end date format' });
+    }
+
     // Get cash account movements
     const cashFlowResult = await db.execute(sql.raw(`
       SELECT 
@@ -251,8 +285,18 @@ router.get('/cash-flow', async (req, res) => {
 // Financial Statements (unified route - for backward compatibility)
 router.get('/financial-statements', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = parseInt(req.query.clientId as string);
+    if (isNaN(clientId)) {
+      return res.status(400).json({ message: 'Valid Client ID is required' });
+    }
     const { type, startDate, endDate } = req.query;
+    
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate as string)) {
+      return res.status(400).json({ message: 'Invalid start date format' });
+    }
+    if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate as string)) {
+      return res.status(400).json({ message: 'Invalid end date format' });
+    }
     
     if (type === 'profit-loss') {
       // Call profit-loss endpoint logic
@@ -309,7 +353,7 @@ router.get('/financial-statements', async (req, res) => {
         WHERE a.company_id = ${clientId} 
         AND a.type IN ('asset', 'liability', 'equity')
         AND (je.is_posted = true OR je.id IS NULL)
-        ${endDate ? `AND je.date <= '${endDate}'` : ''}
+        ${startDate ? `AND je.date <= '${startDate}'` : ''}
         GROUP BY a.type, a.sub_type, a.name, a.code, a.id
         ORDER BY a.type, a.sub_type, a.code
       `));
@@ -324,55 +368,10 @@ router.get('/financial-statements', async (req, res) => {
 
       res.json({ type: 'balance-sheet', accounts });
     } else {
-      res.status(400).json({ message: 'Invalid report type' });
+      res.status(400).json({ message: 'Invalid statement type' });
     }
   } catch (error) {
     console.error('[Reporting] Get financial statements error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Custom Reports - placeholder for future implementation
-router.get('/custom', async (req, res) => {
-  try {
-    // TODO: Implement custom report retrieval
-    res.json({ 
-      message: 'Custom reports feature coming soon',
-      reports: []
-    });
-  } catch (error) {
-    console.error('[Reporting] Get custom reports error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-router.post('/custom', async (req, res) => {
-  try {
-    // TODO: Implement custom report creation
-    res.status(501).json({ message: 'Custom report creation not yet implemented' });
-  } catch (error) {
-    console.error('[Reporting] Create custom report error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-router.get('/custom/:id', async (req, res) => {
-  try {
-    // TODO: Implement specific custom report retrieval
-    res.status(501).json({ message: 'Custom report retrieval not yet implemented' });
-  } catch (error) {
-    console.error('[Reporting] Get custom report error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Report Scheduling - placeholder for future implementation
-router.post('/schedule', async (req, res) => {
-  try {
-    // TODO: Implement report scheduling
-    res.status(501).json({ message: 'Report scheduling not yet implemented' });
-  } catch (error) {
-    console.error('[Reporting] Schedule report error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

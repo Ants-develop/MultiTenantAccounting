@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { apiRequest } from '@/lib/queryClient';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import {
   Table,
@@ -101,41 +102,23 @@ export default function SupabaseStatus() {
 
   const checkStatus = async () => {
     setLoading(true);
-    const newStatuses: TableStatus[] = [];
-
-    for (const { name: table, category } of TABLES_TO_CHECK) {
-      try {
-        const { count, error } = await supabase
-          .from(table)
-          .select('*', { count: 'exact', head: true });
-
-        if (error) {
-          newStatuses.push({
-            table,
-            category,
-            status: 'error',
-            message: error.message,
-          });
-        } else {
-          newStatuses.push({
-            table,
-            category,
-            status: 'ok',
-            count,
-          });
-        }
-      } catch (err: any) {
-        newStatuses.push({
-          table,
-          category,
+    try {
+      const res = await apiRequest('GET', '/api/global-admin/supabase-status');
+      const data = (await res.json()) as TableStatus[];
+      setStatuses(data);
+    } catch (err: any) {
+      setStatuses([
+        {
+          table: 'supabase-status',
+          category: 'Core',
           status: 'error',
-          message: err.message || 'Unknown error',
-        });
-      }
+          message: err?.message || 'Failed to fetch status',
+          count: null,
+        },
+      ]);
+    } finally {
+      setLoading(false);
     }
-
-    setStatuses(newStatuses);
-    setLoading(false);
   };
 
   useEffect(() => {

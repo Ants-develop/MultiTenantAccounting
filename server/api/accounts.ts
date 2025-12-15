@@ -2,11 +2,10 @@
 import express from "express";
 import { db } from "../db";
 import { sql, eq, and, inArray } from "drizzle-orm";
-import { insertAccountSchema, accounts, users, clients } from "@shared/schema";
+import { insertAccountSchema, accounts, profiles, clients } from "@shared/schema";
 import { storage } from "../storage";
 import { requireAuth } from "../middleware/auth";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "../services/activity-logger";
-import { DEFAULT_CLIENT_ID } from "../constants";
 import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
@@ -15,21 +14,25 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Get all accounts for specified clients
-// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
+// Query params: ?clientIds=1,2,3 (optional, defaults to all accessible clients)
 router.get('/', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
 
     // Parse clientIds from query parameter (comma-separated)
     const clientIdsParam = req.query.clientIds as string;
-    let clientIds: number[] = [];
+    let clientIds: string[] = [];
 
     if (clientIdsParam) {
-      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
+      clientIds = clientIdsParam.split(',').map(id => id.trim()).filter(id => id.length > 0);
     }
 
     // Check if user is global admin
-    const userInfo = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    const userInfo = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
     const isGlobalAdmin = userInfo[0]?.globalRole === 'global_administrator';
 
     console.log(`[Accounts API] User ${userId} - isGlobalAdmin: ${isGlobalAdmin}, globalRole: ${userInfo[0]?.globalRole}`);
@@ -67,6 +70,9 @@ router.get('/', async (req, res) => {
 
     console.log(`[Accounts API] Final clientIds to query: ${clientIds.join(',')}`);
 
+    if (clientIds.length === 0) {
+      return res.json([]);
+    }
 
     // Get accounts for all requested clients
     const accountsList = await db
@@ -83,35 +89,43 @@ router.get('/', async (req, res) => {
 });
 
 // Get account balances
-// Query params: ?clientIds=1,2,3 (optional, defaults to DEFAULT_CLIENT_ID)
+// Query params: ?clientIds=1,2,3 (optional, defaults to all accessible clients)
 router.get('/balances', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
 
     // Parse clientIds from query parameter (comma-separated)
     const clientIdsParam = req.query.clientIds as string;
-    let clientIds: number[] = [];
+    let clientIds: string[] = [];
 
     if (clientIdsParam) {
-      clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
-    }
-
-    // If no clientIds specified, use DEFAULT_CLIENT_ID
-    if (clientIds.length === 0) {
-      clientIds = [DEFAULT_CLIENT_ID];
+      clientIds = clientIdsParam.split(',').map(id => id.trim()).filter(id => id.length > 0);
     }
 
     // Validate user has permission for all requested clients
     const userClients = await getUserClientsByModule(userId, 'accounting');
     const allowedClientIds = userClients.map(c => c.clientId);
-    const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
 
-    if (invalidIds.length > 0) {
-      return res.status(403).json({ message: 'Access denied to some clients' });
+    if (clientIds.length === 0) {
+      clientIds = allowedClientIds;
+    } else {
+      const invalidIds = clientIds.filter(id => !allowedClientIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        return res.status(403).json({ message: 'Access denied to some clients' });
+      }
+    }
+
+    if (clientIds.length === 0) {
+      return res.json([]);
     }
 
     // Create SQL IN clause for multiple company IDs
-    const companyIdsList = clientIds.join(',');
+    const companyIdsList = clientIds.map(id => `'${id}'`).join(',');
 
     // Get account balances using SQL
     const balancesResult = await db.execute(sql`
@@ -121,7 +135,7 @@ router.get('/balances', async (req, res) => {
         a.name,
         a.type,
         a.sub_type,
-        a.company_id,
+        a.client_id,
         COALESCE(SUM(jel.debit_amount::numeric), 0) as total_debits,
         COALESCE(SUM(jel.credit_amount::numeric), 0) as total_credits,
         CASE 
@@ -130,13 +144,13 @@ router.get('/balances', async (req, res) => {
           ELSE 
             COALESCE(SUM(jel.credit_amount::numeric - jel.debit_amount::numeric), 0)
         END as balance
-      FROM accounts a
-      LEFT JOIN journal_entry_lines jel ON a.id = jel.account_id
-      LEFT JOIN journal_entries je ON jel.journal_entry_id = je.id
-      WHERE a.company_id IN (${sql.raw(companyIdsList)})
+      FROM accounting.accounts a
+      LEFT JOIN accounting.journal_entry_lines jel ON a.id = jel.account_id
+      LEFT JOIN accounting.journal_entries je ON jel.journal_entry_id = je.id
+      WHERE a.client_id IN (${sql.raw(companyIdsList)})
       AND a.is_active = true
       AND (je.is_posted = true OR je.id IS NULL)
-      GROUP BY a.id, a.code, a.name, a.type, a.sub_type, a.company_id
+      GROUP BY a.id, a.code, a.name, a.type, a.sub_type, a.client_id
       ORDER BY a.code
     `);
 
@@ -161,10 +175,10 @@ router.get('/balances', async (req, res) => {
 // Create new account
 router.post('/', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
 
-    // Get clientId from request body, fallback to first selected client or DEFAULT_CLIENT_ID
-    const requestedClientId = req.body.clientId || DEFAULT_CLIENT_ID;
+    // Get clientId from request body
+    const requestedClientId = req.body.clientId;
 
     if (!requestedClientId) {
       return res.status(400).json({ message: 'No client specified' });
@@ -190,7 +204,7 @@ router.post('/', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_CREATE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
+        userId: (req as any).user?.id,
         companyId: requestedClientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -209,8 +223,8 @@ router.post('/', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_CREATE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
-        companyId: req.body.clientId || DEFAULT_CLIENT_ID,
+        userId: (req as any).user?.id,
+        companyId: req.body.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -226,7 +240,7 @@ router.post('/', async (req, res) => {
 // Update account
 router.put('/:id', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     const accountIdRaw = req.params.id;
     const accountId = Number(accountIdRaw);
 
@@ -276,7 +290,7 @@ router.put('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_UPDATE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
+        userId: (req as any).user?.id,
         companyId: originalAccount.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -295,8 +309,8 @@ router.put('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_UPDATE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
-        companyId: DEFAULT_CLIENT_ID,
+        userId: (req as any).user?.id,
+        companyId: originalAccount?.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },
@@ -312,7 +326,7 @@ router.put('/:id', async (req, res) => {
 // Delete account
 router.delete('/:id', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     const accountId = parseInt(req.params.id);
 
     // Get the account before deletion for logging and permission check
@@ -365,7 +379,7 @@ router.delete('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_DELETE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
+        userId: (req as any).user?.id,
         companyId: accountToDelete.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -384,8 +398,8 @@ router.delete('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.ACCOUNT_DELETE,
       RESOURCE_TYPES.ACCOUNT,
       {
-        userId: req.session.userId!,
-        companyId: DEFAULT_CLIENT_ID,
+        userId: (req as any).user?.id,
+        companyId: accountToDelete?.clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
       },

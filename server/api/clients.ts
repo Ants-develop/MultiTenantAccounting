@@ -203,7 +203,7 @@ router.post('/', async (req, res) => {
       ACTIVITY_ACTIONS.CREATE,
       RESOURCE_TYPES.COMPANY,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId: client.id,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -256,7 +256,7 @@ router.put('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.UPDATE,
       RESOURCE_TYPES.COMPANY,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -296,7 +296,7 @@ router.delete('/:id', async (req, res) => {
       ACTIVITY_ACTIONS.DELETE,
       RESOURCE_TYPES.COMPANY,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -338,7 +338,7 @@ router.put('/:id/archive', async (req, res) => {
       ACTIVITY_ACTIONS.COMPANY_ARCHIVE,
       RESOURCE_TYPES.COMPANY,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -447,7 +447,7 @@ router.put('/settings/:id/notifications', async (req, res) => {
       ACTIVITY_ACTIONS.SETTINGS_UPDATE_NOTIFICATIONS,
       RESOURCE_TYPES.SETTINGS,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -495,7 +495,7 @@ router.put('/settings/:id/financial', async (req, res) => {
       ACTIVITY_ACTIONS.SETTINGS_UPDATE_FINANCIAL,
       RESOURCE_TYPES.SETTINGS,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -540,7 +540,7 @@ router.put('/settings/:id/security', async (req, res) => {
       ACTIVITY_ACTIONS.SETTINGS_UPDATE_SECURITY,
       RESOURCE_TYPES.SETTINGS,
       {
-        userId: req.session.userId!,
+        userId: req.user?.id,
         clientId,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent")
@@ -664,7 +664,7 @@ router.post('/import', async (req, res) => {
           ACTIVITY_ACTIONS.COMPANY_CREATE,
           RESOURCE_TYPES.COMPANY,
           {
-            userId: req.session.userId!,
+            userId: req.user?.id,
             clientId: newClient.id,
             ipAddress: req.ip,
             userAgent: req.get("User-Agent")

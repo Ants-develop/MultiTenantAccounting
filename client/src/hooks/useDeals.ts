@@ -18,8 +18,8 @@ export const useDeals = (filters?: DealFilters) => {
         .from("deals")
         .select(`
           *,
-          owner:owner_id(full_name, avatar_url),
-          stage:stage_id(name, color)
+          owner:profiles!deals_owner_id_profiles_id_fk(full_name, avatar_url),
+          stage:deal_stages!deals_stage_id_deal_stages_id_fk(name, color)
         `)
         .order("created_at", { ascending: false });
 

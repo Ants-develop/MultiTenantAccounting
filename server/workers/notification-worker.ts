@@ -2,11 +2,11 @@
 // Handles sending notifications via various channels
 
 import { db } from "../db";
-import { users } from "@shared/schema";
+import { profiles } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 export interface NotificationOptions {
-  userId: number;
+  userId: string;
   title: string;
   message: string;
   type: "info" | "success" | "warning" | "error";
@@ -20,8 +20,8 @@ class NotificationWorker {
   async sendNotification(options: NotificationOptions): Promise<void> {
     const [user] = await db
       .select()
-      .from(users)
-      .where(eq(users.id, options.userId))
+      .from(profiles)
+      .where(eq(profiles.id, options.userId))
       .limit(1);
 
     if (!user) {

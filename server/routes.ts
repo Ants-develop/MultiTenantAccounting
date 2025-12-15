@@ -1,9 +1,7 @@
 import express, { type Express } from "express";
 import { createServer, type Server } from "http";
-import session from "express-session";
 import { storage } from "./storage";
-import { authenticateUser, hashPassword, getUserWithCompanies } from "./auth";
-import { insertUserSchema, insertUserCompanySchema, users as usersTable, userCompanies as userCompaniesTable, clients as clientsTable } from "@shared/schema";
+import { insertProfileSchema, profiles, userCompanies as userCompaniesTable, clients as clientsTable, mainCompanySettings } from "@shared/schema";
 import { sql, eq, and } from "drizzle-orm";
 import { db } from "./db";
 import { activityLogger, ACTIVITY_ACTIONS, RESOURCE_TYPES } from "./services/activity-logger";
@@ -30,603 +28,95 @@ import mssqlImportRouter from "./api/mssql-import";
 import rsAdminRouter from "./api/rs-admin";
 import rsSyncRouter from "./api/rs-sync";
 import permissionsRouter from "./api/permissions";
-// import matrixRouter from "./api/matrix"; // REMOVED
-// import emailRouter from "./api/email"; // REMOVED
 import notificationsRouter from "./routes/notifications";
 import backupRestoreRouter from "./api/backup-restore";
 import storageRouter from "./api/storage";
 import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
 import feedRouter from "./routes/feed";
-import messagesRouter from "./api/messages";
-
-declare module "express-session" {
-  interface SessionData {
-    userId?: number;
-    clientPortalToken?: string;
-    clientPortalClientId?: number;
-  }
-}
+import documentsRouter from "./api/documents";
+// messagesRouter and usersRouter removed - now handled via Supabase RLS
+// import messagesRouter from "./api/messages";
+import usersRouter from "./api/users";
+import userCompaniesRouter from "./api/user-companies";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Trust proxy if behind reverse proxy (nginx, etc.)
   app.set('trust proxy', 1);
 
-  // Session middleware
-  // Determine if we should use secure cookies (only if actually using HTTPS)
-  const isSecure = process.env.SECURE_COOKIES === 'true' ||
-    (process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true');
+  // =====================================================
+  // ARCHITECTURE: Hybrid Backend + Supabase RLS Approach
+  // =====================================================
+  // - Authentication: Supabase Auth (JWT tokens validated in requireAuth middleware)
+  // - Direct Supabase queries: profiles, clients, deals, tasks, workflows, calendar, messages
+  //   (protected by RLS policies in Supabase)
+  // - Backend APIs: accounting, reports, imports, integrations (business logic + aggregations)
+  // =====================================================
 
-  app.use(session({
-    secret: process.env.SESSION_SECRET || 'accounting-app-secret',
-    resave: false,
-    saveUninitialized: false,
-    name: 'sessionId', // Explicit session cookie name
-    cookie: {
-      secure: isSecure, // Only secure if explicitly using HTTPS
-      httpOnly: true,
-      sameSite: isSecure ? 'none' : 'lax', // 'none' requires secure: true, 'lax' works with HTTP
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-      path: '/', // Ensure cookie is available for all paths
-      // Don't set domain - let browser use default (current domain)
-    },
-    // Store configuration - use memory store by default (for production, consider using a database store)
-    store: undefined // Uses default MemoryStore
-  }));
+  // Auth routes - Legacy routes removed, now handled by Supabase on client side
+  // We keep /api/auth/me for compatibility but it just returns the user from the token
+  
+  app.get('/api/auth/me', requireAuth, async (req: any, res) => {
+    // req.user is set by requireAuth middleware from Supabase token
+    // req.profile is also set if available
+    const [mainCompany] = await db.select().from(mainCompanySettings).limit(1);
+    const isMainCompanyConfigured = !!(mainCompany && typeof mainCompany.name === 'string' && mainCompany.name.trim().length > 0);
 
-  // Auth routes
-  app.post('/api/auth/login', async (req, res) => {
-    try {
-      const { username, password } = req.body;
-
-      console.log('Login attempt:', { username, hasPassword: !!password });
-
-      if (!username || !password) {
-        return res.status(400).json({ message: 'Username and password are required' });
-      }
-
-      let user;
-      try {
-        user = await authenticateUser(username, password);
-      } catch (authError: any) {
-        console.error('Authentication error:', authError);
-        // Check if it's a table doesn't exist error
-        if (authError?.message?.includes('does not exist') || authError?.code === '42P01') {
-          return res.status(500).json({
-            message: 'Database not initialized. Please run migrations first.',
-            error: 'MISSING_TABLES'
-          });
-        }
-        throw authError;
-      }
-      if (!user) {
-        // Log failed login attempt (no userId since user doesn't exist)
-        await activityLogger.logError(
-          ACTIVITY_ACTIONS.LOGIN,
-          RESOURCE_TYPES.USER,
-          {
-            userId: null, // No user ID for failed login attempts
-            ipAddress: req.ip,
-            userAgent: req.get("User-Agent")
-          },
-          'Invalid credentials',
-          undefined,
-          { attemptedUsername: username }
-        );
-        return res.status(401).json({ message: 'Invalid credentials' });
-      }
-
-      console.log('User authenticated:', { userId: user.id, username: user.username });
-
-      req.session.userId = user.id;
-
-      // Fetch user with companies data for response
-      let userWithCompanies;
-      try {
-        userWithCompanies = await getUserWithCompanies(user.id);
-      } catch (companiesError: any) {
-        console.error('Error fetching user companies:', companiesError);
-        // If it's a table error, return a helpful message
-        if (companiesError?.message?.includes('does not exist') || companiesError?.code === '42P01') {
-          return res.status(500).json({
-            message: 'Database not initialized. Please run migrations first.',
-            error: 'MISSING_TABLES'
-          });
-        }
-        throw companiesError;
-      }
-
-      console.log('Session before save:', {
-        userId: req.session.userId,
-        sessionId: req.sessionID
-      });
-
-      // Explicitly save the session to ensure it's persisted
-      req.session.save((err) => {
-        if (err) {
-          console.error('Error saving session:', err);
-          return res.status(500).json({ message: 'Failed to create session' });
-        }
-
-        console.log('Session saved successfully:', {
-          sessionId: req.sessionID,
-          userId: req.session.userId,
-          cookies: res.getHeader('Set-Cookie')
-        });
-
-        // Log successful login
-        activityLogger.logAuth(
-          ACTIVITY_ACTIONS.LOGIN,
-          {
-            userId: user.id,
-            ipAddress: req.ip,
-            userAgent: req.get("User-Agent")
-          },
-          {
-            username: user.username,
-            mainCompanyConfigured: userWithCompanies?.mainCompany ? true : false
-          }
-        ).catch(err => console.error('Error logging auth:', err));
-
-        res.json(userWithCompanies);
-      });
-    } catch (error) {
-      console.error('Login error:', error);
-
-      // Log login system error
-      await activityLogger.logError(
-        ACTIVITY_ACTIONS.LOGIN,
-        RESOURCE_TYPES.SYSTEM,
-        {
-          userId: null, // No user ID for system errors during login
-          ipAddress: req.ip,
-          userAgent: req.get("User-Agent")
-        },
-        error as Error,
-        undefined,
-        { attemptedUsername: req.body?.username }
-      );
-
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  app.post('/api/auth/register', async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-
-      // Check if user already exists
-      const existingUser = await storage.getUserByUsername(userData.username) ||
-        await storage.getUserByEmail(userData.email);
-
-      if (existingUser) {
-        return res.status(400).json({ message: 'User already exists' });
-      }
-
-      // Hash password
-      const hashedPassword = await hashPassword(userData.password);
-
-      // Create user
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword,
-      });
-
-      req.session.userId = user.id;
-
-      // Fetch user with companies data for response (will check main company setup)
-      const userWithCompanies = await getUserWithCompanies(user.id);
-
-      res.json(userWithCompanies);
-    } catch (error) {
-      console.error('Register error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Could not log out' });
-      }
-      res.json({ message: 'Logged out successfully' });
+    res.json({
+      user: {
+        id: req.user.id,
+        email: req.user.email,
+        username: req.profile?.username || req.user.user_metadata?.username,
+        firstName: req.profile?.firstName || req.user.user_metadata?.first_name,
+        lastName: req.profile?.lastName || req.user.user_metadata?.last_name,
+        globalRole: req.profile?.globalRole || 'user',
+        mustChangePassword: req.user.user_metadata?.must_change_password || false,
+      },
+      mainCompany: mainCompany || null,
+      needsSetup: !isMainCompanyConfigured
     });
   });
 
-  app.get('/api/auth/me', requireAuth, async (req, res) => {
-    try {
-      const userWithCompanies = await getUserWithCompanies(req.session.userId!);
-      if (!userWithCompanies) {
-        // User doesn't exist in database - destroy session
-        req.session.destroy((err) => {
-          if (err) {
-            console.error('Error destroying session:', err);
-          }
-        });
-        return res.status(401).json({ message: 'User not found - session invalidated' });
-      }
-      res.json(userWithCompanies);
-    } catch (error: any) {
-      console.error('Get user error:', error);
-      // If it's a database error (table doesn't exist), destroy session
-      if (error?.code === '42P01' || error?.message?.includes('does not exist')) {
-        req.session.destroy((err) => {
-          if (err) {
-            console.error('Error destroying session:', err);
-          }
-        });
-        return res.status(500).json({
-          message: 'Database not initialized. Please run migrations first.',
-          error: 'MISSING_TABLES'
-        });
-      }
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
+  // API Routes
+  app.use("/api/global-admin", requireAuth, requireGlobalAdmin, globalAdminRouter);
+  app.use("/api/activity-logs", requireAuth, activityLogsRouter);
+  app.use("/api/audit", requireAuth, auditRouter);
+  app.use("/api/rs-integration", requireAuth, rsIntegrationRouter);
+  app.use("/api/rs-admin", requireAuth, rsAdminRouter);
+  app.use("/api/rs-sync", requireAuth, rsSyncRouter);
+  app.use("/api/permissions", requireAuth, permissionsRouter);
+  app.use("/api/accounts", requireAuth, accountsRouter);
+  app.use("/api/journal-entries", requireAuth, journalEntriesRouter);
+  app.use("/api/companies", requireAuth, companyRouter); // Note: legacy + admin screens
+  app.use("/api/company", requireAuth, companyRouter); // Main company setup/profile endpoints used by SetupWizard/CompanyProfile
+  app.use("/api/clients", requireAuth, clientsRouter);
+  app.use("/api/reports", requireAuth, reportsRouter);
+  app.use("/api/reporting", requireAuth, reportingRouter);
+  app.use("/api/bank", requireAuth, bankRouter);
+  app.use("/api/dashboard", requireAuth, dashboardRouter);
+  app.use("/api/home", requireAuth, homeRouter);
+  app.use("/api/customers-vendors", requireAuth, customersVendorsRouter);
+  app.use("/api/mssql-import", requireAuth, mssqlImportRouter); // Uses service role key for backend operations
+  app.use("/api/mssql", requireAuth, mssqlImportRouter); // Alias for legacy client calls
+  app.use("/api/documents", requireAuth, documentsRouter);
+  app.use("/api/users", requireAuth, usersRouter);
+  app.use("/api/user-companies", requireAuth, userCompaniesRouter);
+  
+  // Routes removed - now handled via direct Supabase queries with RLS:
+  // - /api/messages -> client queries 'messages' table directly
+  // - /api/users -> client queries 'profiles' table directly
+  // - /api/deals, /api/tasks, /api/workflows, /api/calendar -> all via Supabase RLS
+  app.use("/api/notifications", requireAuth, notificationsRouter);
+  app.use("/api/backup-restore", requireAuth, backupRestoreRouter);
+  app.use("/api/storage", requireAuth, storageRouter);
+  app.use("/api/connections", requireAuth, connectionsRouter);
+  app.use("/api/mssql-restore-ssh", requireAuth, mssqlRestoreSshRouter);
+  app.use("/api/feed", requireAuth, feedRouter);
+  
+  // Removed routes (now via Supabase RLS):
+  // app.use("/api/messages", requireAuth, messagesRouter);
+  // app.use("/api/users", requireAuth, usersRouter);
 
-  // Profile management endpoints
-  app.put('/api/auth/profile', requireAuth, async (req, res) => {
-    try {
-      const { firstName, lastName, email } = req.body;
-      const userId = req.session.userId!;
-
-      if (!firstName || !lastName || !email) {
-        return res.status(400).json({ message: 'All fields are required' });
-      }
-
-      // Validate email format
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        return res.status(400).json({ message: 'Invalid email format' });
-      }
-
-      // Check if email is already taken by another user
-      const existingUser = await db
-        .select()
-        .from(usersTable)
-        .where(and(
-          eq(usersTable.email, email),
-          sql`id != ${userId}`
-        ))
-        .limit(1);
-
-      if (existingUser.length > 0) {
-        return res.status(400).json({ message: 'Email is already in use' });
-      }
-
-      // Update user profile
-      const updatedUser = await storage.updateUser(userId, {
-        firstName,
-        lastName,
-        email,
-      });
-
-      if (!updatedUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Log profile update activity
-      await activityLogger.logActivity({
-        userId,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
-      }, {
-        action: ACTIVITY_ACTIONS.PROFILE_UPDATE,
-        resource: RESOURCE_TYPES.USER,
-        resourceId: userId,
-      });
-
-      // Remove password from response
-      const { password, ...userResponse } = updatedUser;
-      res.json({
-        message: 'Profile updated successfully',
-        user: userResponse
-      });
-    } catch (error) {
-      console.error('Update profile error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  app.put('/api/auth/change-password', requireAuth, async (req, res) => {
-    try {
-      const { currentPassword, newPassword } = req.body;
-      const userId = req.session.userId!;
-
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ message: 'Current and new password are required' });
-      }
-
-      // Validate new password length
-      if (newPassword.length < 8) {
-        return res.status(400).json({ message: 'New password must be at least 8 characters long' });
-      }
-
-      // Get current user
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-
-      // Verify current password
-      const { verifyPassword } = await import('./auth');
-      const isValidPassword = await verifyPassword(currentPassword, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ message: 'Current password is incorrect' });
-      }
-
-      // Hash new password
-      const hashedPassword = await hashPassword(newPassword);
-
-      // Update password
-      await storage.updateUser(userId, { password: hashedPassword });
-
-      // Log password change activity
-      await activityLogger.logActivity({
-        userId,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent') || undefined,
-      }, {
-        action: ACTIVITY_ACTIONS.PASSWORD_CHANGE,
-        resource: RESOURCE_TYPES.USER,
-        resourceId: userId,
-      });
-
-      res.json({ message: 'Password changed successfully' });
-    } catch (error) {
-      console.error('Change password error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  // Users management endpoints
-  app.get('/api/users', requireAuth, async (req, res) => {
-    try {
-      const currentUser = await storage.getUser(req.session.userId!);
-      if (!currentUser) {
-        return res.status(404).json({ message: 'Current user not found' });
-      }
-
-      let users;
-
-      // If global administrator, show all users
-      if (currentUser.globalRole === 'global_administrator') {
-        // Get all users in the system
-        users = await db.select({
-          id: usersTable.id,
-          username: usersTable.username,
-          email: usersTable.email,
-          firstName: usersTable.firstName,
-          lastName: usersTable.lastName,
-          globalRole: usersTable.globalRole,
-          isActive: usersTable.isActive,
-          createdAt: usersTable.createdAt,
-        }).from(usersTable);
-      } else {
-        // For non-global admins in single-company model, show all users
-        users = await db
-          .select({
-            id: usersTable.id,
-            username: usersTable.username,
-            email: usersTable.email,
-            firstName: usersTable.firstName,
-            lastName: usersTable.lastName,
-            globalRole: usersTable.globalRole,
-            isActive: usersTable.isActive,
-            createdAt: usersTable.createdAt,
-          })
-          .from(usersTable);
-      }
-
-      res.json(users);
-    } catch (error) {
-      console.error('Get users error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  app.post('/api/users', requireAuth, async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-
-      // Check if user already exists
-      const existingUser = await storage.getUserByUsername(userData.username) ||
-        await storage.getUserByEmail(userData.email);
-
-      if (existingUser) {
-        return res.status(400).json({ message: 'User already exists' });
-      }
-
-      // Hash password
-      const hashedPassword = await hashPassword(userData.password);
-
-      // Create user
-      const user = await storage.createUser({
-        ...userData,
-        password: hashedPassword,
-      });
-
-      res.json({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        globalRole: user.globalRole,
-        isActive: user.isActive,
-        createdAt: user.createdAt,
-      });
-    } catch (error) {
-      console.error('Create user error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  // User-Company assignments endpoint
-  app.get('/api/user-companies', requireAuth, async (req, res) => {
-    try {
-      const currentUser = await storage.getUser(req.session.userId!);
-      if (!currentUser) {
-        return res.status(404).json({ message: 'Current user not found' });
-      }
-
-      let userCompanyAssignments;
-
-      // If global administrator, show all user-company assignments
-      if (currentUser.globalRole === 'global_administrator') {
-        userCompanyAssignments = await db
-          .select({
-            id: userCompaniesTable.id,
-            userId: userCompaniesTable.userId,
-            clientId: userCompaniesTable.clientId,
-            role: userCompaniesTable.role,
-            isActive: userCompaniesTable.isActive,
-            user: {
-              id: usersTable.id,
-              username: usersTable.username,
-              email: usersTable.email,
-              firstName: usersTable.firstName,
-              lastName: usersTable.lastName,
-            },
-            company: {
-              id: clientsTable.id,
-              name: clientsTable.name,
-              code: clientsTable.code,
-            }
-          })
-          .from(userCompaniesTable)
-          .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(clientsTable, eq(userCompaniesTable.clientId, clientsTable.id));
-      } else {
-        // For non-global admins in single-company model, show all assignments
-        userCompanyAssignments = await db
-          .select({
-            id: userCompaniesTable.id,
-            userId: userCompaniesTable.userId,
-            clientId: userCompaniesTable.clientId,
-            role: userCompaniesTable.role,
-            isActive: userCompaniesTable.isActive,
-            user: {
-              id: usersTable.id,
-              username: usersTable.username,
-              email: usersTable.email,
-              firstName: usersTable.firstName,
-              lastName: usersTable.lastName,
-            },
-            company: {
-              id: clientsTable.id,
-              name: clientsTable.name,
-              code: clientsTable.code,
-            }
-          })
-          .from(userCompaniesTable)
-          .innerJoin(usersTable, eq(userCompaniesTable.userId, usersTable.id))
-          .innerJoin(clientsTable, eq(userCompaniesTable.clientId, clientsTable.id));
-      }
-
-      res.json(userCompanyAssignments);
-    } catch (error) {
-      console.error('Get user-companies error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  app.post('/api/user-companies', requireAuth, async (req, res) => {
-    try {
-      const assignmentData = insertUserCompanySchema.parse(req.body);
-      const assignment = await storage.createUserCompany(assignmentData);
-      res.json(assignment);
-    } catch (error) {
-      console.error('Create user-company assignment error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  });
-
-  // Delete endpoints
-  app.delete('/api/users/:id', requireAuth, async (req, res) => {
-    try {
-      const userId = parseInt(req.params.id);
-
-      if (userId === req.session.userId) {
-        return res.status(400).json({ message: 'Cannot delete your own account' });
-      }
-
-      const success = await storage.deleteUser(userId);
-      if (success) {
-        res.json({ message: 'User deleted successfully' });
-      } else {
-        res.status(404).json({ message: 'User not found' });
-      }
-    } catch (error) {
-      console.error('Delete user error:', error);
-      res.status(500).json({ message: error instanceof Error ? error.message : 'Internal server error' });
-    }
-  });
-
-  // Mount modular API routers
-
-  // Accounting Module
-  app.use('/api/accounts', accountsRouter);
-  app.use('/api/journal-entries', journalEntriesRouter);
-
-  // Audit Module
-  app.use('/api/audit', auditRouter);
-
-  // RS Integration Module
-  app.use('/api/rs-integration', rsIntegrationRouter);
-  app.use('/api/rs-admin', requireAuth, requireGlobalAdmin, rsAdminRouter);
-  app.use('/api/rs-sync', rsSyncRouter);
-
-  // Reporting Module
-  app.use('/api/reports', reportsRouter); // Keep for backward compatibility
-  app.use('/api/reporting', reportingRouter);
-
-  // Bank Module
-  app.use('/api/bank', bankRouter);
-
-  // TaxDome Module - REMOVED (Migrated to Supabase)
-  // app.use('/api/pipelines', pipelinesRouter);
-  // app.use('/api/jobs', jobsRouter);
-  // app.use('/api/tasks', tasksRouter);
-  // app.use('/api/calendar', calendarRouter);
-  // app.use('/api/matrix', matrixRouter); // REMOVED
-
-  // Communication Hub
-  // app.use('/api/email', emailRouter); // REMOVED
-
-  // Automation Engine - REMOVED (Migrated to Supabase)
-  // app.use('/api/automations', automationsRouter);
-
-  // Client Portal - REMOVED (Migrated to Supabase)
-  // app.use('/api/client-portal', clientPortalRouter);
-  app.use('/api/backup-restore', requireAuth, requireGlobalAdmin, backupRestoreRouter);
-
-  // Storage Module
-  app.use('/api/storage', storageRouter);
-
-  // Other Modules
-  // Main company endpoints
-  app.use('/api/company', companyRouter);
-  app.use('/api/companies', companyRouter); // Backward compatibility
-
-  // Client companies management
-  app.use('/api/clients', clientsRouter);
-  // app.use('/api/clients', clientManagementRouter); // Client Management (CRM) endpoints - REMOVED
-
-  app.use('/api/dashboard', dashboardRouter);
-  app.use('/api/home', homeRouter);
-  app.use('/api', customersVendorsRouter);
-  app.use('/api/mssql', mssqlImportRouter);
-  app.use('/api/mssql', mssqlRestoreSshRouter); // SSH-based restore with real-time logging
-  app.use('/api/connections', requireAuth, connectionsRouter);
-  app.use('/api/permissions', permissionsRouter);
-  app.use('/api/global-admin', requireGlobalAdmin, globalAdminRouter);
-  app.use('/api/activity-logs', requireAuth, activityLogsRouter);
-  app.use('/api/notifications', requireAuth, notificationsRouter);
-  app.use('/api/feed', requireAuth, feedRouter);
-  app.use('/api/messages', messagesRouter);
-
-  // Start server
-  const server = createServer(app);
-  return server;
+  const httpServer = createServer(app);
+  return httpServer;
 }

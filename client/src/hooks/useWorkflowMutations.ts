@@ -13,7 +13,7 @@ export const useWorkflowMutations = () => {
         .from("workflow_stages")
         .select("id")
         .eq("template_id", input.template_id)
-        .order("order_position", { ascending: true })
+        .order("order", { ascending: true })
         .limit(1);
 
       if (stagesError) throw stagesError;

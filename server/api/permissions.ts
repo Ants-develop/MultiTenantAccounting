@@ -5,7 +5,7 @@ import {
   userClientModules,
   userClientFeatures,
   clients,
-  users,
+  profiles,
   insertUserClientModuleSchema,
   insertUserClientFeatureSchema,
 } from "@shared/schema";
@@ -18,19 +18,20 @@ const router = express.Router();
 router.use(requireAuth);
 
 // Check if user is global admin
-async function isGlobalAdmin(userId: number): Promise<boolean> {
-  const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  return user?.globalRole === 'global_administrator';
+async function isGlobalAdmin(userId: string | undefined | null): Promise<boolean> {
+  if (!userId) return false;
+  const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
+  return user?.globalRole === "global_administrator";
 }
 
 // GET /api/permissions/user/:userId/client/:clientId - Get all permissions for user+client
 router.get("/user/:userId/client/:clientId", async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId);
-    const clientId = parseInt(req.params.clientId);
+    const userId = req.params.userId;
+    const clientId = req.params.clientId;
 
     // Only allow users to view their own permissions or global admins
-    const requestUserId = (req.session as any)?.userId;
+    const requestUserId = (req as any).user?.id as string | undefined;
     if (requestUserId !== userId && !(await isGlobalAdmin(requestUserId))) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -63,7 +64,7 @@ router.get("/user/:userId/client/:clientId", async (req, res) => {
 // POST /api/permissions/module - Assign module permission
 router.post("/module", async (req, res) => {
   try {
-    const requestUserId = (req.session as any)?.userId;
+    const requestUserId = (req as any).user?.id as string | undefined;
     
     // Only global admins can assign permissions
     if (!(await isGlobalAdmin(requestUserId))) {
@@ -134,7 +135,7 @@ router.post("/module", async (req, res) => {
 // POST /api/permissions/feature - Assign feature permission
 router.post("/feature", async (req, res) => {
   try {
-    const requestUserId = (req.session as any)?.userId;
+    const requestUserId = (req as any).user?.id as string | undefined;
     
     // Only global admins can assign permissions
     if (!(await isGlobalAdmin(requestUserId))) {
@@ -206,7 +207,7 @@ router.post("/feature", async (req, res) => {
 // DELETE /api/permissions/:id - Remove permission (module or feature)
 router.delete("/:id", async (req, res) => {
   try {
-    const requestUserId = (req.session as any)?.userId;
+    const requestUserId = (req as any).user?.id as string | undefined;
     const permId = parseInt(req.params.id);
 
     // Only global admins can delete permissions
@@ -252,13 +253,13 @@ router.delete("/:id", async (req, res) => {
 // Query params: ?module=audit
 router.get("/my-clients", async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id as string | undefined;
     const module = req.query.module as string;
 
     console.log(`[Permissions API] /my-clients called - userId: ${userId}, module: ${module}`);
 
     if (!userId) {
-      console.log(`[Permissions API] No userId in session`);
+      console.log(`[Permissions API] No userId from auth middleware`);
       return res.status(401).json({ message: "Authentication required" });
     }
 

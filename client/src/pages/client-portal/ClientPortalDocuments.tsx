@@ -10,7 +10,7 @@ import { FileText, Upload, Download, Calendar, AlertCircle, ArrowLeft } from "lu
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { getAccessToken } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import dayjs from "dayjs";
 
 export const ClientPortalDocuments: React.FC = () => {
@@ -34,10 +34,10 @@ export const ClientPortalDocuments: React.FC = () => {
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       // Use fetch directly for file uploads but attach token manually
-      const token = getAccessToken();
+      const { data: { session } } = await supabase.auth.getSession();
       const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
       }
 
       const response = await fetch("/api/client-portal/documents/upload", {

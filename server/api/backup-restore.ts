@@ -176,7 +176,7 @@ router.get("/storage-files", async (req: any, res: any) => {
 router.post("/download", async (req: any, res: any) => {
   try {
     const { fileId, fileName } = req.body;
-    const userId = req.session?.userId;
+    const userId = req.user?.id;
 
     if (!fileId || !fileName) {
       return res.status(400).json({ error: "fileId and fileName are required" });
@@ -270,14 +270,14 @@ router.post("/upload-to-storage", upload.single("file"), async (req: any, res: a
         restoreTimestamp: new Date(),
         clientId: null, // Global storage, no clientId
         completedAt: new Date(),
-        createdBy: req.session.userId,
+        createdBy: req.user?.id,
         isActive: false, // Not a real restore
       })
       .returning();
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -443,7 +443,7 @@ router.post("/cancel/:id", async (req: any, res: any) => {
  */
 router.get("/history", async (req: any, res: any) => {
   try {
-    const clientId = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
+    const clientId = req.query.clientId ? (req.query.clientId as string) : undefined;
     const limit = parseInt(req.query.limit as string) || 50;
     const offset = parseInt(req.query.offset as string) || 0;
 
@@ -478,7 +478,7 @@ router.delete("/storage-files/*", async (req: any, res: any) => {
 
     await activityLogger.logActivity(
       {
-        userId: req.session.userId,
+        userId: req.user?.id,
         companyId: undefined,
         ipAddress: req.ip,
         userAgent: req.get("user-agent"),
@@ -506,7 +506,7 @@ router.delete("/storage-files/*", async (req: any, res: any) => {
  */
 router.get("/restored-databases", requireAuth, async (req: any, res: any) => {
   try {
-    const clientId = req.query.clientId ? parseInt(req.query.clientId) : undefined;
+    const clientId = req.query.clientId ? (req.query.clientId as string) : undefined;
     const isActive = req.query.isActive !== 'false'; // Default to true
 
     let query = db.select().from(mssqlRestores);
@@ -565,7 +565,7 @@ router.post("/migrate", requireAuth, async (req: any, res: any) => {
     }
 
     // Import migration functions
-    const { migrateGeneralLedger, exportToAudit, connectMSSQL } = await import('../services/mssql-migration');
+    const { migrateGeneralLedger, importGLFromAuditDB, migrateAuditTables, connectMSSQL } = await import('../services/mssql-migration');
 
     // Connect to restored database
     const mssqlPool = await connectMSSQL(restoreRecord.restoredDbName);
@@ -579,11 +579,11 @@ router.post("/migrate", requireAuth, async (req: any, res: any) => {
         .insert(backupMigrationLogs)
         .values({
           restoreId: restoreId,
-          sourceTable: migrationType === 'general-ledger' ? 'GeneralLedger' : 'Audit',
-          targetTable: migrationType === 'general-ledger' ? 'general_ledger' : 'audit',
+          sourceTable: migrationType === 'general-ledger' ? 'GeneralLedger' : 'Audit Tables',
+          targetTable: migrationType === 'general-ledger' ? 'general_ledger' : 'audit schema',
           status: 'running',
           migrationTimestamp: new Date(),
-          createdBy: req.session.userId,
+          createdBy: req.user?.id,
         })
         .returning();
 
@@ -591,6 +591,18 @@ router.post("/migrate", requireAuth, async (req: any, res: any) => {
 
       // Execute migration based on type
       if (migrationType === 'general-ledger') {
+        // Check if we should use the standard GL migration or the Audit DB GL migration
+        // For now, we assume standard GL migration unless specified otherwise
+        // But wait, the previous code called exportToAudit (now importGLFromAuditDB) when type was 'audit'??
+        // No, previous code:
+        // if (migrationType === 'general-ledger') migrateGeneralLedger(...)
+        // else if (migrationType === 'audit') exportToAudit(...)
+        
+        // The user interface has "General Ledger", "Audit", "RS".
+        // "Audit" in the UI likely refers to the 25 audit tables.
+        // "General Ledger" refers to the GL table.
+        
+        // So:
         await migrateGeneralLedger(
           mssqlPool,
           tenantCode,
@@ -600,7 +612,7 @@ router.post("/migrate", requireAuth, async (req: any, res: any) => {
           postingsPeriodTo
         );
       } else if (migrationType === 'audit') {
-        await exportToAudit(
+        await migrateAuditTables(
           mssqlPool,
           tenantCode,
           clientId,

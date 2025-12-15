@@ -1,18 +1,10 @@
 import { Router } from "express";
 import { db } from "../db";
-import { activityLogs, users, companies } from "@shared/schema";
+import { activityLogs, profiles } from "@shared/schema";
 import { eq, desc, and, gte, lte, like, or, count, sql } from "drizzle-orm";
-import { activityLogger } from "../services/activity-logger";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
-
-// Auth middleware
-const requireAuth = (req: any, res: any, next: any) => {
-  if (!req.session.userId) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
-  next();
-};
 
 // Apply authentication to all routes
 router.use(requireAuth);
@@ -20,14 +12,13 @@ router.use(requireAuth);
 // Get activity logs with filtering and pagination
 router.get("/", async (req, res) => {
   try {
-    const sessionUserId = req.session.userId;
+    const sessionUserId = (req as any).user?.id as string | undefined;
     const {
       page = "1",
       limit = "50",
       action,
       resource,
       userId: filterUserId,
-      companyId,
       startDate,
       endDate,
       search
@@ -52,7 +43,7 @@ router.get("/", async (req, res) => {
     }
 
     if (filterUserId) {
-      conditions.push(eq(activityLogs.userId, parseInt(filterUserId as string)));
+      conditions.push(eq(activityLogs.userId, filterUserId as string));
     }
 
     if (startDate) {
@@ -98,13 +89,13 @@ router.get("/", async (req, res) => {
         timestamp: activityLogs.timestamp,
         ipAddress: activityLogs.ipAddress,
         userAgent: activityLogs.userAgent,
-        username: users.username,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        userGlobalRole: users.globalRole,
+        username: profiles.username,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName,
+        userGlobalRole: profiles.globalRole,
       })
       .from(activityLogs)
-      .leftJoin(users, eq(activityLogs.userId, users.id))
+      .leftJoin(profiles, eq(activityLogs.userId, profiles.id))
       .orderBy(desc(activityLogs.timestamp))
       .limit(limitNum)
       .offset(offset);
@@ -176,7 +167,7 @@ router.get("/", async (req, res) => {
 // Get activity summary/stats
 router.get("/summary", async (req, res) => {
   try {
-    const sessionUserId = req.session.userId;
+    const sessionUserId = (req as any).user?.id as string | undefined;
     const { days = "7" } = req.query;
     
     const daysNum = parseInt(days as string);
@@ -264,13 +255,13 @@ router.get("/filters", async (req, res) => {
     const activeUsers = await db
       .selectDistinct({
         userId: activityLogs.userId,
-        username: users.username,
-        firstName: users.firstName,
-        lastName: users.lastName
+        username: profiles.username,
+        firstName: profiles.firstName,
+        lastName: profiles.lastName
       })
       .from(activityLogs)
-      .leftJoin(users, eq(activityLogs.userId, users.id))
-      .orderBy(users.firstName, users.lastName);
+      .leftJoin(profiles, eq(activityLogs.userId, profiles.id))
+      .orderBy(profiles.firstName, profiles.lastName);
 
     res.json({
       success: true,

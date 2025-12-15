@@ -9,7 +9,7 @@ export function useDealStages() {
             const { data, error } = await supabase
                 .from("deal_stages")
                 .select("*")
-                .order("order_position", { ascending: true });
+                .order("order", { ascending: true });
 
             if (error) throw error;
             return data as DealStage[];

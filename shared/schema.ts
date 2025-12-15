@@ -1,4 +1,5 @@
 import { pgTable, text, serial, integer, boolean, timestamp, decimal, pgSchema, jsonb, numeric, uuid } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -7,35 +8,32 @@ const rs = pgSchema("rs");
 const accounting = pgSchema("accounting");
 const crm = pgSchema("crm");
 
-// Users table
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
-  username: text("username").notNull().unique(),
-  email: text("email").notNull().unique(),
-  password: text("password").notNull(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name").notNull(),
-  globalRole: text("global_role").default("user"),
-  isActive: boolean("is_active").default(true),
-  matrixId: text("matrix_id"), // Matrix user ID for messaging integration
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// Profiles table (Supabase Auth)
+// Profiles table (Supabase Auth) - Replaces legacy 'users' table
 export const profiles = pgTable("profiles", {
   id: uuid("id").primaryKey(), // References auth.users
-  fullName: text("full_name").notNull(),
+  username: text("username").unique(),
+  email: text("email").unique(),
+  fullName: text("full_name"),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
   avatarUrl: text("avatar_url"),
   phone: text("phone"),
   jobTitle: text("job_title"),
-  clientId: integer("client_id").references(() => clients.id),
+  globalRole: text("global_role").default("user"),
+  isActive: boolean("is_active").default(true),
+  matrixId: text("matrix_id"),
+  clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Legacy users table - REMOVED
+// export const users = pgTable("users", { ... });
+
 // Clients table (renamed from companies - now represents client companies)
+// Now uses UUID for consistency with Supabase Auth
 export const clients = pgTable("clients", {
-  id: serial("id").primaryKey(),
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
   tenantCode: text("tenant_code").unique(), // MSSQL tenant code for data sync (VARCHAR(50) for flexibility, convert to INT in code when needed)
@@ -43,13 +41,26 @@ export const clients = pgTable("clients", {
   phone: text("phone"),
   email: text("email"),
   taxId: text("tax_id"),
+  businessType: text("business_type").default("individual"),
+  industry: text("industry"),
   fiscalYearStart: integer("fiscal_year_start").default(1), // Month 1-12
   currency: text("currency").default("GEL"),
   isActive: boolean("is_active").default(true),
+  status: text("status").default("active"), // 'active', 'inactive', 'archived'
   manager: text("manager"), // Name of assigned manager/accountant
   accountingSoftware: text("accounting_software"), // Name of accounting software used
   idCode: text("id_code"), // Company identification code (tax ID or registration number)
   verificationStatus: text("verification_status").default("not_registered"), // RS.GE verification status
+  assignedOwnerId: uuid("assigned_owner_id").references(() => profiles.id),
+  assignedAccountantId: uuid("assigned_accountant_id").references(() => profiles.id),
+  assignedReviewerId: uuid("assigned_reviewer_id").references(() => profiles.id),
+  notes: text("notes"),
+  communicationPreferences: jsonb("communication_preferences").default({}),
+  portalEnabled: boolean("portal_enabled").default(false),
+  portalAccessToken: uuid("portal_access_token").default(sql`gen_random_uuid()`),
+  portalInvitationSentAt: timestamp("portal_invitation_sent_at"),
+  portalInvitationAcceptedAt: timestamp("portal_invitation_accepted_at"),
+  lastPortalLogin: timestamp("last_portal_login"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -80,9 +91,9 @@ export const rsUsers = rs.table("users", {
   mainPasswordHash: text("main_password_hash"),
   userId: text("user_id"),
   unId: text("un_id"),
-  clientId: integer("client_id").references(() => clients.id),
+  clientId: uuid("client_id").references(() => clients.id),
   companyTin: text("company_tin"),
-  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdByUserId: uuid("created_by_user_id").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -90,8 +101,8 @@ export const rsUsers = rs.table("users", {
 // User-Company relationships with roles
 export const userCompanies = pgTable("user_companies", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: uuid("user_id").references(() => profiles.id),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   role: text("role").notNull(), // "administrator", "manager", "accountant", "assistant"
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -100,8 +111,8 @@ export const userCompanies = pgTable("user_companies", {
 // Module-Level Permissions: Controls access to entire modules per user per client
 export const userClientModules = pgTable("user_client_modules", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: uuid("user_id").references(() => profiles.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   module: text("module").notNull(), // 'accounting', 'banking', 'reports', 'audit', 'rs_integration', 'tasks', 'messenger'
   canView: boolean("can_view").default(false),
   canCreate: boolean("can_create").default(false),
@@ -114,8 +125,8 @@ export const userClientModules = pgTable("user_client_modules", {
 // Feature-Level Permissions: Controls access to specific features within modules
 export const userClientFeatures = pgTable("user_client_features", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  userId: uuid("user_id").references(() => profiles.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   module: text("module").notNull(), // parent module
   feature: text("feature").notNull(), // 'invoices', 'bills', 'journal_entries', 'accounts', 'bank_accounts', etc.
   canView: boolean("can_view").default(false),
@@ -129,7 +140,7 @@ export const userClientFeatures = pgTable("user_client_features", {
 // Chart of Accounts
 export const accounts = accounting.table("accounts", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   code: text("code").notNull(),
   name: text("name").notNull(),
   type: text("type").notNull(), // "asset", "liability", "equity", "revenue", "expense"
@@ -148,13 +159,13 @@ export const accounts = accounting.table("accounts", {
 // Stores journal entries imported from MSSQL GeneralLedger
 export const journalEntries = accounting.table("journal_entries", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   entryNumber: text("entry_number").notNull(),
   date: timestamp("date").notNull(),
   description: text("description").notNull(),
   reference: text("reference"),
   totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
-  userId: integer("user_id").references(() => users.id),
+  userId: uuid("user_id").references(() => profiles.id),
   isPosted: boolean("is_posted").default(false),
   // MSSQL parity fields (all optional/nullable)
   // TenantCode VARCHAR(50) for flexibility, convert to INT in code when needed
@@ -272,7 +283,7 @@ export const journalEntryLines = accounting.table("journal_entry_lines", {
 // Customers
 export const customers = accounting.table("customers", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -284,7 +295,7 @@ export const customers = accounting.table("customers", {
 // Vendors
 export const vendors = accounting.table("vendors", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   name: text("name").notNull(),
   email: text("email"),
   phone: text("phone"),
@@ -296,7 +307,7 @@ export const vendors = accounting.table("vendors", {
 // Invoices
 export const invoices = accounting.table("invoices", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   customerId: integer("customer_id").references(() => customers.id).notNull(),
   invoiceNumber: text("invoice_number").notNull(),
   date: timestamp("date").notNull(),
@@ -305,14 +316,14 @@ export const invoices = accounting.table("invoices", {
   taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).default("0"),
   totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
   status: text("status").default("draft"), // "draft", "sent", "paid", "overdue"
-  userId: integer("user_id").references(() => users.id),
+  userId: uuid("user_id").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Bills
 export const bills = accounting.table("bills", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull(),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
   vendorId: integer("vendor_id").references(() => vendors.id).notNull(),
   billNumber: text("bill_number").notNull(),
   date: timestamp("date").notNull(),
@@ -321,18 +332,18 @@ export const bills = accounting.table("bills", {
   taxAmount: decimal("tax_amount", { precision: 15, scale: 2 }).default("0"),
   totalAmount: decimal("total_amount", { precision: 15, scale: 2 }).notNull(),
   status: text("status").default("draft"), // "draft", "approved", "paid"
-  userId: integer("user_id").references(() => users.id),
+  userId: uuid("user_id").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Activity Logs
 export const activityLogs = pgTable("activity_logs", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id),
-  clientId: integer("client_id").references(() => clients.id),
+  userId: uuid("user_id").references(() => profiles.id),
+  clientId: uuid("client_id").references(() => clients.id),
   action: text("action").notNull(), // CREATE, UPDATE, DELETE, LOGIN, etc.
   resource: text("resource").notNull(), // COMPANY, USER, TRANSACTION, etc.
-  resourceId: integer("resource_id"), // ID of the affected resource
+  resourceId: text("resource_id"), // ID of the affected resource
   details: text("details"), // Additional details about the action
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
@@ -342,7 +353,7 @@ export const activityLogs = pgTable("activity_logs", {
 // Company Settings
 export const companySettings = pgTable("company_settings", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => clients.id).notNull().unique(),
+  clientId: uuid("client_id").references(() => clients.id).notNull().unique(),
   // Notification settings
   emailNotifications: boolean("email_notifications").default(true),
   invoiceReminders: boolean("invoice_reminders").default(true),
@@ -430,7 +441,7 @@ export const mainCompanySettings = pgTable("main_company_settings", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const profilesRelations = relations(profiles, ({ many }) => ({
   userCompanies: many(userCompanies),
   journalEntries: many(journalEntries),
   rsCredentials: many(rsUsers),
@@ -449,7 +460,7 @@ export const companiesRelations = relations(companies, ({ many, one }) => ({
 }));
 
 export const userCompaniesRelations = relations(userCompanies, ({ one }) => ({
-  user: one(users, { fields: [userCompanies.userId], references: [users.id] }),
+  user: one(profiles, { fields: [userCompanies.userId], references: [profiles.id] }),
   company: one(companies, { fields: [userCompanies.clientId], references: [companies.id] }),
 }));
 
@@ -462,7 +473,7 @@ export const accountsRelations = relations(accounts, ({ one, many }) => ({
 
 export const journalEntriesRelations = relations(journalEntries, ({ one, many }) => ({
   company: one(companies, { fields: [journalEntries.clientId], references: [companies.id] }),
-  user: one(users, { fields: [journalEntries.userId], references: [users.id] }),
+  user: one(profiles, { fields: [journalEntries.userId], references: [profiles.id] }),
   lines: many(journalEntryLines),
 }));
 
@@ -498,11 +509,13 @@ export const companySettingsRelations = relations(companySettings, ({ one }) => 
 
 export const rsUsersRelations = relations(rsUsers, ({ one }) => ({
   company: one(companies, { fields: [rsUsers.clientId], references: [companies.id] }),
-  createdBy: one(users, { fields: [rsUsers.createdByUserId], references: [users.id] }),
+  createdBy: one(profiles, { fields: [rsUsers.createdByUserId], references: [profiles.id] }),
 }));
 
 // Insert schemas
-export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
+export const insertProfileSchema = createInsertSchema(profiles).omit({ id: true, createdAt: true, updatedAt: true });
+// Backwards compatibility alias (legacy "users" concept is now "profiles")
+export const insertUserSchema = insertProfileSchema;
 export const insertClientSchema = createInsertSchema(clients).omit({ id: true, createdAt: true });
 // Backwards compatibility alias
 export const insertCompanySchema = insertClientSchema;
@@ -525,14 +538,15 @@ export const insertMainCompanySettingsSchema = createInsertSchema(mainCompanySet
 export const updateMainCompanySettingsSchema = createInsertSchema(mainCompanySettings).partial().omit({ id: true, createdAt: true, updatedAt: true });
 
 // Enhanced validation schemas with business rules
-export const insertUserSchemaEnhanced = insertUserSchema.extend({
+export const insertProfileSchemaEnhanced = insertProfileSchema.extend({
   email: z.string().email("Invalid email format"),
   username: z.string().min(3, "Username must be at least 3 characters").max(50, "Username too long"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
+  fullName: z.string().min(1, "Full name is required"),
   globalRole: z.enum(["user", "global_administrator"]).default("user")
 });
+
+// Backwards compatibility alias (legacy "users" concept is now "profiles")
+export const insertUserSchemaEnhanced = insertProfileSchemaEnhanced;
 
 export const insertClientSchemaEnhanced = insertClientSchema.extend({
   name: z.string().min(1, "Client name is required").max(100, "Client name too long"),
@@ -608,7 +622,7 @@ export const journalEntryWithLinesSchema = z.object({
 // Bank Accounts Table
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   accountName: text("account_name").notNull(),
   accountNumber: text("account_number"),
   iban: text("iban"),
@@ -625,7 +639,7 @@ export const bankAccounts = pgTable("bank_accounts", {
 // Raw Bank Transactions Table
 export const rawBankTransactions = pgTable("raw_bank_transactions", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }),
 
   // Transaction identification
@@ -668,7 +682,7 @@ export const rawBankTransactions = pgTable("raw_bank_transactions", {
 
   // Audit fields
   importedAt: timestamp("imported_at").defaultNow(),
-  importedBy: integer("imported_by").references(() => users.id),
+  importedBy: uuid("imported_by").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -683,7 +697,7 @@ export const rawBankTransactions = pgTable("raw_bank_transactions", {
 // Normalized Bank Transactions Table - Validated transactions with sequence and balance checks
 export const normalizedBankTransactions = pgTable("normalized_bank_transactions", {
   id: serial("id").primaryKey(),
-  clientId: integer("client_id").references(() => companies.id, { onDelete: 'cascade' }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: 'cascade' }).notNull(),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id, { onDelete: 'cascade' }).notNull(),
   rawTransactionId: integer("raw_transaction_id").references(() => rawBankTransactions.id, { onDelete: 'cascade' }).notNull(),
 
@@ -711,7 +725,7 @@ export const normalizedBankTransactions = pgTable("normalized_bank_transactions"
 
   // Audit fields
   normalizedAt: timestamp("normalized_at").defaultNow(),
-  normalizedBy: integer("normalized_by").references(() => users.id),
+  normalizedBy: uuid("normalized_by").references(() => profiles.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -776,8 +790,10 @@ export const insertNormalizedBankTransactionSchema = createInsertSchema(normaliz
 });
 
 // Types
-export type User = typeof users.$inferSelect;
+export type User = typeof profiles.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Profile = typeof profiles.$inferSelect;
+export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = z.infer<typeof insertClientSchema>;
 // Backwards compatibility aliases
@@ -874,7 +890,7 @@ export const migrationErrors = pgTable("migration_errors", {
 // Enhanced types with validation
 export type InsertUserEnhanced = z.infer<typeof insertUserSchemaEnhanced>;
 export type InsertClientEnhanced = z.infer<typeof insertClientSchemaEnhanced>;
-// Backwards compatibility alias
+// Backwards compaProfileEnhanced = z.infer<typeof insertProfile
 export type InsertCompanyEnhanced = InsertClientEnhanced;
 export type InsertAccountEnhanced = z.infer<typeof insertAccountSchemaEnhanced>;
 export type InsertJournalEntryEnhanced = z.infer<typeof insertJournalEntrySchemaEnhanced>;
@@ -886,7 +902,7 @@ export type JournalEntryWithLines = z.infer<typeof journalEntryWithLinesSchema>;
 // Notifications
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").references(() => users.id).notNull(),
+  userId: uuid("user_id").references(() => profiles.id).notNull(),
   type: text("type").notNull(), // 'task_assigned', 'task_update', etc.
   title: text("title").notNull(),
   message: text("message").notNull(),
@@ -897,7 +913,7 @@ export const notifications = pgTable("notifications", {
 });
 
 export const notificationsRelations = relations(notifications, ({ one }) => ({
-  user: one(users, { fields: [notifications.userId], references: [users.id] }),
+  user: one(profiles, { fields: [notifications.userId], references: [profiles.id] }),
 }));
 
 export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true, createdAt: true });
@@ -907,8 +923,8 @@ export const conversations = pgTable("conversations", {
   id: serial("id").primaryKey(),
   title: text("title"),
   type: text("type").notNull().default("direct"), // 'direct', 'group', 'client'
-  clientId: integer("client_id").references(() => clients.id, { onDelete: "cascade" }),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   lastMessageAt: timestamp("last_message_at"),
@@ -917,7 +933,7 @@ export const conversations = pgTable("conversations", {
 
 export const conversationsRelations = relations(conversations, ({ one, many }) => ({
   client: one(clients, { fields: [conversations.clientId], references: [clients.id] }),
-  createdByUser: one(users, { fields: [conversations.createdBy], references: [users.id] }),
+  createdByUser: one(profiles, { fields: [conversations.createdBy], references: [profiles.id] }),
   participants: many(conversationParticipants),
   messages: many(messages),
 }));
@@ -926,7 +942,7 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
 export const conversationParticipants = pgTable("conversation_participants", {
   id: serial("id").primaryKey(),
   conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "cascade" }).notNull(),
-  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   lastReadAt: timestamp("last_read_at"),
   isMuted: boolean("is_muted").default(false).notNull(),
@@ -934,14 +950,14 @@ export const conversationParticipants = pgTable("conversation_participants", {
 
 export const conversationParticipantsRelations = relations(conversationParticipants, ({ one }) => ({
   conversation: one(conversations, { fields: [conversationParticipants.conversationId], references: [conversations.id] }),
-  user: one(users, { fields: [conversationParticipants.userId], references: [users.id] }),
+  user: one(profiles, { fields: [conversationParticipants.userId], references: [profiles.id] }),
 }));
 
 // Messages table
 export const messages = pgTable("messages", {
   id: serial("id").primaryKey(),
   conversationId: integer("conversation_id").references(() => conversations.id, { onDelete: "cascade" }).notNull(),
-  senderId: integer("sender_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  senderId: uuid("sender_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
   content: text("content").notNull(),
   type: text("type").notNull().default("text"), // 'text', 'file', 'system'
   metadata: jsonb("metadata").default({}),
@@ -953,7 +969,7 @@ export const messages = pgTable("messages", {
 
 export const messagesRelations = relations(messages, ({ one }) => ({
   conversation: one(conversations, { fields: [messages.conversationId], references: [conversations.id] }),
-  sender: one(users, { fields: [messages.senderId], references: [users.id] }),
+  sender: one(profiles, { fields: [messages.senderId], references: [profiles.id] }),
 }));
 
 // Google Drive Downloads Table (Phase 1)
@@ -966,7 +982,7 @@ export const gdriveDownloads = pgTable("gdrive_downloads", {
   localFilePath: text("local_file_path").notNull(),
   status: text("status").notNull().default("pending"), // 'pending', 'downloading', 'completed', 'failed'
   fileHash: text("file_hash"),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -987,11 +1003,11 @@ export const mssqlRestores = pgTable("mssql_restores", {
   isActive: boolean("is_active").default(true), // For cleanup tracking
   localBackupPath: text("local_backup_path"), // Path to downloaded .bak file
   restoreStatus: text("restore_status").notNull().default("pending"), // 'pending', 'downloading', 'restoring', 'migrating', 'completed', 'failed'
-  clientId: integer("client_id").references(() => clients.id, { onDelete: "set null" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
   restoreOptions: jsonb("restore_options"),
   completedAt: timestamp("completed_at"),
   errorMessage: text("error_message"),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1008,7 +1024,7 @@ export const backupMigrationLogs = pgTable("backup_migration_logs", {
   migrationTimestamp: timestamp("migration_timestamp").defaultNow().notNull(),
   status: text("status").notNull().default("pending"), // 'pending', 'running', 'completed', 'failed'
   errorLog: text("error_log"),
-  createdBy: integer("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -1025,3 +1041,404 @@ export const insertMssqlRestoresSchema = createInsertSchema(mssqlRestores).omit(
 export const insertBackupMigrationLogsSchema = createInsertSchema(backupMigrationLogs).omit({ id: true, createdAt: true, updatedAt: true });
 // Legacy schema for backward compatibility
 export const insertBackupRestoreHistorySchema = insertMssqlRestoresSchema;
+
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  url: text("url").notNull(),
+  type: text("type"),
+  size: integer("size"),
+  clientId: uuid("client_id").references(() => clients.id),
+  uploadedBy: uuid("uploaded_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDocumentSchema = createInsertSchema(documents).omit({ id: true, createdAt: true, updatedAt: true });
+
+// ============================================================================
+// RBAC & User Management
+// ============================================================================
+
+export const userRoles = pgTable("user_roles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  role: text("role").notNull(), // 'admin', 'manager', 'accountant', 'client'
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertUserRolesSchema = createInsertSchema(userRoles).omit({ id: true, createdAt: true, updatedAt: true });
+
+// ============================================================================
+// CRM Module - Client Management
+// ============================================================================
+
+export const clientContacts = pgTable("client_contacts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  email: text("email"),
+  phone: text("phone"),
+  position: text("position"),
+  isPrimary: boolean("is_primary").default(false),
+  notes: text("notes"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientContactsSchema = createInsertSchema(clientContacts).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const clientTeamAssignments = pgTable("client_team_assignments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  role: text("role"), // 'lead', 'accountant', 'assistant', etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertClientTeamAssignmentsSchema = createInsertSchema(clientTeamAssignments).omit({ id: true, createdAt: true });
+
+export const clientServices = pgTable("client_services", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  serviceName: text("service_name").notNull(),
+  description: text("description"),
+  price: decimal("price", { precision: 10, scale: 2 }),
+  billingFrequency: text("billing_frequency"), // 'monthly', 'quarterly', 'annually', 'one-time'
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientServicesSchema = createInsertSchema(clientServices).omit({ id: true, createdAt: true, updatedAt: true });
+
+// ============================================================================
+// CRM Module - Deals & Pipeline
+// ============================================================================
+
+export const dealStages = pgTable("deal_stages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  order: integer("order").notNull(),
+  probability: integer("probability").default(0), // 0-100
+  color: text("color"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDealStagesSchema = createInsertSchema(dealStages).omit({ id: true, createdAt: true });
+
+export const deals = pgTable("deals", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  stageId: uuid("stage_id").references(() => dealStages.id, { onDelete: "set null" }),
+  ownerId: uuid("owner_id").references(() => profiles.id, { onDelete: "set null" }),
+  value: decimal("value", { precision: 12, scale: 2 }),
+  currency: text("currency").default("GEL"),
+  expectedCloseDate: timestamp("expected_close_date"),
+  actualCloseDate: timestamp("actual_close_date"),
+  status: text("status").default("open"), // 'open', 'won', 'lost'
+  priority: text("priority").default("medium"), // 'low', 'medium', 'high'
+  description: text("description"),
+  metadata: jsonb("metadata"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDealsSchema = createInsertSchema(deals).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const dealActivities = pgTable("deal_activities", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  activityType: text("activity_type").notNull(), // 'note', 'call', 'email', 'meeting'
+  subject: text("subject"),
+  description: text("description"),
+  scheduledAt: timestamp("scheduled_at"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDealActivitiesSchema = createInsertSchema(dealActivities).omit({ id: true, createdAt: true });
+
+export const dealContacts = pgTable("deal_contacts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  dealId: uuid("deal_id").references(() => deals.id, { onDelete: "cascade" }).notNull(),
+  contactId: uuid("contact_id").references(() => clientContacts.id, { onDelete: "cascade" }).notNull(),
+  role: text("role"), // 'decision_maker', 'influencer', 'user'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDealContactsSchema = createInsertSchema(dealContacts).omit({ id: true, createdAt: true });
+
+// ============================================================================
+// Workflow & Task Management Module
+// ============================================================================
+
+export const workflowTemplates = pgTable("workflow_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  description: text("description"),
+  type: text("type"), // 'onboarding', 'monthly_close', 'year_end', 'audit', 'custom'
+  isActive: boolean("is_active").default(true),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowTemplatesSchema = createInsertSchema(workflowTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const workflowStages = pgTable("workflow_stages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id").references(() => workflowTemplates.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  order: integer("order").notNull(),
+  color: text("color"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertWorkflowStagesSchema = createInsertSchema(workflowStages).omit({ id: true, createdAt: true });
+
+export const clientPipelines = pgTable("client_pipelines", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientPipelinesSchema = createInsertSchema(clientPipelines).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const clientPipelineStages = pgTable("client_pipeline_stages", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  pipelineId: uuid("pipeline_id").references(() => clientPipelines.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  order: integer("order").notNull(),
+  color: text("color"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertClientPipelineStagesSchema = createInsertSchema(clientPipelineStages).omit({ id: true, createdAt: true });
+
+export const workflows = pgTable("workflows", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  templateId: uuid("template_id").references(() => workflowTemplates.id, { onDelete: "set null" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  currentStageId: uuid("current_stage_id").references(() => workflowStages.id, { onDelete: "set null" }),
+  status: text("status").default("active"), // 'active', 'completed', 'cancelled'
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertWorkflowsSchema = createInsertSchema(workflows).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const workflowStageHistory = pgTable("workflow_stage_history", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: "cascade" }).notNull(),
+  stageId: uuid("stage_id").references(() => workflowStages.id, { onDelete: "cascade" }).notNull(),
+  enteredAt: timestamp("entered_at").defaultNow(),
+  exitedAt: timestamp("exited_at"),
+  notes: text("notes"),
+});
+
+export const insertWorkflowStageHistorySchema = createInsertSchema(workflowStageHistory).omit({ id: true, enteredAt: true });
+
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: "cascade" }),
+  assignedTo: uuid("assigned_to").references(() => profiles.id, { onDelete: "set null" }),
+  status: text("status").default("pending"), // 'pending', 'in_progress', 'completed', 'cancelled'
+  priority: text("priority").default("medium"), // 'low', 'medium', 'high', 'urgent'
+  dueDate: timestamp("due_date"),
+  completedAt: timestamp("completed_at"),
+  tags: jsonb("tags"),
+  metadata: jsonb("metadata"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTasksSchema = createInsertSchema(tasks).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const taskTemplates = pgTable("task_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workflowStageId: uuid("workflow_stage_id").references(() => workflowStages.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  description: text("description"),
+  defaultAssignee: uuid("default_assignee").references(() => profiles.id, { onDelete: "set null" }),
+  estimatedDays: integer("estimated_days"),
+  priority: text("priority").default("medium"),
+  order: integer("order").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTaskTemplatesSchema = createInsertSchema(taskTemplates).omit({ id: true, createdAt: true });
+
+export const clientTaskTemplates = pgTable("client_task_templates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  recurringFrequency: text("recurring_frequency"), // 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertClientTaskTemplatesSchema = createInsertSchema(clientTaskTemplates).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const checklists = pgTable("checklists", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }).notNull(),
+  items: jsonb("items").notNull(), // Array of { text: string, completed: boolean }
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertChecklistsSchema = createInsertSchema(checklists).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const taskComments = pgTable("task_comments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertTaskCommentsSchema = createInsertSchema(taskComments).omit({ id: true, createdAt: true, updatedAt: true });
+
+// ============================================================================
+// Calendar Module
+// ============================================================================
+
+export const calendarEvents = pgTable("calendar_events", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  description: text("description"),
+  startTime: timestamp("start_time").notNull(),
+  endTime: timestamp("end_time").notNull(),
+  location: text("location"),
+  eventType: text("event_type"), // 'meeting', 'deadline', 'reminder', 'task'
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  taskId: uuid("task_id").references(() => tasks.id, { onDelete: "cascade" }),
+  organizerId: uuid("organizer_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  isAllDay: boolean("is_all_day").default(false),
+  recurrence: jsonb("recurrence"), // Recurrence rules
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCalendarEventsSchema = createInsertSchema(calendarEvents).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const calendarEventParticipants = pgTable("calendar_event_participants", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: uuid("event_id").references(() => calendarEvents.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  responseStatus: text("response_status").default("pending"), // 'pending', 'accepted', 'declined', 'tentative'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCalendarEventParticipantsSchema = createInsertSchema(calendarEventParticipants).omit({ id: true, createdAt: true });
+
+// ============================================================================
+// Feed/Social Module
+// ============================================================================
+
+export const feedProfiles = pgTable("feed_profiles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull().unique(),
+  bio: text("bio"),
+  followersCount: integer("followers_count").default(0),
+  followingCount: integer("following_count").default(0),
+  postsCount: integer("posts_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFeedProfilesSchema = createInsertSchema(feedProfiles).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const feedPosts = pgTable("feed_posts", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  authorId: uuid("author_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  content: text("content").notNull(),
+  attachments: jsonb("attachments"), // URLs, file metadata
+  visibility: text("visibility").default("public"), // 'public', 'private', 'team', 'client'
+  likesCount: integer("likes_count").default(0),
+  commentsCount: integer("comments_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFeedPostsSchema = createInsertSchema(feedPosts).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const feedComments = pgTable("feed_comments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: uuid("post_id").references(() => feedPosts.id, { onDelete: "cascade" }).notNull(),
+  authorId: uuid("author_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertFeedCommentsSchema = createInsertSchema(feedComments).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const feedLikes = pgTable("feed_likes", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: uuid("post_id").references(() => feedPosts.id, { onDelete: "cascade" }).notNull(),
+  userId: uuid("user_id").references(() => profiles.id, { onDelete: "cascade" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertFeedLikesSchema = createInsertSchema(feedLikes).omit({ id: true, createdAt: true });
+
+// ============================================================================
+// Passwords Module (Secure Vault)
+// ============================================================================
+
+export const passwordFolders = pgTable("password_folders", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  parentId: uuid("parent_id"), // Self-referential for nested folders
+  createdBy: uuid("created_by").references(() => profiles.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPasswordFoldersSchema = createInsertSchema(passwordFolders).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const passwords = pgTable("passwords", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  folderId: uuid("folder_id").references(() => passwordFolders.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  username: text("username"),
+  encryptedPassword: text("encrypted_password").notNull(), // Must be encrypted at application level
+  url: text("url"),
+  notes: text("notes"),
+  tags: jsonb("tags"),
+  createdBy: uuid("created_by").references(() => profiles.id),
+  lastAccessedAt: timestamp("last_accessed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPasswordsSchema = createInsertSchema(passwords).omit({ id: true, createdAt: true, updatedAt: true, lastAccessedAt: true });
+

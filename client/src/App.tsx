@@ -8,10 +8,10 @@ import { MessengerProvider } from "@/contexts/MessengerContext";
 import { ThemeProvider } from "next-themes";
 import { useLayoutPreference } from "@/hooks/useLayoutPreference";
 import { useEffect } from "react";
-import { getAccessToken, getRefreshToken, clearTokens } from "@/lib/auth";
 import "./lib/i18n";
 import "./lib/suppressWarnings";
 import Login from "@/pages/Login";
+import ChangePassword from "@/pages/ChangePassword";
 import Setup from "@/pages/Setup";
 import AppLayout from "@/components/layout/AppLayout";
 import SimplePageLayout from "@/components/layout/SimplePageLayout";
@@ -72,6 +72,16 @@ import Notifications from "@/pages/Notifications";
 import Storage from "@/pages/admin/Storage";
 import TestingDashboard from "@/pages/testing/TestingDashboard";
 
+// New Pages
+import Documents from "@/pages/documents/Documents";
+import ManagerialReports from "@/pages/reporting/ManagerialReports";
+import TaxDeclarations from "@/pages/reporting/TaxDeclarations";
+import CheckBankTransactions from "@/pages/audit/CheckBankTransactions";
+import CheckRsGe from "@/pages/audit/CheckRsGe";
+import CheckJournalEntries from "@/pages/audit/CheckJournalEntries";
+import Billing from "@/pages/billing/Billing";
+import RSData from "@/pages/rs/RSData";
+
 // Extra pages (not in sidebar but accessible)
 import BankReconciliation from "@/pages/accounting/BankReconciliation";
 import Invoices from "@/pages/accounting/Invoices";
@@ -98,6 +108,10 @@ function ProtectedApp() {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (user.mustChangePassword) {
+    return <ChangePassword />;
   }
 
   // If setup is needed, redirect to setup page
@@ -181,6 +195,16 @@ function ProtectedApp() {
           <Route path="/storage" component={Storage} />
           <Route path="/testing" component={TestingDashboard} />
 
+          {/* New Pages */}
+          <Route path="/documents" component={Documents} />
+          <Route path="/reporting/managerial-reports" component={ManagerialReports} />
+          <Route path="/reporting/tax-declarations" component={TaxDeclarations} />
+          <Route path="/audit/bank-transactions" component={CheckBankTransactions} />
+          <Route path="/audit/rs-ge" component={CheckRsGe} />
+          <Route path="/audit/journal-entries" component={CheckJournalEntries} />
+          <Route path="/billing" component={Billing} />
+          <Route path="/rs-data" component={RSData} />
+
           {/* Extra pages (not in sidebar but accessible) */}
           <Route path="/bank-reconciliation" component={BankReconciliation} />
           <Route path="/invoices" component={Invoices} />
@@ -231,29 +255,6 @@ function Router() {
 }
 
 function App() {
-  // Clean up expired tokens on app initialization
-  useEffect(() => {
-    const accessToken = getAccessToken();
-    const refreshToken = getRefreshToken();
-    
-    // If we have tokens, check if both are expired
-    if (accessToken && refreshToken) {
-      try {
-        // Check if refresh token is expired
-        const refreshPayload = JSON.parse(atob(refreshToken.split('.')[1]));
-        const now = Math.floor(Date.now() / 1000);
-        
-        if (refreshPayload.exp < now) {
-          console.log('🔄 Refresh token expired, clearing all tokens');
-          clearTokens();
-        }
-      } catch (error) {
-        console.error('Error checking token expiration:', error);
-        clearTokens();
-      }
-    }
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

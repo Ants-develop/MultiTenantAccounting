@@ -11,7 +11,7 @@ const router = Router();
  */
 router.get('/restore-ssh', async (req: Request, res: Response) => {
     const fileName = req.query.fileName as string;
-    const clientId = req.query.clientId ? parseInt(req.query.clientId as string) : undefined;
+    const clientId = req.query.clientId ? (req.query.clientId as string) : undefined;
 
     if (!fileName) {
         return res.status(400).json({ error: 'fileName query parameter is required' });

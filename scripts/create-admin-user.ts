@@ -1,7 +1,42 @@
 #!/usr/bin/env tsx
 
-// Explicitly load .env file BEFORE importing db.ts
-// This ensures DATABASE_URL is available when db.ts initializes
+/**
+ * Create Admin User Script for Supabase Auth
+ * 
+ * AUTH FLOW EXPLANATION:
+ * ======================
+ * 
+ * 1. USER CREATION:
+ *    - Users are created in Supabase Auth (auth.users table) via Admin API
+ *    - supabaseAdmin.auth.admin.createUser() creates the auth user
+ *    - Password is hashed and stored securely by Supabase (bcrypt internally)
+ *    - A trigger (handle_new_user) automatically creates a profile in profiles table
+ * 
+ * 2. PROFILE CREATION:
+ *    - profiles table has FK to auth.users(id) ON DELETE CASCADE
+ *    - Contains additional user metadata (username, first_name, last_name, globalRole)
+ *    - profile.id = auth.user.id (same UUID)
+ * 
+ * 3. AUTHENTICATION FLOW:
+ *    a) Client sends credentials to /api/auth/login
+ *    b) Server calls supabase.auth.signInWithPassword()
+ *    c) Supabase validates password and returns JWT token
+ *    d) Client stores JWT and sends it in Authorization header
+ *    e) requireAuth middleware validates JWT via supabase.auth.getUser()
+ *    f) User profile is fetched from profiles table for additional data
+ * 
+ * 4. PASSWORD RESET:
+ *    - Uses Supabase's built-in password reset flow
+ *    - supabase.auth.resetPasswordForEmail() sends reset email
+ *    - User clicks link and sets new password via Supabase UI
+ * 
+ * 5. SECURITY:
+ *    - Passwords never stored in plaintext
+ *    - JWT tokens expire and can be refreshed
+ *    - RLS policies on profiles table protect user data
+ *    - Service role key required for admin operations
+ */
+
 import { config } from 'dotenv';
 import { resolve } from 'path';
 
@@ -10,216 +45,156 @@ const envPath = resolve(process.cwd(), '.env');
 const result = config({ path: envPath });
 if (result.error && !process.env.DATABASE_URL) {
   console.warn(`⚠️  Could not load .env from ${envPath}: ${result.error.message}`);
-} else if (process.env.DATABASE_URL) {
-  const urlParts = process.env.DATABASE_URL.split('@');
-  const dbInfo = urlParts.length > 1 ? `@${urlParts[1]}` : 'database';
-  console.log(`📝 Loaded DATABASE_URL from .env: ${dbInfo}`);
 }
 
-// Now import db - it will use the DATABASE_URL we just loaded
+// Import Supabase Admin client and database
+import { supabaseAdmin } from "../server/supabase";
 import { db } from "../server/db";
-import { sql } from "drizzle-orm";
-import bcrypt from "bcrypt";
+import { profiles } from "@shared/schema";
+import { eq } from "drizzle-orm";
 
 async function createAdminUser(force: boolean = false) {
-  console.log("👤 Creating Administrator User with Proper Password Hashing...\n");
+  console.log("👤 Creating Administrator User in Supabase Auth...\n");
+
+  const adminEmail = 'a.avalishvili@ants.ge';
+  const adminPassword = 'asQW12ZX12!!';
+  const adminUsername = 'admin';
 
   try {
-    // Verify database connection first
-    console.log("🔌 Verifying database connection...");
-    try {
-      await db.execute(sql`SELECT 1`);
-      console.log("   ✅ Database connection successful");
-      
-      // Show which database we're connected to
-      if (process.env.DATABASE_URL) {
-        const urlParts = process.env.DATABASE_URL.split('@');
-        const dbInfo = urlParts.length > 1 ? `@${urlParts[1]}` : 'database';
-        console.log(`   📊 Connected to: ${dbInfo}`);
-      }
-    } catch (dbError: any) {
-      console.error("   ❌ Database connection failed!");
-      console.error("   Error:", dbError.message);
-      console.error("   Code:", dbError.code);
-      if (process.env.DATABASE_URL) {
-        const urlParts = process.env.DATABASE_URL.split('@');
-        const dbInfo = urlParts.length > 1 ? `@${urlParts[1]}` : 'database';
-        console.error(`   DATABASE_URL: ${dbInfo}`);
-      } else {
-        console.error("   ⚠️  DATABASE_URL environment variable not set!");
-      }
-      throw dbError;
+    // Verify Supabase connection
+    console.log("🔌 Verifying Supabase connection...");
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      throw new Error("SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY not set in .env");
+    }
+    console.log(`   ✅ Supabase URL: ${process.env.SUPABASE_URL}`);
+
+    // Check if user already exists in profiles
+    console.log("🔍 Checking for existing administrator...");
+    const existingProfiles = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.username, adminUsername))
+      .limit(1);
+
+    if (existingProfiles.length > 0 && !force) {
+      const profile = existingProfiles[0];
+      console.log("   ⚠️  Administrator already exists!");
+      console.log(`   👤 Username: ${profile.username}`);
+      console.log(`   📧 Email: ${profile.email}`);
+      console.log(`   🔑 Role: ${profile.globalRole}`);
+      console.log(`   🆔 ID: ${profile.id}`);
+      console.log("\n   💡 Use --force flag to delete and recreate user");
+      return profile;
     }
 
-    // Check if users table exists
-    console.log("🔍 Checking if users table exists...");
-    try {
-      await db.execute(sql`SELECT 1 FROM users LIMIT 1`);
-      console.log("   ✅ Users table exists");
-    } catch (tableError: any) {
-      if (tableError.message?.includes('does not exist') || tableError.code === '42P01') {
-        console.error("   ❌ Users table does not exist!");
-        console.error("   💡 Please run migrations first: npm run db:migrate");
-        throw new Error("Users table does not exist. Run migrations first.");
+    // If force mode and user exists, delete first
+    if (existingProfiles.length > 0 && force) {
+      const existingId = existingProfiles[0].id;
+      console.log(`   🔄 Force mode: Deleting existing user ${existingId}...`);
+      
+      // Delete from Supabase Auth (profile will cascade delete)
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingId);
+      if (deleteError) {
+        console.warn(`   ⚠️  Could not delete from Supabase Auth: ${deleteError.message}`);
+        // Try to delete profile directly
+        await db.delete(profiles).where(eq(profiles.id, existingId));
       }
-      throw tableError;
+      console.log("   ✅ Existing user deleted");
     }
 
-    // Check if admin user already exists
-    console.log("🔍 Checking for existing administrator user...");
-    const existingAdmin = await db.execute(sql`
-      SELECT username, global_role FROM users WHERE username = 'admin'
-    `);
+    // Create user in Supabase Auth
+    console.log("\n🔐 Creating user in Supabase Auth...");
+    console.log(`   📧 Email: ${adminEmail}`);
+    console.log(`   👤 Username: ${adminUsername}`);
+    
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPassword,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        username: adminUsername,
+        first_name: 'Avtandil',
+        last_name: 'Avalishvili'
+      }
+    });
 
-    if (existingAdmin.rows.length > 0 && !force) {
-      console.log("   ⚠️  Administrator user already exists!");
-      console.log(`   👤 Username: ${existingAdmin.rows[0].username}`);
-      console.log(`   🔑 Role: ${existingAdmin.rows[0].global_role}`);
-      console.log("   💡 Use --force flag to update existing user");
-      
-      // Test the password
-      console.log("\n🧪 Testing current administrator password...");
-      const userResult = await db.execute(sql`
-        SELECT password FROM users WHERE username = 'admin'
-      `);
-      
-      if (userResult.rows.length > 0) {
-        const storedHash = userResult.rows[0].password as string;
-        const isValid = await bcrypt.compare('asQW12ZX12!!', storedHash);
-        
-        if (isValid) {
-          console.log("   ✅ Password works correctly!");
-          return;
-        } else {
-          console.log("   ❌ Password doesn't work!");
-          console.log("   🔄 Updating password hash...");
-          
-          const newHash = await bcrypt.hash('asQW12ZX12!!', 10);
-          await db.execute(sql`
-            UPDATE users SET password = ${newHash} WHERE username = 'admin'
-          `);
-          console.log("   ✅ Password updated successfully!");
+    if (authError) {
+      console.error("   ❌ Supabase Auth error:", authError.message);
+      throw authError;
+    }
+
+    if (!authData.user) {
+      throw new Error("Failed to create user in Supabase Auth");
+    }
+
+    console.log(`   ✅ User created in Supabase Auth`);
+    console.log(`   🆔 Auth ID: ${authData.user.id}`);
+
+    // Create profile (this should happen automatically via trigger, but we do it explicitly)
+    console.log("\n👤 Creating user profile...");
+    const [createdProfile] = await db
+      .insert(profiles)
+      .values({
+        id: authData.user.id,
+        username: adminUsername,
+        email: adminEmail,
+        firstName: 'Avtandil',
+        lastName: 'Avalishvili',
+        fullName: 'Avtandil Avalishvili',
+        globalRole: 'global_administrator',
+        isActive: true,
+      })
+      .returning()
+      .onConflictDoUpdate({
+        target: profiles.id,
+        set: {
+          username: adminUsername,
+          email: adminEmail,
+          firstName: 'Avtandil',
+          lastName: 'Avalishvili',
+          fullName: 'Avtandil Avalishvili',
+          globalRole: 'global_administrator',
+          isActive: true,
         }
-      }
-      return;
-    }
+      });
 
-    // If force is true and user exists, update it
-    if (existingAdmin.rows.length > 0 && force) {
-      console.log("   🔄 Force mode: Updating existing administrator user...");
-      const passwordHash = await bcrypt.hash('asQW12ZX12!!', 10);
-      await db.execute(sql`
-        UPDATE users 
-        SET password = ${passwordHash},
-            email = 'admin@multitenant.com',
-            first_name = 'Global',
-            last_name = 'Administrator',
-            global_role = 'global_administrator',
-            is_active = true
-        WHERE username = 'admin'
-      `);
-      console.log("   ✅ Administrator user updated successfully!");
-      
-      // Verify the update
-      const verifyResult = await db.execute(sql`
-        SELECT id, username, email, first_name, last_name, global_role, is_active
-        FROM users WHERE username = 'admin'
-      `);
-      
-      if (verifyResult.rows.length > 0) {
-        const admin = verifyResult.rows[0];
-        console.log("   ✅ Admin user verified:");
-        console.log(`      ID: ${admin.id}`);
-        console.log(`      Username: ${admin.username}`);
-        console.log(`      Email: ${admin.email}`);
-        console.log(`      Name: ${admin.first_name} ${admin.last_name}`);
-        console.log(`      Role: ${admin.global_role}`);
-        console.log(`      Active: ${admin.is_active}`);
-      }
-      return;
-    }
+    console.log("   ✅ Profile created successfully!");
+    console.log(`   🆔 Profile ID: ${createdProfile.id}`);
+    console.log(`   👤 Username: ${createdProfile.username}`);
+    console.log(`   📧 Email: ${createdProfile.email}`);
+    console.log(`   🔑 Role: ${createdProfile.globalRole}`);
+    console.log(`   ✅ Active: ${createdProfile.isActive}`);
 
-    // Create proper password hash
-    console.log("🔐 Generating secure password hash...");
-    const passwordHash = await bcrypt.hash('asQW12ZX12!!', 10);
-    console.log(`   Generated hash: ${passwordHash.substring(0, 20)}...`);
-
-    // Create admin user
-    console.log("\n👤 Creating administrator user...");
-    await db.execute(sql`
-      INSERT INTO users (username, email, password, first_name, last_name, global_role, is_active)
-      VALUES (
-        'admin',
-        'admin@multitenant.com',
-        ${passwordHash},
-        'Global',
-        'Administrator', 
-        'global_administrator',
-        true
-      )
-    `);
-    console.log("   ✅ Administrator user created successfully!");
-
-    // Verify the user was created
-    console.log("\n🔍 Verifying administrator user...");
-    const verifyResult = await db.execute(sql`
-      SELECT id, username, email, first_name, last_name, global_role, is_active
-      FROM users WHERE username = 'admin'
-    `);
-
-    if (verifyResult.rows.length > 0) {
-      const admin = verifyResult.rows[0];
-      console.log("   ✅ Admin user verified:");
-      console.log(`      ID: ${admin.id}`);
-      console.log(`      Username: ${admin.username}`);
-      console.log(`      Email: ${admin.email}`);
-      console.log(`      Name: ${admin.first_name} ${admin.last_name}`);
-      console.log(`      Role: ${admin.global_role}`);
-      console.log(`      Active: ${admin.is_active}`);
-
-      // Test login
-      console.log("\n🧪 Testing login credentials...");
-      const loginTest = await db.execute(sql`
-        SELECT password FROM users WHERE username = 'admin'
-      `);
-      
-      if (loginTest.rows.length > 0) {
-        const isValid = await bcrypt.compare('asQW12ZX12!!', loginTest.rows[0].password as string);
-        if (isValid) {
-          console.log("   ✅ Login test successful!");
-          console.log("   🎯 Credentials: admin / asQW12ZX12!!");
-        } else {
-          console.log("   ❌ Login test failed!");
-        }
-      }
-    }
+    return createdProfile;
 
   } catch (error: any) {
-    console.error("❌ Failed to create admin user:");
+    console.error("\n❌ Failed to create admin user:");
     console.error("   Error:", error.message);
-    console.error("   Code:", error.code);
-    if (error.detail) {
-      console.error("   Detail:", error.detail);
+    if (error.code) {
+      console.error("   Code:", error.code);
+    }
+    if (error.details) {
+      console.error("   Details:", error.details);
     }
     if (error.hint) {
       console.error("   Hint:", error.hint);
     }
     console.error("\n💡 Troubleshooting:");
-    console.error("   1. Check that DATABASE_URL is set correctly in .env file");
-    console.error("   2. Verify database is accessible");
-    console.error("   3. Ensure migrations have been run: npm run db:migrate");
+    console.error("   1. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in .env");
+    console.error("   2. Verify migrations have been run: npm run db:reset");
+    console.error("   3. Check Supabase dashboard for auth errors");
     throw error;
   }
 }
 
-// Also create other users with correct hashes
+// Create additional sample users
 async function createAllUsers(force: boolean = false) {
-  console.log("\n👥 Creating All Sample Users...\n");
+  console.log("\n👥 Creating Sample Users in Supabase Auth...\n");
 
   const users = [
     {
       username: 'manager',
-      email: 'manager@acme.com',
+      email: 'manager@ants.ge',
       password: 'manager123',
       firstName: 'John',
       lastName: 'Manager',
@@ -227,7 +202,7 @@ async function createAllUsers(force: boolean = false) {
     },
     {
       username: 'accountant', 
-      email: 'accountant@techstart.com',
+      email: 'accountant@ants.ge',
       password: 'accountant123',
       firstName: 'Sarah',
       lastName: 'Accountant',
@@ -235,7 +210,7 @@ async function createAllUsers(force: boolean = false) {
     },
     {
       username: 'assistant',
-      email: 'assistant@globalconsulting.com',
+      email: 'assistant@ants.ge',
       password: 'assistant123',
       firstName: 'Mike',
       lastName: 'Assistant',
@@ -245,85 +220,116 @@ async function createAllUsers(force: boolean = false) {
 
   for (const user of users) {
     try {
-      // Check if user exists
-      const existing = await db.execute(sql`
-        SELECT username FROM users WHERE username = ${user.username}
-      `);
+      console.log(`📝 Processing ${user.username}...`);
 
-      if (existing.rows.length > 0 && !force) {
+      // Check if user exists
+      const existingProfiles = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.username, user.username))
+        .limit(1);
+
+      if (existingProfiles.length > 0 && !force) {
         console.log(`   ⚠️  User ${user.username} already exists, skipping...`);
         continue;
       }
 
-      // If force is true and user exists, update it
-      if (existing.rows.length > 0 && force) {
-        console.log(`   🔄 Force mode: Updating user ${user.username}...`);
-        const passwordHash = await bcrypt.hash(user.password, 10);
-        await db.execute(sql`
-          UPDATE users 
-          SET email = ${user.email},
-              password = ${passwordHash},
-              first_name = ${user.firstName},
-              last_name = ${user.lastName},
-              global_role = ${user.globalRole},
-              is_active = true
-          WHERE username = ${user.username}
-        `);
-        console.log(`   ✅ Updated user: ${user.username} / ${user.password}`);
+      // If force mode and user exists, delete first
+      if (existingProfiles.length > 0 && force) {
+        const existingId = existingProfiles[0].id;
+        console.log(`   🔄 Force mode: Deleting existing user...`);
+        
+        const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingId);
+        if (deleteError) {
+          console.warn(`   ⚠️  Could not delete from Supabase Auth: ${deleteError.message}`);
+          await db.delete(profiles).where(eq(profiles.id, existingId));
+        }
+      }
+
+      // Create user in Supabase Auth
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: user.email,
+        password: user.password,
+        email_confirm: true,
+        user_metadata: {
+          username: user.username,
+          first_name: user.firstName,
+          last_name: user.lastName
+        }
+      });
+
+      if (authError) {
+        console.log(`   ❌ Failed to create ${user.username}: ${authError.message}`);
         continue;
       }
 
-      // Create password hash
-      const passwordHash = await bcrypt.hash(user.password, 10);
+      if (!authData.user) {
+        console.log(`   ❌ Failed to create ${user.username}: No user returned`);
+        continue;
+      }
 
-      // Create user
-      await db.execute(sql`
-        INSERT INTO users (username, email, password, first_name, last_name, global_role, is_active)
-        VALUES (
-          ${user.username},
-          ${user.email},
-          ${passwordHash},
-          ${user.firstName},
-          ${user.lastName},
-          ${user.globalRole},
-          true
-        )
-      `);
+      // Create profile
+      await db
+        .insert(profiles)
+        .values({
+          id: authData.user.id,
+          username: user.username,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          fullName: `${user.firstName} ${user.lastName}`,
+          globalRole: user.globalRole,
+          isActive: true,
+        })
+        .onConflictDoNothing();
 
-      console.log(`   ✅ Created user: ${user.username} / ${user.password}`);
+      console.log(`   ✅ Created: ${user.username} / ${user.password}`);
 
-    } catch (error) {
-      console.log(`   ❌ Failed to create user ${user.username}:`, error);
+    } catch (error: any) {
+      console.log(`   ❌ Failed to create user ${user.username}:`, error.message);
     }
   }
 }
 
 // Run the script
-// Check for --force flag
 const force = process.argv.includes('--force') || process.argv.includes('-f');
 
 if (force) {
   console.log("🔄 Force mode enabled - will update existing users\n");
 }
 
-// Always run if this is the main execution
 Promise.resolve()
   .then(() => createAdminUser(force))
   .then(() => createAllUsers(force))
   .then(() => {
-    console.log("\n🎉 All users created/updated successfully!");
+    console.log("\n" + "=".repeat(70));
+    console.log("🎉 All users created/updated successfully!");
+    console.log("=".repeat(70));
     console.log("\n📋 Login Credentials:");
-    console.log("==================");
-    console.log("• Global Administrator: admin / asQW12ZX12!!");
-    console.log("• Manager: manager / manager123"); 
-    console.log("• Accountant: accountant / accountant123");
-    console.log("• Assistant: assistant / assistant123");
-    console.log("\n✨ Ready to login!");
+    console.log("━".repeat(70));
+    console.log("• Global Administrator:");
+    console.log("  Email: a.avalishvili@ants.ge");
+    console.log("  Password: asQW12ZX12!!");
+    console.log("  Role: global_administrator");
+    console.log("");
+    console.log("• Manager: manager@ants.ge / manager123"); 
+    console.log("• Accountant: accountant@ants.ge / accountant123");
+    console.log("• Assistant: assistant@ants.ge / assistant123");
+    console.log("━".repeat(70));
+    console.log("\n🔐 Authentication Flow:");
+    console.log("  1. User enters email/password on login page");
+    console.log("  2. Client calls /api/auth/login endpoint");
+    console.log("  3. Server validates via Supabase Auth");
+    console.log("  4. JWT token returned to client");
+    console.log("  5. Client includes token in Authorization header");
+    console.log("  6. Server validates token on each request");
+    console.log("\n✨ Ready to login at http://localhost:4000");
+    console.log("=".repeat(70));
     process.exit(0);
   })
   .catch((error) => {
-    console.error("Failed to create users:", error);
+    console.error("\n❌ Failed to create users:", error.message);
     process.exit(1);
   });
 
-export { createAdminUser, createAllUsers }; 
+export { createAdminUser, createAllUsers };

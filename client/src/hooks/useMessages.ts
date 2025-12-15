@@ -96,7 +96,7 @@ export const useConversations = () => {
             id,
             user_id,
             last_read_at,
-            user:user_id(id, full_name, avatar_url)
+            user:profiles!conversation_participants_user_id_fkey(id, full_name, avatar_url)
           ),
           messages:messages(
             id,
@@ -106,7 +106,7 @@ export const useConversations = () => {
             created_at,
             sender_id,
             is_deleted,
-            sender:sender_id(id, full_name, avatar_url)
+            sender:profiles!messages_sender_id_fkey(id, full_name, avatar_url)
           )
         `
         )

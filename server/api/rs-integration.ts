@@ -4,7 +4,6 @@ import { db } from "../db";
 import { companies as companiesTable } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth";
-import { DEFAULT_CLIENT_ID } from "../constants";
 
 const router = express.Router();
 
@@ -14,8 +13,12 @@ router.use(requireAuth);
 // GET /api/rs-integration/:tableName - Fetch RS.ge data with pagination
 router.get('/:tableName', async (req, res) => {
   try {
-    const clientId = DEFAULT_CLIENT_ID!;
+    const clientId = req.query.clientId as string;
     const { tableName } = req.params;
+
+    if (!clientId) {
+      return res.status(400).json({ message: "Client ID is required" });
+    }
     
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 500;
@@ -67,8 +70,11 @@ router.get('/:tableName', async (req, res) => {
       ${countWhereClause}
     `;
     
-    const countResult = await db.execute(sql.raw(countQuery));
-    const total = parseInt((countResult.rows[0] as any).total || '0');
+    const countResult: any = await db.execute(sql.raw(countQuery));
+    const countRows = Array.isArray(countResult)
+      ? countResult
+      : (countResult?.rows ?? []);
+    const total = parseInt((countRows?.[0] as any)?.total || "0");
     const totalPages = Math.ceil(total / limit);
 
     // Fetch paginated data
@@ -81,10 +87,13 @@ router.get('/:tableName', async (req, res) => {
       OFFSET ${offset}
     `;
 
-    const dataResult = await db.execute(sql.raw(dataQuery));
+    const dataResult: any = await db.execute(sql.raw(dataQuery));
+    const dataRows = Array.isArray(dataResult)
+      ? dataResult
+      : (dataResult?.rows ?? []);
 
     res.json({
-      data: dataResult.rows,
+      data: dataRows,
       pagination: {
         page,
         limit,
@@ -96,9 +105,26 @@ router.get('/:tableName', async (req, res) => {
 
   } catch (error: any) {
     console.error(`[RS Integration] Error fetching RS data:`, error);
-    res.status(500).json({ 
+
+    // If RS schema/tables are not installed yet, treat as "no data" instead of hard-failing.
+    // Postgres: 42P01 = undefined_table (e.g. relation "rs.seller_invoices" does not exist)
+    if (error?.code === "42P01") {
+      return res.json({
+        data: [],
+        pagination: {
+          page: parseInt(req.query.page as string) || 1,
+          limit: parseInt(req.query.limit as string) || 500,
+          total: 0,
+          totalPages: 0,
+          hasMore: false,
+        },
+        warning: "RS schema/tables are not installed in the database yet.",
+      });
+    }
+
+    res.status(500).json({
       message: 'Failed to fetch RS integration data',
-      error: error.message 
+      error: error.message
     });
   }
 });

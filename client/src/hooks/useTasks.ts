@@ -72,7 +72,7 @@ export const useTasks = (filters?: TaskFilters) => {
         .from("tasks")
         .select(`
           *,
-          assigned_to_user:assigned_to(full_name, avatar_url)
+          assigned_to_user:profiles!tasks_assigned_to_profiles_id_fk(full_name, avatar_url)
         `)
         .order("created_at", { ascending: false });
 
@@ -236,9 +236,9 @@ export const useTasksByStatus = (workflowJobId?: string) => {
         .from("tasks")
         .select(`
           *,
-          assigned_to_user:assigned_to(full_name, avatar_url)
+          assigned_to_user:profiles!tasks_assigned_to_profiles_id_fk(full_name, avatar_url)
         `)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false});
 
       if (workflowJobId) {
         query = query.eq("workflow_id", workflowJobId);

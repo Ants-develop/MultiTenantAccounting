@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { activityLogs, users, companies } from "@shared/schema";
+import { activityLogs, profiles, companies } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 // Activity action types for consistent logging
@@ -105,7 +105,7 @@ export const RESOURCE_TYPES = {
 
 // Activity context interface
 interface ActivityContext {
-  userId?: number | null; // Optional to allow logging for unauthenticated users
+  userId?: string | null; // Optional to allow logging for unauthenticated users
   companyId?: number;
   ipAddress?: string;
   userAgent?: string;
@@ -117,7 +117,7 @@ interface ActivityContext {
 interface ActivityDetails {
   action: string;
   resource: string;
-  resourceId?: number;
+  resourceId?: string | number;
   oldValues?: Record<string, any>;
   newValues?: Record<string, any>;
   metadata?: Record<string, any>;
@@ -136,7 +136,7 @@ class ActivityLogger {
   ): Promise<void> {
     try {
       // Normalize userId: use null for 0, undefined, or invalid values
-      const validUserId = context.userId && context.userId > 0 ? context.userId : null;
+      const validUserId = context.userId || null;
 
       // Get user and company information for better context
       const [user, company] = await Promise.all([
@@ -153,7 +153,7 @@ class ActivityLogger {
         companyId: context.companyId || null,
         action: details.action,
         resource: details.resource,
-        resourceId: details.resourceId || null,
+        resourceId: details.resourceId ? String(details.resourceId) : null,
         details: formattedDetails,
         ipAddress: context.ipAddress || null,
         userAgent: context.userAgent || null,
@@ -279,12 +279,12 @@ class ActivityLogger {
           timestamp: activityLogs.timestamp,
           ipAddress: activityLogs.ipAddress,
           userAgent: activityLogs.userAgent,
-          username: users.username,
-          firstName: users.firstName,
-          lastName: users.lastName,
+          username: profiles.username,
+          firstName: profiles.firstName,
+          lastName: profiles.lastName,
         })
         .from(activityLogs)
-        .leftJoin(users, eq(activityLogs.userId, users.id))
+        .leftJoin(profiles, eq(activityLogs.userId, profiles.id))
         .orderBy(activityLogs.timestamp)
         .limit(limit);
 
@@ -309,9 +309,9 @@ class ActivityLogger {
   /**
    * Private helper methods
    */
-  private async getUserInfo(userId: number) {
+  private async getUserInfo(userId: string) {
     try {
-      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      const [user] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
       return user;
     } catch (error) {
       console.error('Failed to get user info for activity log:', error);

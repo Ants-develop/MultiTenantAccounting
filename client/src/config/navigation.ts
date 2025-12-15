@@ -24,7 +24,11 @@ import {
     Link,
     Archive,
     HardDrive,
-    Lock
+    Lock,
+    CreditCard,
+    FileCheck,
+    FileBarChart,
+    Landmark
 } from "lucide-react";
 
 export interface NavigationItem {
@@ -99,15 +103,15 @@ export const practiceManagementNavigation: NavigationItem[] = [
         icon: Lock,
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
     },
+    {
+        name: "Billing",
+        href: "/billing",
+        icon: CreditCard,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
 ];
 
-export const dataWarehouseNavigation: NavigationItem[] = [
-    {
-        name: "Chart of Accounts",
-        href: "/accounting/chart-of-accounts",
-        icon: List,
-        permission: "ACCOUNTS_VIEW",
-    },
+export const aiBookkeepingNavigation: NavigationItem[] = [
     {
         name: "Journal Entries",
         href: "/accounting/journal-entries",
@@ -115,20 +119,71 @@ export const dataWarehouseNavigation: NavigationItem[] = [
         permission: "JOURNAL_VIEW",
     },
     {
-        name: "Bank Accounts",
+        name: "Chart of Accounts",
+        href: "/accounting/chart-of-accounts",
+        icon: List,
+        permission: "ACCOUNTS_VIEW",
+    },
+];
+
+export const dataWarehouseNavigation: NavigationItem[] = [
+    {
+        name: "Bank Data",
         href: "/bank/accounts",
         icon: University,
         permission: "BANK_VIEW",
     },
     {
-        name: "Financial Statements",
+        name: "rs.ge Data",
+        href: "/rs-data",
+        icon: Database,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "Documents",
+        href: "/documents",
+        icon: File,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+];
+
+export const reportingNavigation: NavigationItem[] = [
+    {
+        name: "Financial Reports",
         href: "/financial-statements",
         icon: ChartBar,
         permission: "REPORTING_VIEW",
     },
     {
-        name: "Audit",
-        href: "/audit",
+        name: "Managerial Reports",
+        href: "/reporting/managerial-reports",
+        icon: ChartBar,
+        permission: "REPORTING_VIEW",
+    },
+    {
+        name: "Tax Declarations",
+        href: "/reporting/tax-declarations",
+        icon: FileCheck,
+        permission: "REPORTING_VIEW",
+    },
+];
+
+export const auditNavigation: NavigationItem[] = [
+    {
+        name: "Check Bank",
+        href: "/audit/bank-transactions",
+        icon: Shield,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "Check Rs.ge",
+        href: "/audit/rs-ge",
+        icon: Shield,
+        permission: "SYSTEM_VIEW_ALL_COMPANIES",
+    },
+    {
+        name: "Check Journals",
+        href: "/audit/journal-entries",
         icon: Shield,
         permission: "SYSTEM_VIEW_ALL_COMPANIES",
     },
@@ -183,12 +238,6 @@ export const additionalPagesNavigation: NavigationItem[] = [
         icon: Zap,
         permission: "TASKS_VIEW",
     },
-    // {
-    //     name: "Email Inbox",
-    //     href: "/email",
-    //     icon: Mail,
-    //     permission: "SYSTEM_VIEW_ALL_COMPANIES",
-    // },
     {
         name: "MSSQL Import",
         href: "/mssql-import",
@@ -202,65 +251,28 @@ export const additionalPagesNavigation: NavigationItem[] = [
         requiresGlobalAdmin: true,
     },
     {
-        name: "MSSQL Migration",
-        href: "/mssql-migration",
-        icon: Upload,
-        requiresGlobalAdmin: true,
-    },
-    {
-        name: "Connections",
-        href: "/connections",
-        icon: Database,
-        requiresGlobalAdmin: true,
-    },
-    {
-        name: "Bank Import",
-        href: "/bank/import",
-        icon: Upload,
-        permission: "BANK_VIEW",
-    },
-    {
-        name: "RS Integration",
-        href: "/rs-integration",
-        icon: Link,
-        permission: "SYSTEM_VIEW_ALL_COMPANIES",
-    },
-    {
-        name: "RS Admin",
-        href: "/rs-admin",
-        icon: Shield,
-        requiresGlobalAdmin: true,
-    },
-    {
-        name: "Update RS Data",
-        href: "/rs/update-data",
-        icon: Database,
-        requiresGlobalAdmin: true,
-    },
-    {
-        name: "Notifications",
-        href: "/notifications",
-        icon: Bell,
-        permission: "SYSTEM_VIEW_ALL_COMPANIES",
-    },
-    {
         name: "Storage",
         href: "/storage",
         icon: HardDrive,
-        permission: "STORAGE_VIEW",
+        requiresGlobalAdmin: true,
     },
     {
         name: "Testing",
         href: "/testing",
-        icon: Building2,
+        icon: Activity,
         requiresGlobalAdmin: true,
-    },
+    }
 ];
 
-export const allNavigation = [
+// Combined navigation for search and quick access
+export const allNavigation: NavigationItem[] = [
     ...topLevelNavigation,
     ...practiceManagementNavigation,
+    ...aiBookkeepingNavigation,
     ...dataWarehouseNavigation,
+    ...reportingNavigation,
+    ...auditNavigation,
     ...bottomNavigation,
     ...adminNavigation,
+    ...additionalPagesNavigation,
 ];

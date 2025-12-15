@@ -42,6 +42,10 @@ export function useAuth() {
 
   const loginMutation = useMutation({
     mutationFn: ({ username, password }: { username: string; password: string }) =>
+      // Supabase login uses email, but our form field is 'username' which might be email or username.
+      // For now, let's assume the user enters email in the username field if they want to login.
+      // Or we can try to resolve username to email if needed, but Supabase requires email.
+      // Let's assume the input is email for now.
       login(username, password),
     onSuccess: (data) => {
       queryClient.setQueryData(['/api/auth/me'], data);

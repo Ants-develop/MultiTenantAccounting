@@ -4,7 +4,6 @@ import { db } from "../db";
 import { sql, eq, inArray } from "drizzle-orm";
 import { clients as clientsTable } from "@shared/schema";
 import { requireAuth } from "../middleware/auth";
-import { DEFAULT_CLIENT_ID } from "../constants";
 import { getUserClientsByModule } from "../middleware/permissions";
 
 const router = express.Router();
@@ -15,7 +14,7 @@ router.use(requireAuth);
 // Get audit table data with pagination and tenant filtering
 router.get('/:tableName', async (req, res) => {
   try {
-    const userId = (req.session as any)?.userId;
+    const userId = (req as any).user?.id;
     const { tableName } = req.params;
     
     // Parse pagination parameters
@@ -31,9 +30,9 @@ router.get('/:tableName', async (req, res) => {
       clientIds = clientIdsParam.split(',').map(id => parseInt(id)).filter(id => !isNaN(id));
     }
 
-    // If no clientIds specified, use DEFAULT_CLIENT_ID
+    // If no clientIds specified, return error
     if (clientIds.length === 0) {
-      clientIds = [DEFAULT_CLIENT_ID];
+      return res.status(400).json({ message: 'Client ID is required' });
     }
 
     // Validate user has permission for all requested clients

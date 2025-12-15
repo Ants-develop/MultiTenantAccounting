@@ -38,7 +38,7 @@ export const useWorkflowAnalytics = (templateId?: string) => {
           current_stage_id,
           assigned_to,
           workflow_stages:current_stage_id(id, name, color),
-          assigned_to_user:assigned_to(id, full_name)
+          assigned_to_user:profiles!workflows_assigned_to_profiles_id_fk(id, full_name)
         `);
 
       if (templateId) {
