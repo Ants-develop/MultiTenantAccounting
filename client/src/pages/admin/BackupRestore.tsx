@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,66 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   FileArchive, RefreshCw, CheckCircle, XCircle,
-  Clock, Cloud, HardDrive, ChevronDown, ChevronRight, AlertTriangle
+  Clock, Cloud, HardDrive, ChevronDown, ChevronRight, AlertTriangle,
+  Wifi, WifiOff, Database, Loader
 } from "lucide-react";
 import { backupRestoreApi, RestoreHistory } from "@/api/backup-restore";
 import { RestoreSSH } from "@/components/RestoreSSH";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function BackupRestore() {
   const [showRestoreHistory, setShowRestoreHistory] = useState(false);
   const [expandedErrorId, setExpandedErrorId] = useState<number | null>(null);
+  const [sshStatus, setSshStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [mssqlStatus, setMssqlStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  // Check connection status on mount and periodically
+  useEffect(() => {
+    const checkConnections = async () => {
+      try {
+        // Test SSH connection using centralized apiRequest (handles auth automatically)
+        try {
+          const sshResponse = await apiRequest("GET", "/api/backup-restore/test-ssh");
+          const sshData = await sshResponse.json();
+          // Accept both 'configured' and 'connected' as valid states
+          setSshStatus(sshData.status === 'disconnected' ? 'disconnected' : 'connected');
+        } catch (err: any) {
+          console.error('SSH test error:', err);
+          setSshStatus('disconnected');
+          setConnectionError(err.message || 'SSH connection failed');
+        }
+
+        // Test MSSQL connection using centralized apiRequest
+        try {
+          const mssqlResponse = await apiRequest("GET", "/api/backup-restore/test-mssql");
+          const mssqlData = await mssqlResponse.json();
+          setMssqlStatus(mssqlData.status === 'disconnected' ? 'disconnected' : 'connected');
+          if (mssqlData.status === 'disconnected') {
+            setConnectionError(mssqlData.details || mssqlData.error || 'MSSQL connection failed');
+          } else {
+            setConnectionError(null);
+          }
+        } catch (err: any) {
+          console.error('MSSQL test error:', err);
+          setMssqlStatus('disconnected');
+          // Extract error message if available
+          if (err instanceof Error) {
+            setConnectionError(err.message);
+          } else {
+            setConnectionError('MSSQL connection failed');
+          }
+        }
+      } catch (err) {
+        console.error('Connection check failed:', err);
+      }
+    };
+
+    checkConnections();
+    // Recheck every 30 seconds
+    const interval = setInterval(checkConnections, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch restore history with auto-refresh for active restores
   const { data: restoreHistory = [], refetch: refetchHistory } = useQuery<RestoreHistory[]>({
@@ -97,13 +149,123 @@ export default function BackupRestore() {
         </div>
       </div>
 
-      {/* New SSH-Based Restore Component */}
-      <RestoreSSH
-        onComplete={(restoreId) => {
-          console.log('Restore completed:', restoreId);
-          refetchHistory();
-        }}
-      />
+      {/* Connection Status Panel */}
+      <Card className="border-l-4 border-l-blue-500">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wifi className="w-5 h-5" />
+            Connection Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* SSH Status */}
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30">
+              <div className="flex-shrink-0 pt-1">
+                {sshStatus === 'checking' && (
+                  <Loader className="w-5 h-5 text-yellow-500 animate-spin" />
+                )}
+                {sshStatus === 'connected' && (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                )}
+                {sshStatus === 'disconnected' && (
+                  <XCircle className="w-5 h-5 text-red-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm">SSH Server</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {sshStatus === 'checking' && 'Checking connection...'}
+                  {sshStatus === 'connected' && 'Connected successfully'}
+                  {sshStatus === 'disconnected' && 'Unable to connect'}
+                </p>
+                {sshStatus === 'disconnected' && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    Check SSH credentials and firewall rules
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* MSSQL Status */}
+            <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-900/30">
+              <div className="flex-shrink-0 pt-1">
+                {mssqlStatus === 'checking' && (
+                  <Loader className="w-5 h-5 text-yellow-500 animate-spin" />
+                )}
+                {mssqlStatus === 'connected' && (
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                )}
+                {mssqlStatus === 'disconnected' && (
+                  <XCircle className="w-5 h-5 text-red-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm flex items-center gap-2">
+                  <Database className="w-4 h-4" />
+                  MSSQL Database
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {mssqlStatus === 'checking' && 'Checking connection...'}
+                  {mssqlStatus === 'connected' && 'Connected successfully'}
+                  {mssqlStatus === 'disconnected' && 'Unable to connect'}
+                </p>
+                {mssqlStatus === 'disconnected' && connectionError && (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-1 break-words">
+                    {connectionError}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Connection Status Summary */}
+          <div className="mt-4 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              {sshStatus === 'connected' && mssqlStatus === 'connected' ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                    All systems ready for restore operations
+                  </span>
+                </>
+              ) : sshStatus === 'checking' || mssqlStatus === 'checking' ? (
+                <>
+                  <Loader className="w-4 h-4 text-yellow-500 animate-spin" />
+                  <span className="text-sm text-yellow-600 dark:text-yellow-400">
+                    Checking connections...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                    Some connections unavailable - restore may fail
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Restore Component - Only show if connections available */}
+      {sshStatus === 'connected' && mssqlStatus === 'connected' ? (
+        <RestoreSSH
+          onComplete={(restoreId) => {
+            console.log('Restore completed:', restoreId);
+            refetchHistory();
+          }}
+        />
+      ) : (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            Cannot start restore: {sshStatus !== 'connected' ? 'SSH connection unavailable' : ''} {mssqlStatus !== 'connected' ? 'MSSQL connection unavailable' : ''}.
+            Please check your connection settings and try again.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Restore History */}
       <Card>

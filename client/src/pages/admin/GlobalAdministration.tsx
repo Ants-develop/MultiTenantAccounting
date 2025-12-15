@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Role, GlobalRole } from "@shared/permissions";
 import { ClientCompaniesGrid } from "@/components/admin/ClientCompaniesGrid";
+import SystemSettings from "./SystemSettings";
 
 interface ClientCompanyUserPreview {
   id: number;
@@ -685,11 +686,12 @@ export default function GlobalAdministration() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="companies">Client Companies</TabsTrigger>
           <TabsTrigger value="users">Global Users</TabsTrigger>
           <TabsTrigger value="activity">Activity Logs</TabsTrigger>
+          <TabsTrigger value="settings">System Settings</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -1287,6 +1289,10 @@ export default function GlobalAdministration() {
           )}
         </TabsContent>
 
+        {/* Settings Tab */}
+        <TabsContent value="settings">
+          <SystemSettings />
+        </TabsContent>
 
       </Tabs>
 

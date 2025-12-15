@@ -35,6 +35,7 @@ import connectionsRouter from "./api/connections";
 import mssqlRestoreSshRouter from "./routes/mssql-restore-ssh";
 import feedRouter from "./routes/feed";
 import documentsRouter from "./api/documents";
+import settingsRouter from "./api/settings";
 // messagesRouter and usersRouter removed - now handled via Supabase RLS
 // import messagesRouter from "./api/messages";
 import usersRouter from "./api/users";
@@ -97,7 +98,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/home", requireAuth, homeRouter);
   app.use("/api/customers-vendors", requireAuth, customersVendorsRouter);
   app.use("/api/mssql-import", requireAuth, mssqlImportRouter); // Uses service role key for backend operations
+  
+  // Mount restore-ssh router first so it handles /restore-ssh paths
+  app.use("/api/mssql", requireAuth, mssqlRestoreSshRouter);
   app.use("/api/mssql", requireAuth, mssqlImportRouter); // Alias for legacy client calls
+  
   app.use("/api/documents", requireAuth, documentsRouter);
   app.use("/api/users", requireAuth, usersRouter);
   app.use("/api/user-companies", requireAuth, userCompaniesRouter);
@@ -110,8 +115,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/backup-restore", requireAuth, backupRestoreRouter);
   app.use("/api/storage", requireAuth, storageRouter);
   app.use("/api/connections", requireAuth, connectionsRouter);
-  app.use("/api/mssql-restore-ssh", requireAuth, mssqlRestoreSshRouter);
+  // app.use("/api/mssql-restore-ssh", requireAuth, mssqlRestoreSshRouter); // Moved to /api/mssql
   app.use("/api/feed", requireAuth, feedRouter);
+  app.use("/api/settings", requireAuth, settingsRouter);
   
   // Removed routes (now via Supabase RLS):
   // app.use("/api/messages", requireAuth, messagesRouter);

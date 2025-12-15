@@ -6,15 +6,18 @@ import { eq } from "drizzle-orm";
 
 // Auth middleware - requires user to be logged in via Supabase Auth
 export const requireAuth = async (req: any, res: any, next: any) => {
+  let token: string | undefined;
+  
   const authHeader = req.headers.authorization;
-
-  if (!authHeader) {
-    return res.status(401).json({ message: 'Authentication required' });
+  if (authHeader) {
+    token = authHeader.split(' ')[1];
+  } else if (req.query && req.query.token) {
+    // Support token in query param for EventSource/SSE connections
+    token = req.query.token as string;
   }
 
-  const token = authHeader.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ message: 'Invalid authentication token' });
+    return res.status(401).json({ message: 'Authentication required' });
   }
 
   try {

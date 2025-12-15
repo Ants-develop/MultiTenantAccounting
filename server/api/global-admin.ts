@@ -323,7 +323,7 @@ router.post("/users", async (req, res) => {
       ACTIVITY_ACTIONS.USER_CREATE,
       RESOURCE_TYPES.USER,
       {
-        userId: (req as any).session?.userId || null,
+        userId: (req as any).user?.id || null,
         ipAddress: req.ip,
         userAgent: req.get("User-Agent") || undefined,
       },
@@ -563,8 +563,8 @@ router.post("/clients", async (req, res) => {
       })
       .returning();
 
-    // Get the current user ID from session (this should be available from the requireGlobalAdmin middleware)
-    const currentUserId = (req as any).session?.userId;
+    // Get the current user ID from Supabase Auth (set by requireGlobalAdmin middleware)
+    const currentUserId = (req as any).user?.id;
 
     // Define available modules
     const availableModules = ['audit', 'accounting', 'banking'];
@@ -1102,7 +1102,7 @@ router.put("/clients/:id", async (req, res) => {
         ACTIVITY_ACTIONS.COMPANY_UPDATE,
         RESOURCE_TYPES.COMPANY,
         {
-          userId: (req as any).session?.userId,
+          userId: (req as any).user?.id,
           companyId: clientId,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
@@ -1206,7 +1206,7 @@ router.delete("/clients/:id", async (req, res) => {
         ACTIVITY_ACTIONS.COMPANY_DELETE,
         RESOURCE_TYPES.COMPANY,
         {
-          userId: (req as any).session?.userId || null,
+          userId: (req as any).user?.id || null,
           companyId: undefined, // Company is deleted, so no current company context
           ipAddress: req.ip,
           userAgent: req.get("User-Agent"),
@@ -1231,7 +1231,7 @@ router.delete("/clients/:id", async (req, res) => {
         ACTIVITY_ACTIONS.COMPANY_DELETE,
         RESOURCE_TYPES.COMPANY,
         {
-          userId: (req as any).session?.userId || null,
+          userId: (req as any).user?.id || null,
           companyId: undefined,
           ipAddress: req.ip,
           userAgent: req.get("User-Agent")
@@ -1519,7 +1519,7 @@ router.put("/user-assignments/:assignmentId", async (req, res) => {
       .returning();
 
     // Log activity
-    const currentUserId = (req as any).session?.userId || 1; // Use system user if no session
+    const currentUserId = (req as any).user?.id || null; // Use Supabase auth user
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.ROLE_CHANGE,
       RESOURCE_TYPES.USER_COMPANY,
@@ -1569,7 +1569,7 @@ router.delete("/user-assignments/:assignmentId", async (req, res) => {
       .where(eq(userCompanies.id, assignmentId));
 
     // Log activity
-    const currentUserId = (req as any).session?.userId || 1; // Use system user if no session
+    const currentUserId = (req as any).user?.id || null; // Use Supabase auth user
     await activityLogger.logCRUD(
       ACTIVITY_ACTIONS.USER_UNASSIGN,
       RESOURCE_TYPES.USER_COMPANY,

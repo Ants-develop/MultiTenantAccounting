@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle2, XCircle, Terminal, Cloud, RefreshCw } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiRequest } from '@/lib/queryClient';
 import { backupRestoreApi, DriveFile } from '@/api/backup-restore';
 
 interface RestoreLog {
@@ -71,20 +72,8 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
         }
 
         try {
-            const response = await fetch('/api/mssql/extract-date', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ fileName: fileName.trim() }),
-            });
-
+            const response = await apiRequest('POST', '/api/mssql/extract-date', { fileName: fileName.trim() });
             const data = await response.json();
-
-            if (!response.ok) {
-                setError(data.error || data.message || 'Failed to extract date');
-                setExtractedDate(null);
-                return;
-            }
-
             setExtractedDate(data.extractedDate);
             setError(null);
             addLog(`Date extracted from filename: ${data.extractedDate}`, 'success');
@@ -104,24 +93,13 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
 
             // Auto-extract date from selected filename
             try {
-                const response = await fetch('/api/mssql/extract-date', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ fileName: selectedFile.name }),
-                });
-
+                const response = await apiRequest('POST', '/api/mssql/extract-date', { fileName: selectedFile.name });
                 const data = await response.json();
-
-                if (response.ok) {
-                    setExtractedDate(data.extractedDate);
-                    addLog(`Selected: ${selectedFile.name}`, 'info');
-                    addLog(`Date extracted: ${data.extractedDate}`, 'success');
-                } else {
-                    setError(data.error || 'Failed to extract date from selected file');
-                    setExtractedDate(null);
-                }
+                setExtractedDate(data.extractedDate);
+                addLog(`Selected: ${selectedFile.name}`, 'info');
+                addLog(`Date extracted: ${data.extractedDate}`, 'success');
             } catch (err: any) {
-                setError(err.message || 'Failed to extract date');
+                setError(err.message || 'Failed to extract date from selected file');
                 setExtractedDate(null);
             }
         }
@@ -148,9 +126,24 @@ export function RestoreSSH({ onComplete }: RestoreSSHProps) {
                 eventSourceRef.current.close();
             }
 
+            // Get auth token for EventSource (SSE cannot use Authorization headers)
+            const { supabase } = await import('@/lib/supabase');
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+                setError('Authentication required');
+                setIsRestoring(false);
+                setStatus('failed');
+                addLog('Error: Not authenticated', 'error');
+                return;
+            }
+
             // Create EventSource for Server-Sent Events
+            // Note: EventSource doesn't support Authorization headers, so we pass token as query param
+            // The backend should extract it from query and validate
             const eventSource = new EventSource(
-                `/api/mssql/restore-ssh?fileName=${encodeURIComponent(fileName.trim())}`
+                `/api/mssql/restore-ssh?fileName=${encodeURIComponent(fileName.trim())}&token=${encodeURIComponent(token)}`
             );
             eventSourceRef.current = eventSource;
 

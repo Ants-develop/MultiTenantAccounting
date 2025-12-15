@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getCurrentUser, login, logout, register } from "@/lib/auth";
 import type { AuthResponse } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
 export function useAuth() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const { data, isLoading, error } = useQuery<AuthResponse | null>({
     queryKey: ['/api/auth/me'],
@@ -54,6 +56,8 @@ export function useAuth() {
         title: "Login successful",
         description: `Welcome back to ${companyName}!`,
       });
+      // Redirect to home page after successful login
+      setLocation('/');
     },
     onError: (error: any) => {
       toast({
@@ -79,6 +83,8 @@ export function useAuth() {
         title: "Registration successful",
         description: `Welcome to ${companyName}!`,
       });
+      // Redirect to home page after successful registration
+      setLocation('/');
     },
     onError: (error: any) => {
       toast({

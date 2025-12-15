@@ -98,6 +98,193 @@ export const rsUsers = rs.table("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// RS Credentials - for RS.ge authentication
+export const rsCredentials = rs.table("credentials", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  clientId: uuid("client_id").notNull().references(() => clients.id, { onDelete: "cascade" }),
+  username: text("username").notNull(),
+  password: text("password").notNull(),
+  encryptedPassword: text("encrypted_password").notNull(),
+  apiKey: text("api_key"),
+  refreshToken: text("refresh_token"),
+  expiresAt: timestamp("expires_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  isActive: boolean("is_active").default(true),
+});
+
+// RS Seller Invoices
+export const rsSellerInvoices = rs.table("seller_invoices", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  invoiceNumber: text("INVOICE_NUMBER"),
+  invoiceDate: timestamp("INVOICE_DATE"),
+  dueDate: timestamp("DUE_DATE"),
+  invoiceAmount: numeric("INVOICE_AMOUNT", { precision: 18, scale: 2 }),
+  vatAmount: numeric("VAT_AMOUNT", { precision: 18, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  buyerTin: text("BUYER_TIN"),
+  buyerName: text("BUYER_NAME"),
+  status: text("STATUS"),
+  currency: text("CURRENCY").default("GEL"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+  notes: text("NOTES"),
+});
+
+// RS Buyer Invoices
+export const rsBuyerInvoices = rs.table("buyer_invoices", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  invoiceNumber: text("INVOICE_NUMBER"),
+  invoiceDate: timestamp("INVOICE_DATE"),
+  dueDate: timestamp("DUE_DATE"),
+  invoiceAmount: numeric("INVOICE_AMOUNT", { precision: 18, scale: 2 }),
+  vatAmount: numeric("VAT_AMOUNT", { precision: 18, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  sellerTin: text("SELLER_TIN"),
+  sellerName: text("SELLER_NAME"),
+  status: text("STATUS"),
+  currency: text("CURRENCY").default("GEL"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+  notes: text("NOTES"),
+});
+
+// RS Spec Seller Invoices (Special Regime)
+export const rsSpecSellerInvoices = rs.table("spec_seller_invoices", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  invoiceNumber: text("INVOICE_NUMBER"),
+  invoiceDate: timestamp("INVOICE_DATE"),
+  invoiceAmount: numeric("INVOICE_AMOUNT", { precision: 18, scale: 2 }),
+  buyerTin: text("BUYER_TIN"),
+  buyerName: text("BUYER_NAME"),
+  status: text("STATUS"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Spec Buyer Invoices (Special Regime)
+export const rsSpecBuyerInvoices = rs.table("spec_buyer_invoices", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  invoiceNumber: text("INVOICE_NUMBER"),
+  invoiceDate: timestamp("INVOICE_DATE"),
+  invoiceAmount: numeric("INVOICE_AMOUNT", { precision: 18, scale: 2 }),
+  sellerTin: text("SELLER_TIN"),
+  sellerName: text("SELLER_NAME"),
+  status: text("STATUS"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Sellers Waybills
+export const rsSellersWaybills = rs.table("sellers_waybills", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  waybillNumber: text("WAYBILL_NUMBER"),
+  waybillDate: timestamp("WAYBILL_DATE"),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  buyerTin: text("BUYER_TIN"),
+  buyerName: text("BUYER_NAME"),
+  status: text("STATUS"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Buyers Waybills
+export const rsBuyersWaybills = rs.table("buyers_waybills", {
+  id: text("ID").primaryKey(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  waybillNumber: text("WAYBILL_NUMBER"),
+  waybillDate: timestamp("WAYBILL_DATE"),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  sellerTin: text("SELLER_TIN"),
+  sellerName: text("SELLER_NAME"),
+  status: text("STATUS"),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Sellers Waybill Goods (Line Items)
+export const rsSellersWaybillGoods = rs.table("sellers_waybill_goods", {
+  id: text("ID").primaryKey(),
+  waybillId: text("WAYBILL_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  goodsDescription: text("GOODS_DESCRIPTION"),
+  quantity: numeric("QUANTITY", { precision: 18, scale: 2 }),
+  unitPrice: numeric("UNIT_PRICE", { precision: 18, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Buyers Waybill Goods (Line Items)
+export const rsBuyersWaybillGoods = rs.table("buyers_waybill_goods", {
+  id: text("ID").primaryKey(),
+  waybillId: text("WAYBILL_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  goodsDescription: text("GOODS_DESCRIPTION"),
+  quantity: numeric("QUANTITY", { precision: 18, scale: 2 }),
+  unitPrice: numeric("UNIT_PRICE", { precision: 18, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Sellers Invoice Goods (Line Items)
+export const rsSellersInvoiceGoods = rs.table("sellers_invoice_goods", {
+  id: text("ID").primaryKey(),
+  invoiceId: text("INVOICE_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  goodsDescription: text("GOODS_DESCRIPTION"),
+  quantity: numeric("QUANTITY", { precision: 18, scale: 2 }),
+  unitPrice: numeric("UNIT_PRICE", { precision: 18, scale: 2 }),
+  vatRate: numeric("VAT_RATE", { precision: 5, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Buyers Invoice Goods (Line Items)
+export const rsBuyersInvoiceGoods = rs.table("buyers_invoice_goods", {
+  id: text("ID").primaryKey(),
+  invoiceId: text("INVOICE_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  goodsDescription: text("GOODS_DESCRIPTION"),
+  quantity: numeric("QUANTITY", { precision: 18, scale: 2 }),
+  unitPrice: numeric("UNIT_PRICE", { precision: 18, scale: 2 }),
+  vatRate: numeric("VAT_RATE", { precision: 5, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Spec Invoice Goods (Line Items for Special Regime)
+export const rsSpecInvoiceGoods = rs.table("spec_invoice_goods", {
+  id: text("ID").primaryKey(),
+  invoiceId: text("INVOICE_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  goodsDescription: text("GOODS_DESCRIPTION"),
+  quantity: numeric("QUANTITY", { precision: 18, scale: 2 }),
+  unitPrice: numeric("UNIT_PRICE", { precision: 18, scale: 2 }),
+  totalAmount: numeric("TOTAL_AMOUNT", { precision: 18, scale: 2 }),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
+// RS Waybill Invoices (Linking Table)
+export const rsWaybillInvoices = rs.table("waybill_invoices", {
+  id: text("ID").primaryKey(),
+  waybillId: text("WAYBILL_ID").notNull(),
+  invoiceId: text("INVOICE_ID").notNull(),
+  companyTin: text("COMPANY_TIN").notNull(),
+  createdAt: timestamp("CREATED_AT"),
+  updatedAt: timestamp("UPDATED_AT"),
+});
+
 // User-Company relationships with roles
 export const userCompanies = pgTable("user_companies", {
   id: serial("id").primaryKey(),
@@ -430,6 +617,20 @@ export const mainCompanySettings = pgTable("main_company_settings", {
   paymentGateway: boolean("payment_gateway").default(false),
   taxService: boolean("tax_service").default(false),
   reportingTools: boolean("reporting_tools").default(false),
+  // SSH Connection Settings
+  sshHost: text("ssh_host"),
+  sshPort: integer("ssh_port").default(22),
+  sshUser: text("ssh_user"),
+  sshKeyPath: text("ssh_key_path"),
+  sshKeyContent: text("ssh_key_content"), // Store encrypted
+  // MSSQL Connection Settings
+  mssqlServer: text("mssql_server"),
+  mssqlPort: integer("mssql_port").default(1433),
+  mssqlUser: text("mssql_user"),
+  mssqlPassword: text("mssql_password"), // Store encrypted
+  mssqlDatabase: text("mssql_database"),
+  mssqlEncrypt: boolean("mssql_encrypt").default(true),
+  mssqlTrustServerCertificate: boolean("mssql_trust_server_cert").default(false),
   // Backup Settings
   autoBackup: boolean("auto_backup").default(false),
   backupFrequency: text("backup_frequency").default("weekly"),

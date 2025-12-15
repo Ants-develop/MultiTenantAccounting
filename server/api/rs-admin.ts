@@ -408,7 +408,7 @@ router.get("/credentials", async (req: Request, res: Response) => {
 router.post("/credentials", async (req: Request, res: Response) => {
   try {
     const payload = createCredentialsSchema.parse(req.body);
-    const userId = req.user?.id as number;
+    const userId = req.user?.id as string;
 
     const trimmedTin = payload.companyTin.trim();
     const trimmedCompanyName = payload.companyName.trim();
@@ -519,7 +519,7 @@ router.put("/credentials/:id", async (req: Request, res: Response) => {
 
   try {
     const payload = updateCredentialsSchema.parse(req.body);
-    const userId = req.user?.id as number;
+    const userId = req.user?.id as string;
 
     // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
@@ -625,7 +625,7 @@ router.delete("/credentials/:id", async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = req.user?.id as number;
+    const userId = req.user?.id as string;
 
     // Check if credential exists (by ID only, not by clientId)
     const [existing] = await db
@@ -670,7 +670,7 @@ router.post("/credentials/validate/:id", async (req: Request, res: Response) => 
   }
 
   try {
-    const userId = req.user?.id as number;
+    const userId = req.user?.id as string;
 
     // Get credential from database
     const [credential] = await db
@@ -736,7 +736,7 @@ router.post("/credentials/validate/:id", async (req: Request, res: Response) => 
 // Validate all stored credentials
 router.post("/credentials/validate-all", async (req: Request, res: Response) => {
   try {
-    const userId = req.user?.id as number;
+    const userId = req.user?.id as string;
 
     // Get all credentials
     const allCredentials = await db

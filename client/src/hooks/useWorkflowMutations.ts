@@ -112,10 +112,32 @@ export const useWorkflowMutations = () => {
     },
   });
 
+  const completeWorkflow = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase
+        .from("workflows")
+        .update({ status: "completed" })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      toast.success("Job completed");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Failed to complete job");
+    },
+  });
+
   return {
     createWorkflow,
     updateWorkflow,
     deleteWorkflow,
     transitionWorkflowStage,
+    completeWorkflow,
   };
 };

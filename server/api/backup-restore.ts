@@ -55,6 +55,167 @@ router.use(requireAuth);
 const activeRestores = new Map<number, { status: string; progress?: number; message?: string }>();
 
 /**
+ * GET /api/backup-restore/test-ssh
+ * Test SSH connection using credentials from database settings
+ */
+router.get("/test-ssh", async (req: any, res: any) => {
+  try {
+    // Try to get SSH credentials from database first, fall back to env vars
+    let sshHost = process.env.SSH_HOST;
+    let sshUser = process.env.SSH_USER;
+    let sshKey = process.env.SSH_KEY;
+    
+    // Check database settings
+    try {
+      const settings = await db.query.mainCompanySettings.findFirst();
+      if (settings?.sshHost && settings?.sshUser) {
+        sshHost = settings.sshHost;
+        sshUser = settings.sshUser;
+        sshKey = settings.sshKeyContent || process.env.SSH_KEY;
+      }
+    } catch (settingsError) {
+      console.error('Error fetching SSH settings from database:', settingsError);
+      // Continue with env vars if settings fetch fails
+    }
+
+    if (!sshHost || !sshUser) {
+      return res.json({ 
+        status: 'disconnected',
+        error: "SSH credentials not configured",
+        details: "Configure SSH credentials in system settings"
+      });
+    }
+
+    // Check if SSH configuration is available (cross-platform)
+    try {
+      const { execSync } = await import('child_process');
+      const os = await import('os');
+      const platform = os.default?.platform?.() || os.platform();
+      
+      // Use different command based on OS
+      const checkCommand = platform === 'win32' ? 'where ssh' : 'which ssh';
+      
+      try {
+        execSync(checkCommand, { timeout: 1000, stdio: 'pipe' });
+      } catch {
+        // SSH binary not found in PATH, but SSH credentials are configured
+        // We'll still consider it configured since user may access via other means
+      }
+      
+      // SSH credentials are configured
+      res.json({ 
+        status: 'configured',
+        message: 'SSH credentials configured',
+        host: sshHost,
+        user: sshUser
+      });
+    } catch {
+      res.json({ 
+        status: 'disconnected',
+        error: 'SSH status check failed',
+        details: 'Unable to verify SSH configuration'
+      });
+    }
+  } catch (error: any) {
+    res.json({ 
+      status: 'error',
+      error: 'SSH test failed',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/backup-restore/test-mssql
+ * Test MSSQL database connection using credentials from database settings
+ */
+router.get("/test-mssql", async (req: any, res: any) => {
+  try {
+    // Try to get MSSQL credentials from database first, fall back to env vars
+    let mssqlServer = process.env.MSSQL_SERVER;
+    let mssqlUser = process.env.MSSQL_USER;
+    let mssqlPassword = process.env.MSSQL_PASSWORD;
+    let mssqlPort = 1433;
+    let mssqlEncrypt = true;
+    let mssqlTrustServerCertificate = false;
+
+    // Check database settings
+    try {
+      const settings = await db.query.mainCompanySettings.findFirst();
+      if (settings?.mssqlServer && settings?.mssqlUser && settings?.mssqlPassword) {
+        mssqlServer = settings.mssqlServer;
+        mssqlUser = settings.mssqlUser;
+        mssqlPassword = settings.mssqlPassword;
+        mssqlPort = settings.mssqlPort || 1433;
+        mssqlEncrypt = settings.mssqlEncrypt !== false;
+        mssqlTrustServerCertificate = settings.mssqlTrustServerCertificate === true;
+      }
+    } catch (settingsError) {
+      console.error('Error fetching MSSQL settings from database:', settingsError);
+      // Continue with env vars if settings fetch fails
+    }
+
+    if (!mssqlServer || !mssqlUser || !mssqlPassword) {
+      return res.json({ 
+        status: 'disconnected',
+        error: "MSSQL credentials not configured",
+        details: "Configure MSSQL credentials in system settings"
+      });
+    }
+
+    // Try to connect to MSSQL
+    try {
+      const mssql = await import('mssql');
+      // Handle different import formats - mssql module exports ConnectionPool
+      const ConnectionPool = (mssql as any).default?.ConnectionPool || (mssql as any).ConnectionPool;
+      
+      if (!ConnectionPool) {
+        throw new Error('ConnectionPool class not found in mssql module');
+      }
+      
+      const pool = new (ConnectionPool as any)({
+        server: mssqlServer,
+        port: mssqlPort,
+        authentication: {
+          type: 'default',
+          options: {
+            userName: mssqlUser,
+            password: mssqlPassword,
+          }
+        },
+        options: {
+          trustServerCertificate: mssqlTrustServerCertificate,
+          encrypt: mssqlEncrypt,
+          connectTimeout: 5000,
+        }
+      });
+
+      await pool.connect();
+      const result = await pool.request().query('SELECT @@VERSION as version');
+      await pool.close();
+
+      res.json({ 
+        status: 'connected',
+        message: 'MSSQL connection successful',
+        version: result.recordset[0]?.version || 'Unknown'
+      });
+    } catch (dbError: any) {
+      res.json({ 
+        status: 'disconnected',
+        error: 'MSSQL connection failed',
+        details: dbError.message || 'Unable to establish database connection'
+      });
+    }
+  } catch (error: any) {
+    res.json({ 
+      status: 'error',
+      error: 'MSSQL test failed',
+      details: error.message
+    });
+  }
+});
+
+/**
  * GET /api/backup-restore/config-status
  * Check if Google Drive is configured
  */

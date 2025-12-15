@@ -159,6 +159,7 @@
     "esbuild": "^0.25.0",
     "lovable-tagger": "^1.1.11",
     "postcss": "^8.4.47",
+    "supabase": "^2.67.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.1",
     "typescript": "^5.3.3",

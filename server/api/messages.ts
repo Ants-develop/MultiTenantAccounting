@@ -3,24 +3,18 @@ import { db } from "../db";
 import { messages, conversations, conversationParticipants, profiles } from "@shared/schema";
 import { eq, and, ne } from "drizzle-orm";
 import { createNotification } from "../services/notification";
+import { requireAuth } from "../middleware/auth";
 
 const router = Router();
 
-// Auth middleware
-const requireAuth = (req: any, res: any, next: any) => {
-  if (!req.user?.id) {
-    return res.status(401).json({ message: 'Authentication required' });
-  }
-  next();
-};
-
+// Use Supabase Auth middleware
 router.use(requireAuth);
 
 // Send a message
 router.post("/", async (req, res) => {
   try {
     const { conversationId, content } = req.body;
-    const senderId = req.user?.id as number;
+    const senderId = req.user?.id as string;
 
     if (!conversationId || !content) {
       return res.status(400).json({ message: "Conversation ID and content are required" });

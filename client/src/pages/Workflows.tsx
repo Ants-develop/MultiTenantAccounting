@@ -8,12 +8,17 @@ import { useWorkflowStages } from "@/hooks/useWorkflowStages";
 import { useWorkflows } from "@/hooks/useWorkflows";
 import { JobsKanban } from "@/components/workflows/JobsKanban";
 import { CreateJobDialog } from "@/components/workflows/CreateJobDialog";
+import { JobDetailsDrawer } from "@/components/workflows/JobDetailsDrawer";
+import { PipelineList } from "@/components/workflows/PipelineList";
+import { WorkflowAnalyticsDashboard } from "@/components/workflows/WorkflowAnalyticsDashboard";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 
 const Workflows = () => {
   const [createJobOpen, setCreateJobOpen] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
 
   // Fetch the first active template to show stages
   const { data: templates } = useWorkflowTemplates({ is_active: true });
@@ -128,7 +133,11 @@ const Workflows = () => {
 
           {/* Kanban Board */}
           {stages && stages.length > 0 ? (
-            <JobsKanban stages={stages} />
+            <JobsKanban 
+              stages={stages} 
+              filters={{ template_id: templateId }}
+              onJobClick={(jobId) => setSelectedJobId(jobId)}
+            />
           ) : (
             <Card>
               <CardContent className="py-12 text-center">
@@ -141,23 +150,11 @@ const Workflows = () => {
         </TabsContent>
 
         <TabsContent value="pipelines">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Pipeline management coming soon
-              </p>
-            </CardContent>
-          </Card>
+          <PipelineList onEditPipeline={(templateId) => setSelectedPipelineId(templateId)} />
         </TabsContent>
 
         <TabsContent value="analytics">
-          <Card>
-            <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">
-                Analytics dashboard coming soon
-              </p>
-            </CardContent>
-          </Card>
+          <WorkflowAnalyticsDashboard />
         </TabsContent>
       </Tabs>
 
@@ -168,6 +165,13 @@ const Workflows = () => {
         clients={clients}
         users={users}
         defaultTemplateId={templateId}
+      />
+
+      {/* Job Details Drawer */}
+      <JobDetailsDrawer
+        jobId={selectedJobId}
+        open={!!selectedJobId}
+        onOpenChange={(open) => !open && setSelectedJobId(null)}
       />
     </div>
   );

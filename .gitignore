@@ -23,6 +23,10 @@ multitenant-accounting@*
 .env.*.local
 .env.neon
 
+# MCP configurations (contain sensitive database credentials)
+.mcp/
+cline_mcp_settings.json
+
 # Build outputs
 dist/
 build/
